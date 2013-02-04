@@ -1,7 +1,7 @@
 Scrape Infinity
 ==============
 
-Uses [PhantomJS](https://github.com/ariya/phantomjs) and [CasperJS](https://github.com/n1k0/casperjs) to login to scrape thermostat data from mycarriertouch.com site.
+Uses [PhantomJS](https://github.com/ariya/phantomjs) and [CasperJS](https://github.com/n1k0/casperjs) to login and scrape thermostat data from mycarriertouch.com site.
 
 Only tested on my own single zone Carrier Infinity Touch thermostat, 
 but I'd welcome patches from anyone with multiple zones or an original Infinity series.
