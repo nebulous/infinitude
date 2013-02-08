@@ -14,3 +14,17 @@ least, access to a public API!
 Can the Flash/Air application be scraped or controlled? Input welcomed. I miss my Proliphix.
 
 ./scrape_infinity.sh to log your data after setting your username and password
+
+
+###Assorted device information
+SOC used is a SuperH (SH2A) architecture 7267 running at 144Mhz
+http://www.renesas.com/products/mpumcu/superh/sh7260/sh7266/device/R5S72670W144FP.jsp
+
+It has a 14 pin H-UDI debug connector as well as at least one debug serial port broken out.
+All control apps seem to be based on Adobe AIR. Does it run Linux? Can it be rooted?
+
+Proprietary ABCD port is really just RS485 serial(AB) and 24VAC(CD). There has been [some discussion](http://cocoontech.com/forums/topic/11372-carrier-infinity/page-4) of reverse 
+engineering the control protocol, but no success to my knowledge. I would love to
+be proven wrong about that.
+
+<a href="http://imgur.com/HoHzQqA"><img src="http://i.imgur.com/HoHzQqA.jpg" title="Hosted by imgur.com" alt="" /></a>
