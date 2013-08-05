@@ -13,7 +13,10 @@ least, access to a public API!
 
 Can the Flash/Air application be scraped or controlled? Input welcomed. I miss my Proliphix.
 
-./scrape_infinity.sh to log your data after setting your username and password
+####Usage
+After setting your username and password:
+
+    ./scrape_infinity.sh 
 
 
 ###Assorted device information
@@ -25,6 +28,6 @@ All control apps seem to be based on Adobe AIR. Does it run Linux? Can it be roo
 
 Proprietary ABCD port is really just RS485 serial(AB) and 24VAC(CD). There has been [some discussion](http://cocoontech.com/forums/topic/11372-carrier-infinity/page-4) of reverse 
 engineering the control protocol, but no success to my knowledge. I would love to
-be proven wrong about that.
+be proven wrong about that. Recently purchased a cheap RS485 adapter. If I can get any useful logs, will post them here.
 
 <a href="http://imgur.com/HoHzQqA"><img src="http://i.imgur.com/HoHzQqA.jpg" title="Hosted by imgur.com" alt="" /></a>
