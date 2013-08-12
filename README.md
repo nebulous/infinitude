@@ -1,3 +1,8 @@
+#Infinitude
+###Replacement programmable web service for Carrier Infinity* thermostats
+*and presumably Bryant as well
+
+
 Scrape Infinity
 ==============
 

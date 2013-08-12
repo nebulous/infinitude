@@ -1,0 +1,125 @@
+<status xmlns:atom="http://www.w3.org/2005/Atom">
+	<atom:link rel="self" href="http://www.api.myinfinity.carrier.com/systems/{id}/status"/>
+	<timestamp>2012-09-25T20:52:09Z</timestamp>
+	<ping>60</ping><!--GET only-->
+	<serverHasChanges>true</serverHasChanges><!--GET only-->
+	<name>System Name</name>
+	<oat>65</oat>
+	<mode>cool</mode>
+	<cfgem>f</cfgem>
+	<cfgtype>heatcool</cfgtype>
+	<cfgauto>on</cfgauto>
+	<cfgdead>2</cfgdead>
+	<cfgcph>4</cfgcph>
+	<cfgfan>on</cfgfan>
+	<cfgpgm>on</cfgpgm>
+	<vacat>on</vacat>
+	<vacatrunning>off</vacatrunning>
+	<vacstart>2012-01-1T21:00:00-00:00</vacstart>
+    <vacend>2013-01-1T21:00:00-00:00</vacend>
+	<filtrlvl>90</filtrlvl>
+	<uvlvl>70</uvlvl>
+	<humlvl>80</humlvl>
+	<ventlvl>90</ventlvl>
+	<humid>on</humid>
+	<statusCode>0</statusCode>
+	<!-- 0 is normal operation, any other value indicates fault-->
+	<zones>
+		<zone id="1">
+			<name>Zone 1</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>61</rt>
+			<rh>31</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="2">
+			<name>Zone 2</name>
+			<enabled>off</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>62</rt>
+			<rh>32</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="3">
+			<name>Zone 3</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>63</rt>
+			<rh>33</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="4">
+			<name>Zone 4</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>64</rt>
+			<rh>34</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="5">
+			<name>Zone 5</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>65</rt>
+			<rh>35</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="6">
+			<name>Zone 6</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>66</rt>
+			<rh>36</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="7">
+			<name>Zone 7</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>67</rt>
+			<rh>37</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+		<zone id="8">
+			<name>Zone 8</name>
+			<enabled>on</enabled>
+			<currentActivity>home</currentActivity>
+			<rt>68</rt>
+			<rh>38</rh>
+			<htsp>68</htsp>
+			<clsp>72</clsp>
+			<fan>off</fan>
+			<hold>off</hold>
+			<otmr></otmr>
+		</zone>
+	</zones>
+</status>

@@ -1,0 +1,66 @@
+<weather xmlns:atom="http://www.w3.org/2005/Atom">
+  <atom:link rel="self" href="http://staging.api.ing.carrier.com/weather/24598"/>
+  <weather_status>
+    <atom:link rel="self" href="http://staging.api.ing.carrier.com/weather/24598/status"/>
+    <timestamp>2012-04-12T20:21:48.1831281Z</timestamp>
+    <status_id>14</status_id>
+    <status_message>Clear</status_message>
+    <temp units="f">61</temp>
+    <sunrise>2012-04-12T10:42:42Z</sunrise>
+    <sunset>2012-04-12T23:46:27Z</sunset>
+    <polar_day>false</polar_day>
+    <polar_night>false</polar_night>
+  </weather_status>
+  <weather_forecast>
+    <atom:link rel="self" href="http://staging.api.ing.carrier.com/weather/24598/forecast"/>
+    <timestamp>2012-04-12T20:21:48.1831281Z</timestamp>
+    <day id="Friday">
+      <timestamp>2012-04-13T00:00:00Z</timestamp>
+      <min_temp units="f">43</min_temp>
+      <max_temp units="f">64</max_temp>
+      <status_id>12</status_id>
+      <status_message>Partly cloudy</status_message>
+      <pop>10</pop>
+    </day>
+    <day id="Saturday">
+      <timestamp>2012-04-14T00:00:00Z</timestamp>
+      <min_temp units="f">57</min_temp>
+      <max_temp units="f">73</max_temp>
+      <status_id>12</status_id>
+      <status_message>Partly cloudy</status_message>
+      <pop>10</pop>
+    </day>
+    <day id="Sunday">
+      <timestamp>2012-04-15T00:00:00Z</timestamp>
+      <min_temp units="f">64</min_temp>
+      <max_temp units="f">73</max_temp>
+      <status_id>14</status_id>
+      <status_message>Clear</status_message>
+      <pop>10</pop>
+    </day>
+    <day id="Monday">
+      <timestamp>2012-04-16T00:00:00Z</timestamp>
+      <min_temp units="f">68</min_temp>
+      <max_temp units="f">82</max_temp>
+      <status_id>14</status_id>
+      <status_message>Clear</status_message>
+      <pop>7</pop>
+    </day>
+    <day id="Tuesday">
+      <timestamp>2012-04-17T00:00:00Z</timestamp>
+      <min_temp units="f">68</min_temp>
+      <max_temp units="f">82</max_temp>
+      <status_id>12</status_id>
+      <status_message>Partly cloudy</status_message>
+      <pop>12</pop>
+    </day>
+    <day id="Wednesday">
+      <timestamp>2012-04-18T00:00:00Z</timestamp>
+      <min_temp units="f">54</min_temp>
+      <max_temp units="f">81</max_temp>
+      <status_id>12</status_id>
+      <status_message>Partly cloudy</status_message>
+      <pop>34</pop>
+    </day>
+  </weather_forecast>
+</weather>

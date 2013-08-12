@@ -1,0 +1,27 @@
+<?xml version
+="1.0" encoding="utf-8"?>
+<locations xmlns:atom="http://www.w3.org/2005/Atom">
+  <atom:link rel="self" href="http://api.myinfinity.carrier.com/users/demo/locations"/>
+  <atom:link rel="http://api.myinfinity.carrier.com/rels/user" href="http://api.myinfinity.carrier.com/users/demo"/>
+  <location>
+    <atom:link rel="self" href="http://api.myinfinity.carrier.com/locations/demo1" title="Home"/>
+    <systems>
+      <system>
+        <atom:link rel="self" href="http://api.myinfinity.carrier.com/systems/demo1" title="System 1"/>
+      </system>
+    </systems>
+  </location>
+  <!--
+  <location>
+    <atom:link rel="self" href="http://api.myinfinity.carrier.com/locations/demo2" title="Vacation Home"/>
+    <systems>
+      <system>
+        <atom:link rel="self" href="http://api.myinfinity.carrier.com/systems/demo2" title="System 1"/>
+      </system>
+      <system>
+        <atom:link rel="self" href="http://api.myinfinity.carrier.com/systems/demo3" title="System 2"/>
+      </system>
+    </systems>
+  </location>
+  -->
+</locations>
