@@ -3,6 +3,12 @@
 *and presumably Bryant as well
 
 
+To run set your proxy server/port on the thermostat itself, then run server.
+Remember this is not encrypted, so use locally or over a VPN.
+
+    plackup -l <yourProxyIP>:<yourProxyPort> -a Infinitude.pm --no-default-middleware
+
+
 Scrape Infinity
 ==============
 

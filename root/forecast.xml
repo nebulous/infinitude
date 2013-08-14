@@ -31,7 +31,7 @@
     <max_temp units="f">[% i+1*4 %]</max_temp>
     <status_id>[% SET status_id=i*2+4; status_id; %]</status_id>
     <status_message>[% status.$status_id %]</status_message>
-    <pop>[% i+1*10 %]</pop>
+    <pop>[% i*10 %]</pop>
   </day>
   [% CALL today.add(days=>1) %]
   [% END %]
