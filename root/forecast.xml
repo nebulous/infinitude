@@ -3,35 +3,34 @@
   <atom:link rel="self" href="http://128.11.138.31/weather/[% zip %]/forecast"/>
   <atom:link rel="http://www.api.ing.carrier.com/rels/weather" href="http://128.11.138.31/weather/[% zip %]"/>
   <timestamp>[% dt.iso8601 %].01234Z</timestamp>
-  <ping>2</ping>
-  [% SET status = ['',
-    'Thunderstorms',
-    'Sleet',
-    'Rain and Sleet',
-    'Wintry Mix',
-    'Rain and Snow',
-    'Snow',
-    'Freezing Rain',
-    'Rain',
-    'Blizzard',
-    'Fog',
-    'Cloudy',
-    'Partly Cloudy',
-    'Mostly Cloudy',
-    'Sunny'
-  ] %]
-  [% 
+  <ping>[% forecast_ping || '240' %]</ping>
+  [%- 
+    SET statuses = [ 'Thunderstorms', 'Sleet', 'Rain and Sleet', 'Wintry Mix', 'Rain and Snow', 'Snow', 'Freezing Rain', 'Rain', 'Blizzard', 'Fog', 'Cloudy', 'Partly Cloudy', 'Mostly Cloudy', 'Sunny' ];
+    SET lookup = {};
+    FOREACH stat = statuses;
+      SET status.$stat = loop.index;
+      SET k = stat.replace('\s+','').lower;
+      SET lookup.$k = loop.count;
+    END;
+    SET lookup.${'clear'} = lookup.sunny;
+    SET lookup.${'athunderstorm'} = lookup.thunderstorms;
+
+    MACRO status_id(string) BLOCK;
+      lookup.${string.replace('\s+','').lower.replace('chanceof','')} || string.replace('\s+','').lower;
+    END;
+    
     SET today = dt.set_time_zone( time_zone || 'America/New_York' ) ;
     CALL dt.set_hour(0).set_minute(0).set_second(0);
-  %]
+  -%]
   [% FOREACH i = [0 .. 5] %]
+  [%  SET forecast = wunderground.forecast10day.simpleforecast.forecastday.$i; %]
   <day id="[% today.day_name %]">
     <timestamp>[% today %][% today.offset / 3600 %]:00</timestamp>
-    <min_temp units="f">[% i+1 %]</min_temp>
-    <max_temp units="f">[% i+1*4 %]</max_temp>
-    <status_id>[% SET status_id=i*2+4; status_id; %]</status_id>
-    <status_message>[% status.$status_id %]</status_message>
-    <pop>[% i*10 %]</pop>
+    <min_temp units="f">[% forecast.low.fahrenheit %]</min_temp>
+    <max_temp units="f">[% forecast.high.fahrenheit %]</max_temp>
+    <status_id>[% status_id(forecast.conditions || forecast.icon) %]</status_id>
+    <status_message>[% forecast.conditions %]</status_message>
+    <pop>[% forecast.pop || '--' %]</pop>
   </day>
   [% CALL today.add(days=>1) %]
   [% END %]
