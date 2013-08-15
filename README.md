@@ -7,7 +7,7 @@
  * Perl/[Plack](https://github.com/miyagawa/Plack) and friends
  * [Web::Simple](https://metacpan.org/module/Web::Simple)
  * DateTime
- * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API)
+ * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API)  - 0.05 or newer. Github has lastest (https://github.com/nebulous/WWW-Wunderground-API)
 
 ####Usage 
  * Set your proxy server/port in the advanced wireless settings on the thermostat itself. 
