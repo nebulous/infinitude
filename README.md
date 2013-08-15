@@ -14,7 +14,7 @@
  * Start Infinitude. Remember this is not encrypted, so use locally or over a VPN.
 
 
-    plackup -l <yourProxyIP>:<yourProxyPort> -a Infinitude.pm --no-default-middleware
+    plackup -l _yourProxyIP:yourProxyPort_ -a Infinitude.pm --no-default-middleware
 
 
 
