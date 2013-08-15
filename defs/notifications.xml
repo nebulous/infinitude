@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<notifications version="1.3">
+  <notification>
+    <type>confirmation</type>
+    <code>200</code>
+    <message>System settings updated</message>
+    <timestamp>2013-12-30:50:00Z</timestamp>
+    <userConfirmed>false</userConfirmed>
+    <dealerConfirmed>false</dealerConfirmed>
+    <userDeleted>false</userDeleted>
+    <dealerDeleted>false</dealerDeleted>
+  </notification>
+</notifications>
