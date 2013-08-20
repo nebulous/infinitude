@@ -29,7 +29,6 @@
     <timestamp>[% today %][% today.offset / 3600 %]:00</timestamp>
     <min_temp units="f">[% forecast.low.fahrenheit %]</min_temp>
     <max_temp units="f">[% forecast.high.fahrenheit %]</max_temp>
-    <scratch>[% status_id(forecast.conditions) %] - [%forecast.conditions%]</scratch>
     <status_id>[% status_id(forecast.conditions || forecast.icon) %]</status_id>
     <status_message>[% forecast.conditions %]</status_message>
     <pop>[% forecast.pop || '--' %]</pop>

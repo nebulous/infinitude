@@ -11,14 +11,13 @@ use Data::Dumper;
 
 sub default_config {
   tt=>{
-    zip=>'22152',
     time_zone=>'America/New_York',
     forecast_ping=>240,
     status_ping=>60
   },
   wunderground=>{
       location=>'22152', 
-      api_key=>'your wunderground key', 
+      api_key=>($ENV{WUNDERGROUND_KEY} || 'your wunderground key'), 
       auto_api=>1,
       cache=>Cache::FileCache->new({ namespace=>'infinitude', default_expires_in=>60*240 }) #Any cache should do.
   }
@@ -44,11 +43,34 @@ sub dispatch_request {
   },
   #GET http://128.11.138.31/weather/22152/forecast
   sub (GET + /weather/:zip/forecast) {
+    my ($self, $param) = @_;
     $env->{'tt.template'} = 'forecast.xml';
     $env->{'tt.vars'}{dt} = DateTime->now(time_zone=>'GMT');
+    $env->{'tt.vars'}{zip} = $param->{zip};
+    $wunderground->location($param->{zip});
+    $wunderground->forecast10day;
     $env->{'tt.vars'}{wunderground} = $wunderground;
     open(F,">root/weather.txt"); print F Dumper($wunderground->data); close(F);
     return;
+  },
+
+
+  #sync process:
+  # POST /systems/id/status
+  #   server has changes?
+  #     false: return
+  #     true:
+  #       GET /systems/id  (full config returned from server)
+  #       POST /systems/id (full config posted back to server)
+  #       POST /notifications
+
+
+
+  #GET http://128.11.138.31/systems/2500W003210
+  # This is called after /systems/2500W003210/status returns <serverHasChanges>true</serverHasChanges>
+  sub (GET + /systems/:system_id) {
+    #TODO: return full config according to server. For now, return an empty reply and move on.
+    return [ 200, [], [] ];
   },
   #POST http://128.11.138.31/systems/2500W003210
   sub (POST + /systems/:system_id + %data=) {
@@ -60,12 +82,15 @@ sub dispatch_request {
   sub (POST + /systems/:system_id/status + %data=) {
     my ($self, $system_id, $data) = @_;
     open(F,">root/status.txt"); print F Dumper(XMLin($data)); close(F);
-    $env->{'tt.vars'}{ping_rate} = 120; 
+    $env->{'tt.vars'}{ping_rate} = 120;
+    #TODO: setup web interface and return serverHasChanges: true
     $env->{'tt.template'} = 'status.xml';
     return;
   },
   #POST http://128.11.138.31/systems/2500W003210/notifications
-  sub (POST + /systems/:system_id/notifications) {
+  sub (POST + /systems/:system_id/notifications + %data=) {
+    my ($self, $system_id, $data) = @_;
+    open(F,">root/notifications.txt"); print F Dumper(XMLin($data)); close(F);
     [ 200, [], [] ]
   },
   sub (GET + /) {
