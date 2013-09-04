@@ -28,6 +28,15 @@ least, access to a public API!
 SOC used is a SuperH (SH2A) architecture 7267 running at 144Mhz
 http://www.renesas.com/products/mpumcu/superh/sh7260/sh7266/device/R5S72670W144FP.jsp
 
+WiFi module is a MICROCHIP - MRF24WB0MA (<a href="http://ww1.microchip.com/downloads/en/DeviceDoc/70632C.pdf">datasheet</a>)
+
+<a href="http://www.amazon.com/gp/product/B005T8M3U8/ref=as_li_ss_il?ie=UTF8&camp=1789&creative=390957&creativeASIN=B005T8M3U8&linkCode=as2&tag=sbhq-20">
+  <img src="http://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=B005T8M3U8&Format=_SL160_&ID=AsinImage&MarketPlace=US&ServiceVersion=20070822&WS=1&tag=sbhq-20" >
+</a>
+
+It appears to handle encryption on board and have a SPI bus interface, so as a last resort that can be sniffed.
+
+
 It has a 14 pin H-UDI debug connector as well as at least one debug serial port broken out.
 All control apps seem to be based on Adobe AIR. Does it run Linux? Can it be rooted? Any ideas or knowledge welcome.
 
