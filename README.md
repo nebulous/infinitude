@@ -40,7 +40,42 @@ It appears to handle encryption on board and have a SPI bus interface, so as a l
 It has a 14 pin H-UDI debug connector as well as at least one debug serial port broken out.
 All control apps seem to be based on Adobe AIR. Does it run Linux? Can it be rooted? Any ideas or knowledge welcome.
 
-Proprietary ABCD port is really just RS485 serial(AB) and 24VAC(CD). There has been [some discussion](http://cocoontech.com/forums/topic/11372-carrier-infinity/page-4) of reverse 
+Proprietary ABCD port is really just RS485 serial(AB) and 24VAC(CD). 
+
+<table>
+  <thead>
+    <tr>
+      <th>Port</th>
+      <th>Suggested Color</th>
+      <th>Function</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>A</td>
+      <td>Green</td>
+      <td>RS-485 D+</td>
+    </tr>
+    <tr>
+      <td>B</td>
+      <td>Yellow</td>
+      <td>RS-485 D-</td>
+    </tr>
+    <tr>
+      <td>C</td>
+      <td>White</td>
+      <td>24v AC Common</td>
+    </tr>
+    <tr>
+      <td>D</td>
+      <td>Red</td>
+      <td>24v AC Hot</td>
+    </tr>
+  </tbody>
+</table>
+  
+
+There has been [some discussion](http://cocoontech.com/forums/topic/11372-carrier-infinity/page-4) of reverse 
 engineering the control protocol, but no success to my knowledge. I would love to
 be proven wrong about that. Recently purchased a cheap RS485 adapter. If I can get any useful logs, will post them here.
 
