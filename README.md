@@ -77,6 +77,41 @@ Proprietary ABCD port is really just RS485 serial(AB) and 24VAC(CD).
 
 There has been [some discussion](http://cocoontech.com/forums/topic/11372-carrier-infinity/page-4) of reverse 
 engineering the control protocol, but no success to my knowledge. I would love to
-be proven wrong about that. Recently purchased a cheap RS485 adapter. If I can get any useful logs, will post them here.
+be proven wrong about that. 
+
+Recently purchased a cheap ch341 based RS485 adapter like this one:
+
+<a href="http://www.amazon.com/gp/product/B009SIDMNM/ref=as_li_ss_il?ie=UTF8&camp=1789&creative=390957&creativeASIN=B009SIDMNM&linkCode=as2&tag=sbhq-20"><img border="0" src="http://ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=B009SIDMNM&Format=_SL110_&ID=AsinImage&MarketPlace=US&ServiceVersion=20070822&WS=1&tag=sbhq-20" ></a><img src="http://ir-na.amazon-adsystem.com/e/ir?t=sbhq-20&l=as2&o=1&a=B009SIDMNM" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+
+I have some logs and a parser that I'll post here RealSoonNow&reg; 
+Serial data is 38400 8N1 and is mostly the thermostat sending requests for data and the air handler/outdoor units replying with it.
+From the helpful thread above the frame format is:
+
+<table>
+  <tr>
+    <th colspan="7">Frame</th>
+  </tr>
+  <tr>
+    <th colspan="5">Header</th>
+    <th rowspan="2">Data</th>
+    <th rowspan="2">Checksum</th>
+  </tr>
+  <tr>
+    <th>2 bytes</th>
+    <th>2 bytes</th>
+    <th>1 byte</th>
+    <th>2 bytes</th>
+    <th>1 byte</th>
+  </tr>
+  <tr>
+    <td>Dest Address</td>
+    <td>Source Address</td>
+    <td>Length</td>
+    <td>Reserved</td>
+    <td>Function</td>
+    <th>0-255 bytes</th>
+    <th>2 bytes</th>
+  </tr>
+</table>
 
 <a href="http://imgur.com/HoHzQqA"><img src="http://i.imgur.com/HoHzQqA.jpg" title="Hosted by imgur.com" alt="" /></a>
