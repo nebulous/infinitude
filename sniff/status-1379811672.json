@@ -1,0 +1,122 @@
+{
+   "mode" : "off",
+   "zones" : {
+      "zone" : {
+         "Zone 8" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "8",
+            "enabled" : "off"
+         },
+         "Zone 4" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "4",
+            "enabled" : "off"
+         },
+         "Zone 5" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "5",
+            "enabled" : "off"
+         },
+         "Zone 3" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "3",
+            "enabled" : "off"
+         },
+         "Zone 2" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "2",
+            "enabled" : "off"
+         },
+         "Zone 6" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "6",
+            "enabled" : "off"
+         },
+         "ZONE 1" : {
+            "fan" : "low",
+            "htsp" : "67",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "74",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : "71",
+            "id" : "1",
+            "enabled" : "on"
+         },
+         "Zone 7" : {
+            "fan" : "off",
+            "htsp" : "68",
+            "currentActivity" : "home",
+            "otmr" : {},
+            "clsp" : "76",
+            "hold" : "off",
+            "rh" : "56",
+            "rt" : {},
+            "id" : "7",
+            "enabled" : "off"
+         }
+      }
+   },
+   "statusCode" : "0",
+   "vacend" : {},
+   "cfgfan" : "on",
+   "uvlvl" : "72",
+   "cfgauto" : "on",
+   "cfgem" : "F",
+   "humid" : "off",
+   "cfgcph" : "4",
+   "vacatrunning" : "off",
+   "version" : "1.3",
+   "cfgtype" : "heatcool",
+   "filtrlvl" : "80",
+   "vacat" : "off",
+   "vacstart" : {},
+   "ventlvl" : "100",
+   "oat" : "67",
+   "humlvl" : "72",
+   "cfgdead" : "2",
+   "cfgpgm" : "on"
+}
