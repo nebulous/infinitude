@@ -24,4 +24,4 @@ Carrier you'd like direct network access to your thermostat, or at the very
 least, access to a public API!
 
 
-###Device information and protocol discussion available on the [[wiki]]
+###Device information and protocol discussion available on the [Wiki](https://github.com/nebulous/infinitude/wiki)
