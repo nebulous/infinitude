@@ -23,6 +23,7 @@ sub BUILD {
   $self->name("Thermostat".$self->index) if $msb_h =~ /^2/;
   $self->name("Air Handler".$self->index) if $msb_h =~ /^4/;
   $self->name("Outdoor Unit-".$self->index) if $msb_h =~ /^5/;
+  $self->name("Master-".$self->index) if $msb_h =~ /^1F/i;
 }
 
 sub address {
@@ -55,12 +56,9 @@ sub BUILDARGS {
 sub BUILD {
   my $self = shift;
   my ($dst_type, $dst_index, $src_type, $src_index, $length, $options, $function) = unpack("CCCCCnC", $self->raw);
-  #use Data::Dumper; print Dumper([$dst_type, $dst_index, $src_type, $src_index, $length, $reserved, $function]);
 
   $self->dst("$dst_type.$dst_index");
   $self->src("$src_type.$src_index");
-  #$self->dst(new CarrierDevice({type=>$dst_type, index=>$dst_index}));
-  #$self->src(new CarrierDevice({type=>$src_type, index=>$src_index}));
 
   $self->options($options);
   $self->length($length);
@@ -94,6 +92,7 @@ sub type {
   my $types = {
     6 => 'reply',
     11 => 'request',
+    12 => 'announce',
   };
   return $types->{$self->header->function} || 'type-'.$self->header->function;
 }
@@ -131,8 +130,7 @@ sub remove {
   $self->data($dc);
 }
 
-#class method to pull the next valid frame from stream
-#does not appear to recognize broadcast frames. No crc?
+#pull the next valid frame from stream
 my $frame_log = {};
 sub get_frame {
   my $self = shift;
@@ -151,13 +149,11 @@ sub get_frame {
       $frame_log->{$tf}++;
       my $frame = new CarrierFrame($tf);
 
-      if ($frame->type eq 'reply') {
-        my $device_addr = $frame->header->src;
-        my $device = $self->devices->{$device_addr} ||= new CarrierDevice($device_addr);
-        $device->attrs->{$frame->register}||={};
-        $device->attrs->{$frame->register}{$frame->data}||=0;
-        $device->attrs->{$frame->register}{$frame->data}++;
-      }
+      my $device_addr = $frame->header->src;
+      my $device = $self->devices->{$device_addr} ||= new CarrierDevice($device_addr);
+      $device->attrs->{$frame->register}||={};
+      $device->attrs->{$frame->register}{$frame->data}||=0;
+      $device->attrs->{$frame->register}{$frame->data}++;
 
       return $frame;
     }
@@ -192,21 +188,20 @@ sub asciidump {
 
 no warnings 'uninitialized';
 
-use Data::Dumper;
-
 my $frame_count=0;
 my $stream = new CarrierStream;
 while (<>) {
   $stream->add($_);
   while(my $frame = $stream->get_frame) {
-    print "Frames: $frame_count buffer length".length($stream->data)."\n";
+    print "(Frames: $frame_count buffer length:".length($stream->data).")\n";
     print "--------------------- Frame $frame_count -------------------------\n";
-    print join(" ", "Message type", $frame->type,"from", $frame->header->src, "to", $frame->header->dst)."\n";
+    my $srcname = $stream->devices->{$frame->header->src} ? $stream->devices->{$frame->header->src}->name : $frame->header->src;
+    my $dstname = $stream->devices->{$frame->header->dst} ? $stream->devices->{$frame->header->dst}->name : $frame->header->dst;
+    print join(" ", "Message type", $frame->type,"from", $srcname, "to", $dstname)."\n";
     print &hexdump($frame->data)."\n";
     print &asciidump($frame->data)."\n";
     $frame_count++;
   }
-  last if $frame_count>=50;
 }
 
 #Search for changing data in stream
