@@ -1,6 +1,9 @@
 #Infinitude
-###Replacement programmable web service for Carrier Infinity* thermostats
-*and presumably Bryant as well
+###Device information and protocol discussion available on the [Wiki](https://github.com/nebulous/infinitude/wiki)
+
+####Replacement web service for [Carrier Infinity Touch*](https://github.com/nebulous/infinitude/wiki/Infinity-touch) thermostats
+
+*and presumably other Carrier/Bryant network thermostats as well
 
 #### Requirements
 
@@ -17,11 +20,9 @@
     plackup -l _yourProxyIP:yourProxyPort_ -a Infinitude.pm --no-default-middleware
 
 
-
 With any luck, Carrier will allow the owners of these devices and data direct access rather
 than this ridiculous work around. If you have one of these thermostats, tell
 Carrier you'd like direct network access to your thermostat, or at the very
 least, access to a public API!
 
 
-###Device information and protocol discussion available on the [Wiki](https://github.com/nebulous/infinitude/wiki)
