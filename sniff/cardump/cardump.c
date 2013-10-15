@@ -9,15 +9,8 @@
 #include "buffy.h"
 #include "crc.h"
 
-/* Set terminal (tty) into "raw" mode: no line or other processing done
-   Terminal handling documentation:
-       curses(3X)  - screen handling library.
-       tput(1)     - shell based terminal handling.
-       terminfo(4) - SYS V terminal database.
-       termcap     - BSD terminal database. Obsoleted by above.
-       termio(7I)  - terminal interface (ioctl(2) - I/O control).
-       termios(3)  - preferred terminal interface (tc* - terminal control).
-*/
+/* raw tty code mostly from:
+	http://www.cs.uleth.ca/~holzmann/C/system/ttyraw.c */
 
 void tty_atexit(void);
 int tty_reset(void);
@@ -92,10 +85,10 @@ void tty_raw() {
 	/* put terminal in raw mode after flushing */
 	if (tcsetattr(ttyfd,TCSAFLUSH,&raw) < 0) fatal("can't set raw mode");
 
-	printf("input speed was %d\n",cfgetispeed(&orig_termios));
+	//printf("input speed was %d\n",cfgetispeed(&orig_termios));
 	cfsetispeed(&orig_termios, B38400); //Set 38.4k
 	cfsetospeed(&orig_termios, B38400); //Set 38.4k
-	printf("input speed set to %d\n",cfgetispeed(&orig_termios));
+	//printf("input speed set to %d\n",cfgetispeed(&orig_termios));
 }
 
 typedef struct {
