@@ -5,6 +5,9 @@
 
 *and presumably other Carrier/Bryant network thermostats as well
 
+Screenshot of recent version:
+<a href="http://imgur.com/s2BrXXt"><img src="http://i.imgur.com/s2BrXXt.png" title="Hosted by imgur.com"/></a>
+
 #### Requirements
 
  * Perl/[Plack](https://github.com/miyagawa/Plack) and friends
