@@ -10,3 +10,10 @@ Or on a log file, but the timestamps won't be very useful:
 
     ./cardump < aLogFile 
 
+
+TSV of valid frames dumps to STDOUT and human readable output goes to STDERR.
+So to log TSV and watch activity one might:
+
+    ./cardump < /dev/ttyUSB0 > frames.tsv
+    
+    
