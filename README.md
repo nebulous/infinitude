@@ -18,6 +18,7 @@ Screenshot of recent version:
 ####Usage 
  * Set your proxy server/port in the advanced wireless settings on the thermostat itself. 
  * Start Infinitude. Remember this is not encrypted, so use locally or over a VPN.
+ *   The author runs the web service and serial monitor on a [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) which sits on top of the air handler. 
 
 
     plackup -l _yourProxyIP:yourProxyPort_ -a Infinitude.pm --no-default-middleware
