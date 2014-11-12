@@ -1,7 +1,7 @@
 #Infinitude
-###Device information and protocol discussion available on the [Wiki](https://github.com/nebulous/infinitude/wiki)
+###Documentation and information on protocol available on the [Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
 
-####Replacement web service for [Carrier Infinity Touch*](https://github.com/nebulous/infinitude/wiki/Infinity-touch) thermostats
+#### Infinitude is an alternative web service for [Carrier Infinity Touch*](https://github.com/nebulous/infinitude/wiki/Infinity-touch) thermostats.
 
 *and presumably other Carrier/Bryant network thermostats as well
 
@@ -27,5 +27,3 @@ With any luck, Carrier will allow the owners of these devices and data direct ac
 than this ridiculous work around. If you have one of these thermostats, tell
 Carrier you'd like direct network access to your thermostat, or at the very
 least, access to a public API!
-
-
