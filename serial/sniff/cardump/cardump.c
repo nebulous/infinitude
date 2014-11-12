@@ -29,14 +29,146 @@ int main(int argc, char **argv) {
 			/* register the tty reset with the exit handler */
 			if (atexit(tty_atexit) != 0) fatal("atexit: can't register tty reset");
 			tty_raw();      /* put tty in raw mode */
-		} else {
+	} else {
 			fprintf(stderr,"Not a tty. Reading from file...\n");
-		}
+	}
 
     screenio();     /* run application code */
     return 0;       /* tty_atexit will restore terminal */
 }
 
+
+
+#define READ_REQ 0x0b
+#define WRITE_REQ 0x0c
+#define REPLY 0x06
+#define ERROR 0x15
+
+#pragma pack(push, 1)
+typedef struct {
+	uint8_t dst;
+	uint8_t dst_idx;
+	uint8_t src;
+	uint8_t src_idx;
+	uint8_t len;
+   uint16_t reserved;
+	uint8_t type;
+} carhead;
+
+typedef struct {
+	carhead header;
+	char payload[256];
+	uint16_t crc;
+} carframe;
+
+typedef struct {
+	   char pad;
+	uint8_t table;
+	uint8_t row;
+} caread;
+
+typedef struct {
+	   char ack;
+	uint8_t table;
+	uint8_t row;
+} careply;
+
+typedef struct {
+	   char buf;
+	uint8_t table;
+	uint8_t row;
+  char payload[256];
+} carwrite;
+
+#pragma pack(pop)
+
+
+int screenio(void) {
+	int bytes;
+
+	buffy framebuf;
+	framebuf.len = 0;
+	carframe frame;
+	crcInit();
+
+	char buffer[32]; //serial reads tend to have less than 32 bytes
+
+	uint8_t tries = 0;
+	printf("Time\tFrom\tTo\tType\tLength\tHex Content\n");
+	int shifts = 0;
+	int syncs = 0;
+
+	for (;;) {
+		bytes = read(ttyfd, buffer, 32);
+		if (bytes < 0) fatal("Read error");
+		if (bytes == 0) { tries+=1; } else { tries = 0; }
+		if (tries>9) fatal("Not trying again");
+
+		bufadd(&framebuf, buffer, bytes);
+
+		if (framebuf.len<4) continue;
+		int datalen = framebuf.data[4];
+		if (datalen == 0) {
+			shifts++;
+			bufshift(&framebuf, (int)(framebuf.len>>1));
+			continue;
+		}
+
+		int framelen = 10+datalen;
+		if (framebuf.len<framelen) continue;
+
+		if (shifts>0) fprintf(stderr, "Looking for %d byte frame in %d byte buffer\n", datalen, framebuf.len);
+
+		if (crcFast(framebuf.data, framelen) == 0) {
+			if (shifts>0) {
+				fprintf(stderr,"*** Synced stream after %d shifts ***\n", shifts);
+				shifts=0;
+				syncs++;
+				if (syncs>100) fatal("Stream too noisy");
+			}
+			memcpy(&frame, framebuf.data, framelen-1);
+
+			if (READ_REQ == frame.header.type) {
+				fprintf(stderr, "--------------READ from %x ------------\n", frame.header.dst);
+				caread req;
+				memcpy(&req, frame.payload, 3);
+				fprintf(stderr,"Request for table %d, row %d\n", req.table, req.row);
+			}
+
+			if (WRITE_REQ == frame.header.type) {
+				fprintf(stderr, "--------------WRITE to %x ------------\n", frame.header.dst);
+				carwrite req;
+				memcpy(&req, frame.payload, 256);
+				fprintf(stderr,"Write to table %d, row %d\n", req.table, req.row);
+				for (int i=0;i<frame.header.len;i++) fprintf(stderr, "%02x ", req.payload[i]);
+				fprintf(stderr, "\n");
+			}
+
+			if (REPLY == frame.header.type) {
+				//Example of a known data point.
+				if (frame.header.src == 0x50 && frame.payload[1] == 0x3E && frame.payload[2] == 0x01) {
+					int16_t oat = (frame.payload[3] << 8) | frame.payload[4];
+					oat/=16;
+					fprintf(stderr, "Outside Temp: %df\n", oat);
+				}
+			}
+
+			printf("%d\t%x\t%x\t%02x\t%d\t", (int)time(NULL),frame.header.src, frame.header.dst, frame.header.type, frame.header.len);
+			for (int i=0;i<frame.header.len;i++) printf("%02x ", frame.payload[i]);
+			printf("\n");
+
+			bufshift(&framebuf, framelen);
+		} else {
+			shifts++;
+			bufshift(&framebuf, 1);
+		}
+	}
+}
+
+void fatal(char *message) {
+	fprintf(stderr,"fatal error: %s\n",message);
+	exit(1);
+}
 
 /* exit handler for tty reset */
 void tty_atexit(void)  /* NOTE: If the program terminates due to a signal   */
@@ -91,64 +223,3 @@ void tty_raw() {
 	//printf("input speed set to %d\n",cfgetispeed(&orig_termios));
 }
 
-typedef struct {
-	uint8_t dst;
-	uint8_t dst_idx;
-	uint8_t src;
-	uint8_t src_idx;
-	uint8_t len;
-	uint16_t reserved;
-	uint8_t type;
-} carhead;
-
-typedef struct {
-	carhead head;
-	char payload[256];
-	uint16_t crc;
-} carframe;
-
-
-int screenio(void) {
-	int bytes;
-
-	buffy framebuf;
-	framebuf.len = 0;
-	carhead header;
-	crcInit();
-
-	char buffer[32]; //serial reads tend to have less than 32 bytes
-
-	uint8_t tries = 0;
-	printf("Time\tFrom\tTo\tType\tLength\tHex Content\n");
-	for (;;) {
-		bytes = read(ttyfd, buffer, 32);
-		if (bytes < 0) fatal("Read error");
-		if (bytes == 0) { tries+=1; } else { tries = 0; }
-		if (tries>9) fatal("Not trying again");
-
-		bufadd(&framebuf, buffer, bytes);
-
-		int datalen = framebuf.data[4];
-		int framelen = 10+datalen;
-		fprintf(stderr, "added %d bytes. Looking for %d byte frame in %d byte buffer\n", bytes, datalen, framebuf.len);
-
-		if (framebuf.len>=framelen) { 
-			if (crcFast(framebuf.data, framelen) == 0) {
-				memcpy(&header, framebuf.data,8);
-				printf("%d\t%x\t%x\t%x\t%x", (int)time(NULL),header.src, header.dst, header.type, header.len);
-				for (int i=0;i<header.len;i++) {
-					printf("%02x ", framebuf.data[8+i]);
-				}
-				printf("\n");
-				bufshift(&framebuf, framelen);
-			} else {
-				bufshift(&framebuf, 1);
-			}
-		}
-	}
-}
-
-void fatal(char *message) {
-	fprintf(stderr,"fatal error: %s\n",message);
-	exit(1);
-}
