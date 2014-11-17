@@ -45,40 +45,43 @@ int main(int argc, char **argv) {
 #define ERROR 0x15
 
 #pragma pack(push, 1)
+
 typedef struct {
-	uint8_t dst;
-	uint8_t dst_idx;
-	uint8_t src;
-	uint8_t src_idx;
+	uint8_t table;
+	uint8_t row;
+} careg;
+
+typedef struct {
+	uint8_t type;
+	uint8_t idx;
+} cardev;
+
+typedef struct {
+	 cardev dst;
+	 cardev src;
 	uint8_t len;
    uint16_t reserved;
 	uint8_t type;
-} carhead;
-
-typedef struct {
-	carhead header;
-	char payload[256];
-	uint16_t crc;
+	   char payload[256];
+   uint16_t crc;
 } carframe;
 
 typedef struct {
 	   char pad;
-	uint8_t table;
-	uint8_t row;
+      careg reg;
 } caread;
 
 typedef struct {
-	   char ack;
-	uint8_t table;
-	uint8_t row;
-} careply;
+	   char pad;
+	  careg reg;
+       char payload[256];
+} carwrite;
 
 typedef struct {
-	   char buf;
-	uint8_t table;
-	uint8_t row;
-  char payload[256];
-} carwrite;
+	   char ack;
+	  careg reg;
+} careply;
+
 
 #pragma pack(pop)
 
@@ -126,35 +129,46 @@ int screenio(void) {
 				syncs++;
 				if (syncs>100) fatal("Stream too noisy");
 			}
-			memcpy(&frame, framebuf.data, framelen-1);
+			memcpy(&frame, framebuf.data, framelen);
+			frame.crc=framebuf.data[framelen-2]<<8 | framebuf.data[framelen-1];
 
-			if (READ_REQ == frame.header.type) {
-				fprintf(stderr, "--------------READ from %x ------------\n", frame.header.dst);
+			if (READ_REQ == frame.type) {
+				fprintf(stderr, "--------------READ from %x ------------\n", frame.dst.type);
 				caread req;
 				memcpy(&req, frame.payload, 3);
-				fprintf(stderr,"Request for table %d, row %d\n", req.table, req.row);
+				fprintf(stderr,"Request for table %d, row %d\n", req.reg.table, req.reg.row);
 			}
 
-			if (WRITE_REQ == frame.header.type) {
-				fprintf(stderr, "--------------WRITE to %x ------------\n", frame.header.dst);
+			if (WRITE_REQ == frame.type) {
+				fprintf(stderr, "--------------WRITE to %x ------------\n", frame.dst.type);
 				carwrite req;
 				memcpy(&req, frame.payload, 256);
-				fprintf(stderr,"Write to table %d, row %d\n", req.table, req.row);
-				for (int i=0;i<frame.header.len;i++) fprintf(stderr, "%02x ", req.payload[i]);
+				fprintf(stderr,"Write to table %d, row %d\n", req.reg.table, req.reg.row);
+				for (int i=0;i<frame.len;i++) fprintf(stderr, "%02x ", req.payload[i]);
 				fprintf(stderr, "\n");
 			}
 
-			if (REPLY == frame.header.type) {
+			if (REPLY == frame.type) {
 				//Example of a known data point.
-				if (frame.header.src == 0x50 && frame.payload[1] == 0x3E && frame.payload[2] == 0x01) {
-					int16_t oat = (frame.payload[3] << 8) | frame.payload[4];
-					oat/=16;
-					fprintf(stderr, "Outside Temp: %df\n", oat);
+				if (frame.src.type == 0x50 && frame.payload[1] == 0x3E && frame.payload[2] == 0x01) {
+					int16_t oat = (frame.payload[3]<<8) | frame.payload[4];
+					int16_t t2 = (frame.payload[5]<<8) | frame.payload[6];
+					fprintf(stderr, "Outside Temp: %df %04x\n", oat/16, oat);
+					fprintf(stderr, "Outside Coil: %df %04x\n", t2/16, t2);
 				}
 			}
 
-			printf("%d\t%x\t%x\t%02x\t%d\t", (int)time(NULL),frame.header.src, frame.header.dst, frame.header.type, frame.header.len);
-			for (int i=0;i<frame.header.len;i++) printf("%02x ", frame.payload[i]);
+			if (frame.payload[1] == 0x02) {
+				if (frame.payload[2] == 0x02) { //Time Frame
+					fprintf(stderr,"Time is %d:%d\n", frame.payload[3], frame.payload[4]);
+				}
+				if (frame.payload[2] == 0x03) { //Date Frame
+					fprintf(stderr,"Date is %d-%d-%d\n", frame.payload[5]+2000, frame.payload[4], frame.payload[3]);
+				}
+			}
+
+			printf("%d\t%x\t%x\t%02x\t%d\t", (int)time(NULL),frame.src.type, frame.dst.type, frame.type, frame.len);
+			for (int i=0;i<frame.len;i++) printf("%02x ", frame.payload[i]);
 			printf("\n");
 
 			bufshift(&framebuf, framelen);
