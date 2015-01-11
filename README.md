@@ -8,6 +8,7 @@
 #### Requirements
 
 ##### Software
+ * Some flavor of UNIX. Both Linux and OSX are known to work.
  * Perl
    * Mojolicious
    * DateTime
