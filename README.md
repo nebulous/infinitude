@@ -31,13 +31,13 @@ Edit the $conf section of infinitude.pl to set your optional Wunderground API ke
 
 Infinitude is a Mojolicious application, so the simplest way to run it is via:
 
-   ./infinitude daemon
+    ./infinitude daemon
 
 which starts a server in development mode on port 3000.
 
 Or to listen on port 80:
 
-   ./infinitude daemon -l http://:80
+    ./infinitude daemon -l http://:80
 
 See ./infinitude <command> --help for additional options
 
