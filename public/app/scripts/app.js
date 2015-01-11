@@ -5,8 +5,7 @@ angular
     'ngCookies',
     'ngResource',
     'ngSanitize',
-    'ngRoute',
-		'objectEditor'
+    'ngRoute'
   ])
   .config(function ($routeProvider) {
     $routeProvider
