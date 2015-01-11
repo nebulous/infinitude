@@ -1,0 +1,720 @@
+$VAR1 = bless( {
+                 'stash' => {
+                              'mojo.secrets' => [
+                                                  'Pogotudinal'
+                                                ]
+                            },
+                 'tx' => bless( {
+                                  'remote_port' => '4521',
+                                  'original_remote_address' => '10.0.8.30',
+                                  'connection' => 'c6050907b411e93c4866d5183d80f468',
+                                  'state' => 'read',
+                                  'handled' => 1,
+                                  'local_port' => '3000',
+                                  'res' => bless( {
+                                                    'content' => bless( {
+                                                                          'read' => sub { "DUMMY" },
+                                                                          'events' => {
+                                                                                        'read' => [
+                                                                                                    $VAR1->{'tx'}{'res'}{'content'}{'read'}
+                                                                                                  ]
+                                                                                      },
+                                                                          'headers' => bless( {
+                                                                                                'headers' => {
+                                                                                                               'server' => [
+                                                                                                                             'Mojolicious (Perl)'
+                                                                                                                           ]
+                                                                                                             }
+                                                                                              }, 'Mojo::Headers' )
+                                                                        }, 'Mojo::Content::Single' )
+                                                  }, 'Mojo::Message::Response' ),
+                                  'events' => {
+                                                'request' => [
+                                                               sub { "DUMMY" }
+                                                             ],
+                                                'upgrade' => [
+                                                               sub { "DUMMY" }
+                                                             ]
+                                              },
+                                  'local_address' => '10.0.8.52',
+                                  'req' => bless( {
+                                                    'max_message_size' => 10485760,
+                                                    'content' => bless( {
+                                                                          'header_size' => 395,
+                                                                          'body' => 2,
+                                                                          'raw_size' => 395,
+                                                                          'read' => $VAR1->{'tx'}{'res'}{'content'}{'read'},
+                                                                          'events' => {
+                                                                                        'read' => [
+                                                                                                    $VAR1->{'tx'}{'res'}{'content'}{'read'}
+                                                                                                  ]
+                                                                                      },
+                                                                          'auto_upgrade' => 1,
+                                                                          'buffer' => '',
+                                                                          'real_size' => 0,
+                                                                          'pre_buffer' => '',
+                                                                          'state' => 'finished',
+                                                                          'size' => 0,
+                                                                          'headers' => bless( {
+                                                                                                'state' => 'finished',
+                                                                                                'cache' => [],
+                                                                                                'headers' => {
+                                                                                                               'authorization' => [
+                                                                                                                                    'OAuth realm="http://128.11.138.31/systems/2512W003720/status",oauth_consumer_key="9f73i0d2l9e7r587",oauth_nonce="14187661263094",oauth_signature_method="HMAC-SHA1",oauth_timestamp="1418766126",oauth_token="2512W003720",oauth_version="1.0",oauth_signature="ohbombKW8TQraUltIVuTVGAydQ4%3D"'
+                                                                                                                                  ],
+                                                                                                               'host' => [
+                                                                                                                           '128.11.138.31'
+                                                                                                                         ],
+                                                                                                               'content-type' => [
+                                                                                                                                   'application/x-www-form-urlencoded'
+                                                                                                                                 ],
+                                                                                                               'content-length' => [
+                                                                                                                                     '0'
+                                                                                                                                   ]
+                                                                                                             },
+                                                                                                'max_line_size' => 10240
+                                                                                              }, 'Mojo::Headers' )
+                                                                        }, 'Mojo::Content::Single' ),
+                                                    'state' => 'finished',
+                                                    'finished' => 1,
+                                                    'max_line_size' => 10240,
+                                                    'url' => bless( {
+                                                                      'base' => bless( {
+                                                                                         'scheme' => 'http',
+                                                                                         'host' => '128.11.138.31'
+                                                                                       }, 'Mojo::URL' ),
+                                                                      'query' => bless( {
+                                                                                          'string' => undef
+                                                                                        }, 'Mojo::Parameters' ),
+                                                                      'fragment' => undef,
+                                                                      'scheme' => 'http',
+                                                                      'host' => '128.11.138.31',
+                                                                      'path' => bless( {
+                                                                                         'path' => '/systems/2512W003720/status'
+                                                                                       }, 'Mojo::Path' )
+                                                                    }, 'Mojo::URL' ),
+                                                    'events' => {},
+                                                    'method' => 'POST',
+                                                    'version' => '1.1',
+                                                    'raw_size' => 458
+                                                  }, 'Mojo::Message::Request' )
+                                }, 'Mojo::Transaction::HTTP' ),
+                 'app' => bless( {
+                                   'routes' => bless( {
+                                                        'hidden' => [
+                                                                      'attr',
+                                                                      'has',
+                                                                      'new',
+                                                                      'tap',
+                                                                      'app',
+                                                                      'continue',
+                                                                      'cookie',
+                                                                      'every_cookie',
+                                                                      'every_param',
+                                                                      'every_signed_cookie',
+                                                                      'finish',
+                                                                      'flash',
+                                                                      'helpers',
+                                                                      'match',
+                                                                      'on',
+                                                                      'param',
+                                                                      'redirect_to',
+                                                                      'render',
+                                                                      'render_exception',
+                                                                      'render_later',
+                                                                      'render_maybe',
+                                                                      'render_not_found',
+                                                                      'render_to_string',
+                                                                      'rendered',
+                                                                      'req',
+                                                                      'res',
+                                                                      'respond_to',
+                                                                      'send',
+                                                                      'session',
+                                                                      'signed_cookie',
+                                                                      'stash',
+                                                                      'tx',
+                                                                      'url_for',
+                                                                      'validation',
+                                                                      'write',
+                                                                      'write_chunk',
+                                                                      'render_static'
+                                                                    ],
+                                                        'namespaces' => [],
+                                                        'cache' => bless( {
+                                                                            'max_keys' => 100,
+                                                                            'queue' => [
+                                                                                         'GET:/status.json:0'
+                                                                                       ],
+                                                                            'cache' => {
+                                                                                         'GET:/status.json:0' => {
+                                                                                                                 'endpoint' => bless( {
+                                                                                                                                        'name' => 'key',
+                                                                                                                                        'children' => [],
+                                                                                                                                        'via' => [
+                                                                                                                                                   'GET'
+                                                                                                                                                 ],
+                                                                                                                                        'parent' => $VAR1->{'app'}{'routes'},
+                                                                                                                                        'pattern' => bless( {
+                                                                                                                                                              'constraints' => {},
+                                                                                                                                                              'format_regex' => qr/(?^:^\/?(?:\.([^\/]+))?$)/,
+                                                                                                                                                              'regex' => qr/(?^ps:^\/([^\/.]+))/,
+                                                                                                                                                              'placeholders' => [
+                                                                                                                                                                                  'key'
+                                                                                                                                                                                ],
+                                                                                                                                                              'tree' => [
+                                                                                                                                                                          [
+                                                                                                                                                                            'slash'
+                                                                                                                                                                          ],
+                                                                                                                                                                          [
+                                                                                                                                                                            'placeholder',
+                                                                                                                                                                            'key'
+                                                                                                                                                                          ]
+                                                                                                                                                                        ],
+                                                                                                                                                              'quote_end' => ')',
+                                                                                                                                                              'quote_start' => '(',
+                                                                                                                                                              'wildcard_start' => '*',
+                                                                                                                                                              'relaxed_start' => '#',
+                                                                                                                                                              'placeholder_start' => ':',
+                                                                                                                                                              'defaults' => {
+                                                                                                                                                                              'cb' => sub { "DUMMY" }
+                                                                                                                                                                            },
+                                                                                                                                                              'pattern' => '/:key'
+                                                                                                                                                            }, 'Mojolicious::Routes::Pattern' )
+                                                                                                                                      }, 'Mojolicious::Routes::Route' ),
+                                                                                                                 'stack' => [
+                                                                                                                              {
+                                                                                                                                'format' => 'json',
+                                                                                                                                'cb' => $VAR1->{'app'}{'routes'}{'cache'}{'cache'}{'GET:/status.json:0'}{'endpoint'}{'pattern'}{'defaults'}{'cb'},
+                                                                                                                                'key' => 'status'
+                                                                                                                              }
+                                                                                                                            ]
+                                                                                                               }
+                                                                                       }
+                                                                          }, 'Mojo::Cache' ),
+                                                        'pattern' => bless( {
+                                                                              'tree' => [],
+                                                                              'regex' => qr/(?^ps:^)/,
+                                                                              'placeholders' => [],
+                                                                              'defaults' => {},
+                                                                              'constraints' => {}
+                                                                            }, 'Mojolicious::Routes::Pattern' ),
+                                                        'children' => [
+                                                                        bless( {
+                                                                                 'children' => [],
+                                                                                 'name' => '',
+                                                                                 'pattern' => bless( {
+                                                                                                       'regex' => qr/(?^ps:^)/,
+                                                                                                       'placeholders' => [],
+                                                                                                       'tree' => [],
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'format_regex' => qr/(?^:^\/?(?:\.([^\/]+))?$)/,
+                                                                                                       'constraints' => {}
+                                                                                                     }, 'Mojolicious::Routes::Pattern' ),
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'GET'
+                                                                                          ]
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        bless( {
+                                                                                 'pattern' => bless( {
+                                                                                                       'format_regex' => qr/(?^:^\/?(?:\.([^\/]+))?$)/,
+                                                                                                       'constraints' => {},
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/Alive'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'quote_end' => ')',
+                                                                                                       'placeholders' => [],
+                                                                                                       'regex' => qr/(?^ps:^\/Alive)/,
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'quote_start' => '(',
+                                                                                                       'pattern' => '/Alive',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'placeholder_start' => ':'
+                                                                                                     }, 'Mojolicious::Routes::Pattern' ),
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'GET'
+                                                                                          ],
+                                                                                 'children' => [],
+                                                                                 'name' => 'Alive'
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        $VAR1->{'app'}{'routes'}{'cache'}{'cache'}{'GET:/status.json:0'}{'endpoint'},
+                                                                        bless( {
+                                                                                 'name' => 'systemsid',
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'POST'
+                                                                                          ],
+                                                                                 'pattern' => bless( {
+                                                                                                       'constraints' => {},
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/systems'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'placeholder',
+                                                                                                                     'id'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'quote_end' => ')',
+                                                                                                       'quote_start' => '(',
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'pattern' => '/systems/:id',
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'placeholder_start' => ':',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     }
+                                                                                                     }, 'Mojolicious::Routes::Pattern' )
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        bless( {
+                                                                                 'name' => 'systemsid',
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'GET'
+                                                                                          ],
+                                                                                 'pattern' => bless( {
+                                                                                                       'pattern' => '/systems/:id',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'placeholder_start' => ':',
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'quote_start' => '(',
+                                                                                                       'quote_end' => ')',
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/systems'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'placeholder',
+                                                                                                                     'id'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'constraints' => {}
+                                                                                                     }, 'Mojolicious::Routes::Pattern' )
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        bless( {
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'POST'
+                                                                                          ],
+                                                                                 'pattern' => bless( {
+                                                                                                       'pattern' => '/systems/:system_id/status',
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'placeholder_start' => ':',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'quote_start' => '(',
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/systems'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'placeholder',
+                                                                                                                     'system_id'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     'status'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'quote_end' => ')',
+                                                                                                       'constraints' => {}
+                                                                                                     }, 'Mojolicious::Routes::Pattern' ),
+                                                                                 'name' => 'systemssystem_idstatus'
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        bless( {
+                                                                                 'pattern' => bless( {
+                                                                                                       'pattern' => '/systems/:system_id/notifications',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'placeholder_start' => ':',
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'quote_start' => '(',
+                                                                                                       'quote_end' => ')',
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/systems'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'placeholder',
+                                                                                                                     'system_id'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     'notifications'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'constraints' => {}
+                                                                                                     }, 'Mojolicious::Routes::Pattern' ),
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'POST'
+                                                                                          ],
+                                                                                 'name' => 'systemssystem_idnotifications'
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        bless( {
+                                                                                 'name' => 'weatherzipforecast',
+                                                                                 'via' => [
+                                                                                            'GET'
+                                                                                          ],
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'pattern' => bless( {
+                                                                                                       'quote_start' => '(',
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'placeholder_start' => ':',
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'pattern' => '/weather/:zip/forecast',
+                                                                                                       'constraints' => {},
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/weather'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'placeholder',
+                                                                                                                     'zip'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'slash'
+                                                                                                                   ],
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     'forecast'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'quote_end' => ')'
+                                                                                                     }, 'Mojolicious::Routes::Pattern' )
+                                                                               }, 'Mojolicious::Routes::Route' ),
+                                                                        bless( {
+                                                                                 'name' => 'serial',
+                                                                                 'websocket' => 1,
+                                                                                 'parent' => $VAR1->{'app'}{'routes'},
+                                                                                 'via' => [
+                                                                                            'GET'
+                                                                                          ],
+                                                                                 'pattern' => bless( {
+                                                                                                       'constraints' => {},
+                                                                                                       'tree' => [
+                                                                                                                   [
+                                                                                                                     'text',
+                                                                                                                     '/serial'
+                                                                                                                   ]
+                                                                                                                 ],
+                                                                                                       'quote_end' => ')',
+                                                                                                       'wildcard_start' => '*',
+                                                                                                       'quote_start' => '(',
+                                                                                                       'pattern' => '/serial',
+                                                                                                       'defaults' => {
+                                                                                                                       'cb' => sub { "DUMMY" }
+                                                                                                                     },
+                                                                                                       'relaxed_start' => '#',
+                                                                                                       'placeholder_start' => ':'
+                                                                                                     }, 'Mojolicious::Routes::Pattern' )
+                                                                               }, 'Mojolicious::Routes::Route' )
+                                                                      ],
+                                                        'conditions' => {
+                                                                          'headers' => sub { "DUMMY" },
+                                                                          'agent' => sub { "DUMMY" },
+                                                                          'host' => sub { "DUMMY" }
+                                                                        },
+                                                        'name' => ''
+                                                      }, 'Mojolicious::Routes' ),
+                                   'controller_class' => 'Mojolicious::Controller',
+                                   'home' => bless( {
+                                                      'parts' => [
+                                                                   '',
+                                                                   'Users',
+                                                                   'nebulous',
+                                                                   'src',
+                                                                   'pogotude',
+                                                                   'minfini'
+                                                                 ]
+                                                    }, 'Mojo::Home' ),
+                                   'dispatch' => 1,
+                                   'secrets' => $VAR1->{'stash'}{'mojo.secrets'},
+                                   'static' => bless( {
+                                                        'index' => {},
+                                                        'paths' => [
+                                                                     '/Users/nebulous/src/pogotude/minfini/public'
+                                                                   ],
+                                                        'classes' => [
+                                                                       'Mojo::Server::Sandbox::4b91f809f0e3270f16c8b1c87568ddf8'
+                                                                     ]
+                                                      }, 'Mojolicious::Static' ),
+                                   'types' => bless( {
+                                                       'types' => {
+                                                                    'zip' => [
+                                                                               'application/zip'
+                                                                             ],
+                                                                    'webm' => [
+                                                                                'video/webm'
+                                                                              ],
+                                                                    'jpeg' => [
+                                                                                'image/jpeg'
+                                                                              ],
+                                                                    'txt' => [
+                                                                               'text/plain;charset=UTF-8'
+                                                                             ],
+                                                                    'js' => [
+                                                                              'application/javascript'
+                                                                            ],
+                                                                    'mp4' => [
+                                                                               'video/mp4'
+                                                                             ],
+                                                                    'svg' => [
+                                                                               'image/svg+xml'
+                                                                             ],
+                                                                    'gz' => [
+                                                                              'application/x-gzip'
+                                                                            ],
+                                                                    'mp3' => [
+                                                                               'audio/mpeg'
+                                                                             ],
+                                                                    'ogv' => [
+                                                                               'video/ogg'
+                                                                             ],
+                                                                    'xml' => [
+                                                                               'application/xml',
+                                                                               'text/xml'
+                                                                             ],
+                                                                    'atom' => [
+                                                                                'application/atom+xml'
+                                                                              ],
+                                                                    'json' => [
+                                                                              'application/json'
+                                                                            ],
+                                                                    'bin' => [
+                                                                               'application/octet-stream'
+                                                                             ],
+                                                                    'png' => [
+                                                                               'image/png'
+                                                                             ],
+                                                                    'html' => [
+                                                                                'text/html;charset=UTF-8'
+                                                                              ],
+                                                                    'htm' => [
+                                                                               'text/html'
+                                                                             ],
+                                                                    'woff' => [
+                                                                                'application/font-woff'
+                                                                              ],
+                                                                    'ogg' => [
+                                                                               'audio/ogg'
+                                                                             ],
+                                                                    'gif' => [
+                                                                               'image/gif'
+                                                                             ],
+                                                                    'css' => [
+                                                                               'text/css'
+                                                                             ],
+                                                                    'jpg' => [
+                                                                               'image/jpeg'
+                                                                             ],
+                                                                    'ico' => [
+                                                                               'image/x-icon'
+                                                                             ],
+                                                                    'appcache' => [
+                                                                                    'text/cache-manifest'
+                                                                                  ],
+                                                                    'pdf' => [
+                                                                               'application/pdf'
+                                                                             ],
+                                                                    'rss' => [
+                                                                               'application/rss+xml'
+                                                                             ]
+                                                                  }
+                                                     }, 'Mojolicious::Types' ),
+                                   'log' => bless( {
+                                                     'history' => [
+                                                                    [
+                                                                      1418762530,
+                                                                      'debug',
+                                                                      'GET "/status.json".'
+                                                                    ],
+                                                                    [
+                                                                      1418762530,
+                                                                      'debug',
+                                                                      'Routing to a callback.'
+                                                                    ],
+                                                                    [
+                                                                      1418762530,
+                                                                      'debug',
+                                                                      '200 OK (0.001026s, 974.659/s).'
+                                                                    ]
+                                                                  ],
+                                                     'events' => {
+                                                                   'message' => [
+                                                                                  sub { "DUMMY" }
+                                                                                ]
+                                                                 },
+                                                     'format' => sub { "DUMMY" },
+                                                     'handle' => \*::STDERR,
+                                                     'level' => 'debug',
+                                                     'max_history_size' => 10
+                                                   }, 'Mojo::Log' ),
+                                   'commands' => bless( {
+                                                          'app' => $VAR1->{'app'}
+                                                        }, 'Mojolicious::Commands' ),
+                                   'plugins' => bless( {
+                                                         'events' => {
+                                                                       'around_action' => [
+                                                                                            sub { "DUMMY" }
+                                                                                          ],
+                                                                       'around_dispatch' => [
+                                                                                              sub { "DUMMY" },
+                                                                                              sub { "DUMMY" }
+                                                                                            ],
+                                                                       'before_dispatch' => [
+                                                                                              sub { "DUMMY" }
+                                                                                            ]
+                                                                     },
+                                                         'namespaces' => [
+                                                                           'Mojolicious::Plugin'
+                                                                         ]
+                                                       }, 'Mojolicious::Plugins' ),
+                                   'moniker' => 'infinitude',
+                                   'defaults' => {},
+                                   'mode' => 'development',
+                                   'sessions' => bless( {}, 'Mojolicious::Sessions' ),
+                                   'renderer' => bless( {
+                                                          'index' => {},
+                                                          'templates' => {
+                                                                           'systems.xml' => [
+                                                                                              'ep'
+                                                                                            ],
+                                                                           'moo.xml' => [
+                                                                                          'ep'
+                                                                                        ],
+                                                                           'forecast.xml' => [
+                                                                                               'tt'
+                                                                                             ],
+                                                                           'status.xml' => [
+                                                                                             'ep'
+                                                                                           ]
+                                                                         },
+                                                          'default_handler' => 'ep',
+                                                          'classes' => [
+                                                                         'Mojo::Server::Sandbox::4b91f809f0e3270f16c8b1c87568ddf8'
+                                                                       ],
+                                                          'encoding' => 'UTF-8',
+                                                          'paths' => [
+                                                                       '/Users/nebulous/src/pogotude/minfini/templates'
+                                                                     ],
+                                                          'helpers' => {
+                                                                         'tel_field' => sub { "DUMMY" },
+                                                                         'inactivity_timeout' => sub { "DUMMY" },
+                                                                         'time_field' => sub { "DUMMY" },
+                                                                         'month_field' => sub { "DUMMY" },
+                                                                         'extends' => sub { "DUMMY" },
+                                                                         't' => sub { "DUMMY" },
+                                                                         'dumper' => sub { "DUMMY" },
+                                                                         'image' => sub { "DUMMY" },
+                                                                         'hidden_field' => sub { "DUMMY" },
+                                                                         'file_field' => sub { "DUMMY" },
+                                                                         'csrf_field' => sub { "DUMMY" },
+                                                                         'javascript' => sub { "DUMMY" },
+                                                                         'select_field' => sub { "DUMMY" },
+                                                                         'app' => sub { "DUMMY" },
+                                                                         'form_for' => sub { "DUMMY" },
+                                                                         'datetime_field' => sub { "DUMMY" },
+                                                                         'email_field' => sub { "DUMMY" },
+                                                                         'c' => sub { "DUMMY" },
+                                                                         'reply.not_found' => sub { "DUMMY" },
+                                                                         'is_fresh' => sub { "DUMMY" },
+                                                                         'date_field' => sub { "DUMMY" },
+                                                                         'delay' => sub { "DUMMY" },
+                                                                         'config' => sub { "DUMMY" },
+                                                                         'stash' => sub { "DUMMY" },
+                                                                         'content_for' => sub { "DUMMY" },
+                                                                         'content' => sub { "DUMMY" },
+                                                                         'tag' => $VAR1->{'app'}{'renderer'}{'helpers'}{'t'},
+                                                                         'param' => sub { "DUMMY" },
+                                                                         'reply.static' => sub { "DUMMY" },
+                                                                         'number_field' => sub { "DUMMY" },
+                                                                         'submit_button' => sub { "DUMMY" },
+                                                                         'password_field' => sub { "DUMMY" },
+                                                                         'layout' => sub { "DUMMY" },
+                                                                         'reply.exception' => sub { "DUMMY" },
+                                                                         'b' => sub { "DUMMY" },
+                                                                         'validation' => sub { "DUMMY" },
+                                                                         'tag_with_error' => sub { "DUMMY" },
+                                                                         'reply.asset' => sub { "DUMMY" },
+                                                                         'title' => sub { "DUMMY" },
+                                                                         'range_field' => sub { "DUMMY" },
+                                                                         'check_box' => sub { "DUMMY" },
+                                                                         'text_area' => sub { "DUMMY" },
+                                                                         'stylesheet' => sub { "DUMMY" },
+                                                                         'current_route' => sub { "DUMMY" },
+                                                                         'csrf_token' => sub { "DUMMY" },
+                                                                         'include' => sub { "DUMMY" },
+                                                                         'url_for' => sub { "DUMMY" },
+                                                                         'radio_button' => sub { "DUMMY" },
+                                                                         'search_field' => sub { "DUMMY" },
+                                                                         'url_field' => sub { "DUMMY" },
+                                                                         'accepts' => sub { "DUMMY" },
+                                                                         'link_to' => sub { "DUMMY" },
+                                                                         'url_with' => sub { "DUMMY" },
+                                                                         'session' => sub { "DUMMY" },
+                                                                         'text_field' => sub { "DUMMY" },
+                                                                         'label_for' => sub { "DUMMY" },
+                                                                         'color_field' => sub { "DUMMY" },
+                                                                         'flash' => sub { "DUMMY" },
+                                                                         'ua' => sub { "DUMMY" },
+                                                                         'input_tag' => sub { "DUMMY" },
+                                                                         'week_field' => sub { "DUMMY" }
+                                                                       },
+                                                          'handlers' => {
+                                                                          'tt' => sub { "DUMMY" },
+                                                                          'json' => sub { "DUMMY" },
+                                                                          'data' => sub { "DUMMY" },
+                                                                          'ep' => sub { "DUMMY" },
+                                                                          'epl' => sub { "DUMMY" },
+                                                                          'text' => sub { "DUMMY" }
+                                                                        }
+                                                        }, 'Mojolicious::Renderer' )
+                                 }, 'Mojolicious::Lite' )
+               }, 'Mojolicious::Controller' );

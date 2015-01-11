@@ -1,0 +1,219 @@
+#!/usr/bin/env perl
+use Carp qw/shortmess/;
+use Mojolicious::Lite;
+use Mojo::JSON qw/encode_json decode_json/;
+use DateTime;
+use WWW::Wunderground::API;
+use Cache::FileCache;
+use Try::Tiny;
+
+use lib 'lib';
+use Cache::FileDump;
+use XML::Simple::Minded;
+
+# -------------- Config ------------------------
+my $config = {
+	wunderground_key => '',        #Weather underground API key
+	store_base => 'state',         #State storage base directory
+#	serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
+	app_secret => 'Pogotudinal'    #Mojolicious cookie signature
+};
+# ----------------------------------------------
+
+if (defined($config->{serial_tty})) {
+	if (-e $config->{serial_tty}) {
+		require IO::Termios;
+		warn "Using $config->{serial_tty} serial interface\n";
+	} else {
+		warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n";
+		delete $config->{serial_tty};
+	}
+}
+
+my $store = new Cache::FileDump(base=>$config->{store_base});
+$store->set(started=>time);
+
+app->secrets([$config->{app_secret}]);
+push @{app->static->paths}, 'public/dist', 'public/app';
+
+hook before_dispatch => sub {
+	my $c = shift;
+
+  #Mangle Internet-bound request to self
+	my $appurl = $c->url_for('/');
+	my $url = $c->req->url;
+
+	$url->base($appurl->base);
+
+	#Stuff data into store
+	if (my $data = $c->req->param('data')) {
+		my $xml;
+		try {
+			$xml = new XML::Simple::Minded($data);
+			my ($store_key) = $url->path  =~ /.*\/(.*)$/;
+			$c->app->log->debug("Saving $store_key");
+			$store->set("$store_key.raw", $data);
+			$store->set("$store_key.xml" , $xml.'');
+			$store->set("$store_key.json", encode_json({ %{$xml->TO_JSON} }));
+			$c->stash(cache_key=>$store_key);
+		} catch {
+			$c->stash('error','true');
+			$c->app->log->debug($c->req->url, shortmess(), "Caught error: $_".$@);
+			$store->set("error-".time() => 'url:'.$c->req->url."\nerror: $_\ndata:".$data);
+		};
+	}
+};
+
+get '/' => sub {
+  my $c = shift;
+  $c->reply->static('index.html');
+};
+
+get '/Alive' => sub {
+	my $c = shift;
+	$c->render(text=>'alive', format=>'txt');
+};
+
+#sync process:
+# POST /systems/id/status
+#   server has changes?
+#     false: return
+#     true:
+#       GET /systems/id  (full config returned from server)
+#       POST /systems/id (full config posted back to server)
+#       POST /notifications
+
+post '/systems/:id' => sub {
+	my $c = shift;
+	if ($c->stash('id') eq 'infinitude') { # Data is being saved from web client
+		my $xml = XML::Simple::Minded->new($c->req->json);
+		$store->set('systems.xml'  => $xml);
+		$store->set('systems.json' => $c->req->body);
+		$store->set(changes => 'true');
+	} else { # Data from thermostat.
+		if (!$c->stash('error')) {
+			$store->set( 'systems.xml'  => $store->get($c->stash('cache_key').'.xml') );
+			$store->set( 'systems.json' => $store->get($c->stash('cache_key').'.json') );
+		}
+	}
+	$c->render(text=>'',format=>'txt');
+};
+
+get '/systems/:id' => sub {
+	my $c = shift;
+	my $xml = $store->get('systems.xml');
+	$c->app->log->debug("-------- Getting systems.xml (".$c->stash('id').") from infinitude.");
+	$xml
+		? $c->render(text=>$xml.'', format=>'xml')
+		: $c->render(text=>'', format=>'txt');
+};
+
+any '/systems/:system_id/status' => sub {
+	my $c = shift;
+	my $changes = $store->get('changes') || '';
+	$changes = 'true' unless $store->get('systems.xml'); #Force a change cycle if we have no stat config
+	my $xml = new XML::Simple::Minded({
+		serverStatus => {
+			 version => '1.6',
+			pingRate => [$changes eq 'true' ? 30 : 15],
+			serverHasChanges => [$changes || 'false'],
+		}
+	});
+	$c->app->log->debug("********** There are changes. ****************") if $changes;
+	$store->set(changes=>'');
+	$c->render(text=>$xml, format=>'xml');
+};
+
+post '/systems/:system_id/(energy|notifications|status_idu|status_odu)' => sub {
+	my $c = shift;
+	$c->render(text=>'', format=>'txt');
+};
+
+get '/weather/:zip/forecast' => sub {
+	my $c = shift;
+	my $wunderground = new WWW::Wunderground::API(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>Cache::FileCache->new({ namespace=>'infinitude', default_expires_in=>60*240 }));
+	my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
+	
+	sub map_wx {
+		my ($f) = @_;
+		my @wx_status = ( 'Thunderstorms', 'Sleet', 'Rain and Sleet', 'Wintry Mix', 'Rain and Snow', 'Snow', 'Freezing Rain', 'Rain', 'Blizzard', 'Fog', 'Cloudy', 'Partly Cloudy', 'Mostly Cloudy', 'Sunny' );
+		my $lookup = {};
+		my $i = 0;
+		foreach my $stat (@wx_status) { $lookup->{$stat} = $i++; }
+		my $search = $f->{conditions}||$f->{icon};
+		$search =~ s/(heavy|light|chance of|showers)//ig;
+		$search =~ s/^\s+//; $search =~ s/\s+$//;
+
+		$search = 'Thunderstorms' if $search =~ /thunder/i;
+		$search = 'Sunny' if $search =~ /clear/i;
+		$search = 'Cloudy' if $search =~ /overcast/i;
+		$search = 'Partly Cloudy' if $search =~ /scattered clouds/i;
+		$search = 'Fog' if $search =~ /fog$/i;
+		$search = 'Sleet' if $search =~ /ice pellet/i;
+
+		my $idx = $lookup->{$search};
+		return ($idx, $wx_status[$idx]);
+	};
+
+	my @days = ();
+	for my $i (0 .. 5) {
+		my $day = $forecast->[$i];
+		my $date = DateTime->from_epoch(epoch => $day->{date}{epoch}, time_zone=>$day->{date}{tz_long} );
+		my ($status_id, $status_message) = &map_wx($day);
+		push(@days, {
+			id => $day->{date}{weekday},
+			timestamp => [ $date->strftime("%FT%T%z") ],
+			min_temp => [{ units=>'f', content=>$day->{low}{fahrenheit} }],
+			max_temp => [{ units=>'f', content=>$day->{high}{fahrenheit} }],
+			status_id => [$status_id],
+			status_message => [ $status_message ],
+			pop=>[ $day->{pop} ]
+		});
+	}
+
+	my $xml = new XML::Simple::Minded({ weather_forecast=>{ timestamp=>[DateTime->now->iso8601.'.01234Z'], ping=>[240], day=>\@days } });
+	$c->render(text=>$xml, format=>'xml');
+};
+
+my $stream;
+websocket '/serial' => sub {
+	my $c = shift;
+	if ($config->{serial_tty}) {
+		$c->app->log->debug('WebSocket opened.');
+		$stream = Mojo::IOLoop::Stream->new(IO::Termios->open($config->{serial_tty},"38400,8,n,1")) unless $stream;
+
+		$stream->on(read => sub {
+			my ($stream, $bytes) = @_;
+			$c->send($bytes);
+		});
+		$stream->on(error=>sub {
+			my ($stream, $err) = @_;
+			$c->app->log->debug("ERROR $err");
+		});
+		$stream->on(close=>sub {
+			my ($stream) = @_;
+			$c->app->log->debug("Closed stream");
+		});
+
+		$c->on('finish' => sub {
+			my ($c, $code) = @_;
+			$c->app->log->debug("Closed: $code");
+			$stream->stop;
+			$stream = undef;
+		});
+		$stream->start;
+		$stream->reactor->start unless $stream->reactor->is_running;
+	}
+};
+
+get '/:key' => sub {
+	my $c = shift;
+	my $store_key = join('.', $c->stash('key'), $c->stash('format'));
+	$c->render(text=>$store->get($store_key));
+};
+
+app->start;
+__DATA__
+
+@@ not_found.html.ep
+<%= $key %> not found

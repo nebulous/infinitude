@@ -1,0 +1,9 @@
+Limit time inputs to quarter-hours
+Edit template to use responsive classes
+Add vacation editor
+Detailed weather display with maps
+Long-term logging
+client side parsing of serial websocket (jBinary?)
+REST endpoints for basic controls (heat/cool setpoints etc)
+Big knob simple manual control. (Tweenmax knob/jQuery knob?)
+Passthru to Carrier Webservice to allow interoperability with their apps

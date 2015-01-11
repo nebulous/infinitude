@@ -1,6 +1,0 @@
-<?xml version='1.0' encoding='UTF-8'?>
-<serverStatus version="1.6">
-  <pingRate>[% status_ping || '60' %]</pingRate>
-  <serverHasChanges>[% server_has_changes || 'false' %]</serverHasChanges>
-</serverStatus>
-
