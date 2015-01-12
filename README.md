@@ -19,7 +19,7 @@
 ##### Hardware
  * Basic hardware capable of running Linux. This could be a desktop machine, a Raspberry Pi, or an embedded device. The author runs Infinitude on ArchLinux using a [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) which can be obtained for less than $20 USD and sits on top of the air handler like so:
 
-<a href="http://imgur.com/IESJCCw"><img src="http://i.imgur.com/IESJCCw.jpg" title="source: imgur.com" /></a>
+<a href="http://imgur.com/a/bkcHX#1"><img src="http://i.imgur.com/IESJCCw.jpg" title="source: imgur.com" /></a>
 
 See <a target="_blank" href="http://www.amazon.com/Infinitude-hardware/lm/R2G4T8HWC1AQDK/?_encoding=UTF8&camp=1789&creative=390957&linkCode=ur2&tag=sbec-20&linkId=THB3EP6RU76EIXOA">Infinitude Hardware</a><img src="https://ir-na.amazon-adsystem.com/e/ir?t=sbec-20&l=ur2&o=1" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.
 
