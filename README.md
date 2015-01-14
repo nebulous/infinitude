@@ -1,9 +1,18 @@
 #Infinitude
 ###Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
 
-#### Infinitude is an alternative web service for [Carrier Infinity Touch*](https://github.com/nebulous/infinitude/wiki/Infinity-touch) thermostats.
+#### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
 
-*and presumably other Carrier/Bryant network thermostats as well
+It allows direct web-based control of
+  * Temperature setpoints
+  * Schedules
+  * Dealer information
+
+As well as monitoring of weather and any other sensors you may want to integrate.
+
+Infinitude can also optionally monitor the Carrier/Bryant RS485 bus for higher resolution access to your thermostat, air handler, heat pump, and other devices as demonstrated in the video below.
+
+[![Real time RS485 monitoring](http://img.youtube.com/vi/ybjCumDG_d8/0.jpg)](https://www.youtube.com/watch?v=ybjCumDG_d8)
 
 #### Requirements
 
