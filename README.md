@@ -10,7 +10,14 @@ It allows direct web-based control of
 
 As well as monitoring of weather and any other sensors you may want to integrate.
 
-Infinitude can also optionally monitor the Carrier/Bryant RS485 bus for higher resolution access to your thermostat, air handler, heat pump, and other devices as demonstrated in the video below.
+<img src="http://i.imgur.com/1LhLKbp.png" />
+
+
+Infinitude can also optionally monitor the Carrier/Bryant RS485 bus for higher resolution access to your thermostat, air handler, heat pump, and other devices. The serial monitor keeps track of the current state, and highlights changing bytes to aid in protocol analysis.
+
+<img src="http://i.imgur.com/5Ge1zEM.png" />
+
+Demonstrated in the video below:
 
 [![Real time RS485 monitoring](http://img.youtube.com/vi/ybjCumDG_d8/0.jpg)](https://www.youtube.com/watch?v=ybjCumDG_d8)
 
