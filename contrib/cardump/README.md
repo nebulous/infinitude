@@ -9,7 +9,7 @@ To build:
 
     make
 
-Pipe from a serial tty for best results:
+Pipe from a serial tty(see <a target="_blank" href="http://www.amazon.com/Infinitude-hardware/lm/R2G4T8HWC1AQDK/?_encoding=UTF8&camp=1789&creative=390957&linkCode=ur2&tag=sbec-20&linkId=THB3EP6RU76EIXOA">Infinitude Hardware</a><img src="https://ir-na.amazon-adsystem.com/e/ir?t=sbec-20&l=ur2&o=1" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for inexpensive rs485 interfaces.) for best results:
 
     ./cardump < /dev/ttyS0
 
