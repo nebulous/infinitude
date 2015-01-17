@@ -6,6 +6,7 @@ use DateTime;
 use WWW::Wunderground::API;
 use Cache::FileCache;
 use Try::Tiny;
+use Time::HiRes qw/time/;
 
 use lib 'lib';
 use Cache::FileDump;
@@ -15,7 +16,7 @@ use XML::Simple::Minded;
 my $config = {
 	wunderground_key => '',        #Weather underground API key
 	store_base => 'state',         #State storage base directory
-#	serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
+	serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
 	app_secret => 'Pogotudinal'    #Mojolicious cookie signature
 };
 # ----------------------------------------------
@@ -23,6 +24,7 @@ my $config = {
 if (defined($config->{serial_tty})) {
 	if (-e $config->{serial_tty}) {
 		require IO::Termios;
+		require CarBus;
 		warn "Using $config->{serial_tty} serial interface\n";
 	} else {
 		warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n";
@@ -34,7 +36,8 @@ my $store = new Cache::FileDump(base=>$config->{store_base});
 $store->set(started=>time);
 
 app->secrets([$config->{app_secret}]);
-push @{app->static->paths}, 'public/dist', 'public/app';
+#push @{app->static->paths}, 'public/app'; #development
+push @{app->static->paths}, 'public/dist'; #production
 
 hook before_dispatch => sub {
 	my $c = shift;
@@ -176,15 +179,30 @@ get '/weather/:zip/forecast' => sub {
 };
 
 my $stream;
+my $carbus;
 websocket '/serial' => sub {
 	my $c = shift;
 	if ($config->{serial_tty}) {
 		$c->app->log->debug('WebSocket opened.');
-		$stream = Mojo::IOLoop::Stream->new(IO::Termios->open($config->{serial_tty},"38400,8,n,1")) unless $stream;
+		$stream ||= Mojo::IOLoop::Stream->new(IO::Termios->open($config->{serial_tty},"38400,8,n,1"));
+		$carbus ||= CarBus->new(async=>1);
 
 		$stream->on(read => sub {
 			my ($stream, $bytes) = @_;
-			$c->send($bytes);
+			$carbus->push_stream($bytes);
+			my $frame = $carbus->get_frame();
+			$frame->{timestamp} = time;
+
+			unless ($frame->{error}) {
+				my $key = substr($frame->{data},0,3);
+				my $registers = {
+					"\x00\x02\x02" => 'Time',
+					"\x00\x02\x03" => 'Date',
+				};
+				$frame->{field} = $registers->{$key};
+
+				$c->send({json=>$frame});
+			}
 		});
 		$stream->on(error=>sub {
 			my ($stream, $err) = @_;

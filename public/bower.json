@@ -11,7 +11,10 @@
     "angular-cookies": "1.2.15",
     "angular-sanitize": "1.2.15",
     "angular-route": "1.2.15",
-    "c3": "~0.4.8"
+    "c3": "~0.4.8",
+    "jdataview": "~2.5.0",
+    "angular-timeago": "~0.1.7",
+    "angular-dialgauge": "~0.1.2"
   },
   "devDependencies": {
     "angular-mocks": "1.2.15",

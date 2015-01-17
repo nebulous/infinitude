@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="styles/main.css">
     <!-- endbuild -->
   </head>
-  <body ng-app="publicApp">
+  <body ng-app="infinitude">
     <!--[if lt IE 7]>
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
@@ -36,7 +36,7 @@
   <h3 class="text-muted">Infinitude</h3>
 </div>
 
-    <div class="container" ng-view></div>
+    <div class="container-fluid" ng-view></div>
 
 <div class="footer">
   <p><a href="https://www.github.com/nebulous/infinitude">Infinitude on github</a></p>
@@ -58,9 +58,36 @@
     <script src="bower_components/angular-route/angular-route.js"></script>
     <script src="bower_components/d3/d3.js"></script>
     <script src="bower_components/c3/c3.js"></script>
+    <script src="bower_components/jdataview/dist/browser/jdataview.js"></script>
+    <script src="bower_components/angular-timeago/src/timeAgo.js"></script>
+    <script src="bower_components/angular-dialgauge/src/angular-dialgauge.js"></script>
     <!-- endbower -->
     <!-- endbuild -->
+<style>
+        .dg {
+            display: inline-block;
+            width: 140px;
+        }
 
+        .dialgauge-value {
+            font-size: 3em;
+            font-weight: 200;
+        }
+
+        .dialgauge-unit {
+            font-size: 2em;
+            stroke: black;
+            fill: green;
+            font-weight: 100;
+        }
+
+        .dialgauge-title {
+            font-size: 2em;
+            stroke: black;
+            fill: blue;
+            font-weight: 100;
+        }
+</style>
 
         <!-- build:js({.tmp,app}) scripts/scripts.js -->
         <script src="scripts/app.js"></script>

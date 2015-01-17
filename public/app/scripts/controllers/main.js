@@ -1,8 +1,14 @@
 'use strict';
 
-angular.module('publicApp')
+angular.module('infinitude')
   .controller('MainCtrl', function ($scope, $http, $interval, $location) {
 		$scope.debounce = 0;
+		$scope.carbus = $scope.carbus||{};
+
+		$scope.systems = JSON.parse(window.localStorage.getItem("infinitude-systems")) || {};
+		$scope.status = JSON.parse(window.localStorage.getItem("infinitude-status")) || {};
+		$scope.notifications = JSON.parse(window.localStorage.getItem("infinitude-notifications")) || {};
+
 		var reloadData = function() {
 			if ($scope.debounce > 0) {
 				$scope.debounce = $scope.debounce - 1;
@@ -11,16 +17,19 @@ angular.module('publicApp')
 			$http.get('/systems.json').
 				success(function(data) {
 					$scope.systems = data;
+					window.localstorage.setItem("infinitude-systems", data);
 					//console.log('systems:',$scope.systems);
 				});
 			$http.get('/status.json').
 				success(function(data) {
 					$scope.status = data.status[0];
+					window.localstorage.setItem("infinitude-status", data.status[0]);
 					//console.log('status:',$scope.status);
 				});
 			$http.get('/notifications.json').
 				success(function(data) {
 					$scope.notifications = data.notifications[0];
+					window.localstorage.setItem("infinitude-notifications", data.notifications[0]);
 					//console.log('status:',$scope.status);
 				});
 			/*$http.get('/energy.json').
@@ -44,10 +53,8 @@ angular.module('publicApp')
 				$scope.debounce = $scope.debounce + 1;
 			}
 		}, true);
-		//$scope.$watch('systems.system[0].config[0].zones[0].zone[0]', function(newValue,oldValue) {
-		//}, true);
 		reloadData();
-		$interval(reloadData,200000);
+		$interval(reloadData,3*60*1000);
 
 		$scope.isActive = function(route) {
 			return route === $location.path();

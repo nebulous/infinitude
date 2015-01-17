@@ -1,11 +1,13 @@
 'use strict';
 
 angular
-  .module('publicApp', [
+  .module('infinitude', [
     'ngCookies',
     'ngResource',
     'ngSanitize',
-    'ngRoute'
+    'ngRoute',
+    'yaru22.angular-timeago',
+    'angular-dialgauge'
   ])
   .config(function ($routeProvider) {
     $routeProvider
