@@ -2,7 +2,7 @@
 
 function wsu(s) {
 	var l = window.location;
-	return 'ws://10.0.8.31:8080'+s;
+	//return 'ws://10.0.8.31:8080'+s;
 	return ((l.protocol === 'https:') ? 'wss://' : 'ws://') + l.hostname + (((l.port !== 80) && (l.port !== 443)) ? ':' + l.port : '') + s;
 }
 
