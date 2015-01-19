@@ -87,7 +87,7 @@ angular.module('infinitude')
 
 			if (frame.Function.match(/write|reply/)) {
 				var address = toHex(frame.data.substring(0,3));
-				var id = frame.SrcClass + frame.DstClass + address;
+				var id = frame.Function + frame.SrcClass + frame.DstClass + address;
 
 				if (frame.SrcClass == 'FanCoil') {
 					if (address.match(/00 03 06/)) {
@@ -117,16 +117,9 @@ angular.module('infinitude')
 				window.localStorage.setItem("infinitude-serial-state",JSON.stringify($scope.state));
 			}
 
-
 			$scope.frames.push(frame);
-			$scope.framecount = $scope.frames.length;
 			if ($scope.frames.length>9) $scope.frames.shift();
-			$scope.rawSerial += m.data;
-			var slen = $scope.rawSerial.length;
-			var max = 2048;
-			if (slen>max) {
-				$scope.rawSerial = $scope.rawSerial.substr(slen-max,max);
-			}
+
 			$scope.$apply();
 		};
 	});
