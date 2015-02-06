@@ -40,9 +40,16 @@ sub TO_JSON {
 	my $self = shift;
 	return $self->_struc();
 }
+
+sub _as_json {
+	my $self = shift;
+	return to_json($self->TO_JSON, {convert_blessed=>1});
+}
+
+
 use overload '""' => sub {
 	my $self = shift;
-	my $json = to_json($self, {convert_blessed=>1});
+	my $json = $self->_as_json();
 	my $rstruc = $json eq 'null' ? undef : from_json($json);
 
 	{

@@ -67,6 +67,49 @@ hook before_dispatch => sub {
 	}
 };
 
+sub qtr_hr {
+	my ($hour,$minute) = @_;
+	if ($hour =~ /\d:\d/) {
+		($hour,$minute) = $hour =~ /(\d+)\:(\d+)/;
+	}
+	$hour||=(localtime)[2];
+	$minute||=(localtime)[1];
+	$minute = 15*int(0.5+($minute/15));
+	if ($minute==60) {
+		$hour+=1;
+		$minute=0;
+	}
+	return sprintf("%02d:%02d",$hour,$minute);
+}
+
+# Quick and dirty automation support. Ideally this will turn REST'y
+# 	but we want to ensure automation devices eg VeraLite will work first
+any '/api/:zone_id/hold' => sub {
+	my $c = shift;
+	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+
+	my $idx = ($c->stash('zone_id')||1) - 1;
+	my $zone = $xml->system->config->zones->zone->[$idx];
+
+	my $setting = {};
+
+	$setting->{hold} = $c->req->param('hold') eq 'off' ? 'off' : 'on';
+	$zone->hold([$setting->{hold}]);
+
+	my $activities = { home=>'home', away=>'away', sleep=>'sleep', wake=>'wake', manual=>'manual' };
+	$setting->{activity} = $activities->{lc($c->req->param('activity'))} || 'home';
+	$zone->holdActivity([$setting->{activity}]);
+
+	# default to about an hour from now
+	$setting->{until} = &qtr_hr($c->req->param('until') || ((localtime)[2] + 1));
+	$zone->otmr([$setting->{until}]);
+
+	$store->set('systems.xml',  $xml);
+	$store->set('systems.json', $xml->_as_json());
+
+	$c->render(json=>$setting);
+};
+
 get '/' => sub {
   my $c = shift;
   $c->reply->static('index.html');
@@ -234,4 +277,5 @@ app->start;
 __DATA__
 
 @@ not_found.html.ep
+% my $key||='undefined';
 <%= $key %> not found
