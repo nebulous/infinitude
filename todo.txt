@@ -2,6 +2,5 @@ Limit time inputs to quarter-hours
 Add vacation editor
 Detailed weather display with maps
 Long-term logging
-REST endpoints for basic controls (heat/cool setpoints etc)
 Big knob simple manual control. (Tweenmax knob/jQuery knob?)
 Passthru to Carrier Webservice to allow interoperability with their apps
