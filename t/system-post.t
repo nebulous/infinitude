@@ -4,6 +4,11 @@ use Test::Mojo;
 # Include application
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+
+$main::config = {
+	app_secret => 'testing',
+	store_base => 't/test_store'
+};
 require "$FindBin::Bin/../infinitude";
 
 use XML::Simple::Minded;

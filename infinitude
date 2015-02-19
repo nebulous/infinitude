@@ -15,7 +15,7 @@ use Cache::FileDump;
 use XML::Simple::Minded;
 
 # -------------- Config ------------------------
-my $config = {
+our $config ||= {
 	wunderground_key => '',        #Weather underground API key
 	store_base => 'state',         #State storage base directory
 	serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
