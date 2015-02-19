@@ -1,4 +1,7 @@
 package Cache::FileDump;
+
+our $VERSION = '0.01';
+
 # Simple file store implementation.
 # Any CHI or Cache::Cache or key/value store should work
 use Moo;

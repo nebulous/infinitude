@@ -5,6 +5,8 @@ use Hash::AsObject;
 use JSON -convert_blessed_universally;
 extends qw/XML::Simple/;
 
+our $VERSION = '0.01';
+
 $XML::Simple::PREFERRED_PARSER = 'XML::Parser';
 
 has _xml => (is=>'rw', default=>sub{''});

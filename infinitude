@@ -1,4 +1,7 @@
 #!/usr/bin/env perl
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
 use Carp qw/shortmess/;
 use Mojolicious::Lite;
 use Mojo::JSON qw/encode_json decode_json/;
@@ -8,7 +11,6 @@ use Cache::FileCache;
 use Try::Tiny;
 use Time::HiRes qw/time/;
 
-use lib 'lib';
 use Cache::FileDump;
 use XML::Simple::Minded;
 
@@ -47,17 +49,18 @@ hook before_dispatch => sub {
 	my $url = $c->req->url;
 
 	$url->base($appurl->base);
+	$c->app->log->debug($url);
 
 	#Stuff data into store
 	if (my $data = $c->req->param('data')) {
 		my $xml;
 		try {
-			$xml = new XML::Simple::Minded($data);
+			$xml = XML::Simple::Minded->new($data);
 			my ($store_key) = $url->path  =~ /.*\/(.*)$/;
 			$c->app->log->debug("Saving $store_key");
 			$store->set("$store_key.raw", $data);
 			$store->set("$store_key.xml" , $xml.'');
-			$store->set("$store_key.json", encode_json({ %{$xml->TO_JSON} }));
+			$store->set("$store_key.json", $xml->_as_json);
 			$c->stash(cache_key=>$store_key);
 		} catch {
 			$c->stash('error','true');
