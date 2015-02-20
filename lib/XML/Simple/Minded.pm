@@ -13,6 +13,7 @@ has _xml => (is=>'rw', default=>sub{''});
 has _struc => (is=>'rw', default=>sub{{}});
 has _root => (is=>'rw');
 has _parent => (is=>'rw');
+has _depth => (is=>'ro', default=>0);
 
 sub FOREIGNBUILDARGS {
 	return (force_array=>1, keep_root=>1, key_attr=>[]);
@@ -34,8 +35,11 @@ sub BUILDARGS {
 sub BUILD {
 	my $self = shift;
 	$self->_struc($self->XMLin($self->_xml)) if $self->_xml;
-	#my $clone = { %{$self->_struc||{} } };
 	$self->_struc(Hash::AsObject->new($self->_struc));
+}
+
+sub DESTROY {
+	my $self = shift;
 }
 
 sub TO_JSON {
@@ -93,20 +97,21 @@ sub AUTOLOAD {
 	my $self = shift;
 	my $search = $AUTOLOAD;
 	$search =~ s/XML::Simple::Minded:://;
+	die 'Suspicious recursion' if $self->_depth>99;
 
 	sub haso {
 		my ($in, $parent) = @_;
 		my $ref = ref($in);
 
 		if ($ref eq 'ARRAY') {
-			return &haso($in->[0]) if scalar(@$in) == 1;
+			return &haso($in->[0], $parent) if scalar(@$in) == 1;
 			foreach my $e (@$in) {
 				$e = &haso($e, $parent);
 			}
 			return $in;
 		}
 		if ($ref eq 'HASH' or $ref eq 'Hash::AsObject') {
-			return XML::Simple::Minded->new(_struc=>$in, _parent=>$parent);
+			return XML::Simple::Minded->new(_struc=>$in, _parent=>$parent, _depth=>$parent ? ($parent->_depth+1) : 0);
 		}
 		return $in;
 	};
@@ -121,7 +126,7 @@ sub AUTOLOAD {
 	}
 	my $res = $self->_struc->$search();
 	if (!defined($res)) {
-		return XML::Simple::Minded->new(_root=>$search, _parent=>$self);
+		return XML::Simple::Minded->new(_root=>$search, _parent=>$self, _depth=>99);
 	}
 	return &haso($res,$self);
 }

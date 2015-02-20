@@ -6,13 +6,17 @@ BEGIN {
 	use_ok('XML::Simple::Minded');
 }
 
-my $xml = XML::Simple::Minded->new("$FindBin::Bin/systems17.raw");
+my $xml = XML::Simple::Minded->new("<this that=\"option\">valueforthis</this>");
 isa_ok($xml, 'XML::Simple::Minded');
+is($xml->this->content,'valueforthis', 'contents');
+is($xml->this->that,'option','attributes');
+$xml = undef;
 
-is($xml->system->config->mode,'auto');
+$xml = XML::Simple::Minded->new("$FindBin::Bin/systems17.raw");
+is($xml->system->config->mode,'auto','XML parses');
 
 $xml->system->config->testitem(['test value']);
-is($xml->system->config->testitem,'test value');
+is($xml->system->config->testitem,'test value','New values added');
 
 my $xml_string = $xml."";
 ok($xml_string =~ m/^<\?xml/,'xml stringifies definition');
