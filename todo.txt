@@ -3,4 +3,3 @@ Add vacation editor
 Detailed weather display with maps
 Long-term logging
 Big knob simple manual control. (Tweenmax knob/jQuery knob?)
-Passthru to Carrier Webservice to allow interoperability with their apps
