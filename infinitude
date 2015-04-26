@@ -19,7 +19,8 @@ our $config ||= {
 	wunderground_key => '',        #Weather underground API key
 	store_base => 'state',         #State storage base directory
 	serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
-	app_secret => 'Pogotudinal'    #Mojolicious cookie signature
+	app_secret => 'Pogotudinal',   #Mojolicious cookie signature
+	pass_reqs => 60*60*2           #Pass requests to Carrier webservice every 2 hours (set to 0 to disable)
 };
 # ----------------------------------------------
 
@@ -34,8 +35,10 @@ if (defined($config->{serial_tty})) {
 	}
 }
 
-my $store = new Cache::FileDump(base=>$config->{store_base});
+my $store = Cache::FileDump->new(base=>$config->{store_base});
 $store->set(started=>time);
+
+my $req_cache =Cache::FileCache->new({ namespace=>'myinfinity', default_expires_in=>$config->{pass_reqs} });
 
 app->secrets([$config->{app_secret}]);
 #push @{app->static->paths}, 'public/app'; #development
@@ -44,29 +47,52 @@ push @{app->static->paths}, 'public/dist'; #production
 hook before_dispatch => sub {
 	my $c = shift;
 
-  #Mangle Internet-bound request to self
-	my $appurl = $c->url_for('/');
 	my $url = $c->req->url;
+	if ($url->to_abs->host =~ /carrier/) {
+		
+		my $nk = $url->path->to_string;
+		$nk =~ s/\//-/g;
+		$nk =~ s/^-//;
+		$c->stash->{action_key} = $nk;
 
-	$url->base($appurl->base);
-	$c->app->log->debug($url);
+		if ($config->{pass_reqs} and !$req_cache->get($nk)) {
+			$req_cache->set($nk,time);
+			my $o_req = $c->req->clone;
+			my $o_url = Mojo::URL->new($o_req->url->to_abs->to_string);
+			$o_url->scheme('https');
+			$o_req->url($o_url);
 
-	#Stuff data into store
-	if (my $data = $c->req->param('data')) {
-		my $xml;
-		try {
-			$xml = XML::Simple::Minded->new($data);
-			my ($store_key) = $url->path  =~ /.*\/(.*)$/;
-			$c->app->log->debug("Saving $store_key");
-			$store->set("$store_key.raw", $data);
-			$store->set("$store_key.xml" , $xml.'');
-			$store->set("$store_key.json", $xml->_as_json);
-			$c->stash(cache_key=>$store_key);
-		} catch {
-			$c->stash('error','true');
-			$c->app->log->debug($c->req->url, shortmess(), "Caught error: $_".$@);
-			$store->set("error-".time() => 'url:'.$c->req->url."\nerror: $_\ndata:".$data);
-		};
+			$c->app->log->debug("No cache for $nk. Make Carrier request");
+			$store->set("req-$nk.txt", $o_req->to_string);
+			my $ua = Mojo::UserAgent->new;
+			my $tx = $ua->start(Mojo::Transaction::HTTP->new(req=>$o_req));
+			$store->set("res-$nk.txt", $tx->res->to_string);
+			$store->set("res-$nk.xml", $tx->res->body);
+		}
+
+		#Mangle Internet-bound request to self
+		my $appurl = $c->url_for('/');
+		$url->base($appurl->base);
+		$c->app->log->debug($url);
+
+		#Stuff data into store
+		if (my $data = $c->req->param('data')) {
+			my $xml;
+			try {
+				$xml = XML::Simple::Minded->new($data);
+				my ($store_key) = $url->path  =~ /.*\/(.*)$/;
+				$c->app->log->debug("Saving $store_key");
+				$store->set("$store_key.raw", $data);
+				$store->set("$store_key.xml" , $xml.'');
+				$store->set("$store_key.json", $xml->_as_json);
+				$c->stash->{data} = $xml;
+				$c->stash(store_key=>$store_key);
+			} catch {
+				$c->stash('error','true');
+				$c->app->log->debug($url, shortmess(), "Caught error: $_".$@);
+				$store->set("error-".time() => 'url:'.$url."\nerror: $_\ndata:".$data);
+			};
+		}
 	}
 };
 
@@ -151,14 +177,17 @@ get '/Alive' => sub {
 	$c->render(text=>'alive', format=>'txt');
 };
 
-#sync process:
-# POST /systems/id/status
-#   server has changes?
-#     false: return
-#     true:
-#       GET /systems/id  (full config returned from server)
-#       POST /systems/id (full config posted back to server)
-#       POST /notifications
+get '/time' => sub {
+	my $c = shift;
+	my $date = DateTime->now();
+	my $xml = XML::Simple::Minded->new({
+		"time" => {
+			version => '1.9',
+			utc => [$date->strftime("%FT%TZ")]
+		}
+	});
+	$c->render(text=>$xml, format=>'xml');
+};
 
 post '/systems/:id' => sub {
 	my $c = shift;
@@ -169,11 +198,21 @@ post '/systems/:id' => sub {
 		$store->set(changes => 'true');
 	} else { # Data from thermostat.
 		if (!$c->stash('error')) {
-			$store->set( 'systems.xml'  => $store->get($c->stash('cache_key').'.xml') );
-			$store->set( 'systems.json' => $store->get($c->stash('cache_key').'.json') );
+			$store->set( 'systems.xml'  => $store->get($c->stash('store_key').'.xml') );
+			$store->set( 'systems.json' => $store->get($c->stash('store_key').'.json') );
+			#$store->set('config.xml', $xml->system);
 		}
 	}
 	$c->render(text=>'',format=>'txt');
+};
+
+any '/systems/:id/config' => sub {
+	my $c = shift;
+	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+	my $config = $xml->system->config();
+	my $out = $config.'';
+	$out =~ s|opt>|config>|gs; #TODO: fix this fragile, lame hack
+	$c->render(text=>$out, format=>'xml');
 };
 
 get '/systems/:id' => sub {
@@ -189,11 +228,12 @@ any '/systems/:system_id/status' => sub {
 	my $c = shift;
 	my $changes = $store->get('changes') || '';
 	$changes = 'true' unless $store->get('systems.xml'); #Force a change cycle if we have no stat config
-	my $xml = new XML::Simple::Minded({
+	my $xml = XML::Simple::Minded->new({
 		serverStatus => {
 			 version => '1.6',
-			pingRate => [$changes eq 'true' ? 30 : 15],
+			pingRate => [$changes eq 'true' ? 20 : 12],
 			serverHasChanges => [$changes || 'false'],
+			configHasChanges => [$changes || 'false'],
 		}
 	});
 	$c->app->log->debug("********** There are changes. ****************") if $changes;
@@ -201,54 +241,58 @@ any '/systems/:system_id/status' => sub {
 	$c->render(text=>$xml, format=>'xml');
 };
 
-post '/systems/:system_id/(energy|notifications|status_idu|status_odu)' => sub {
+post '/systems/:system_id/(:part)' => sub {
 	my $c = shift;
 	$c->render(text=>'', format=>'txt');
 };
 
 get '/weather/:zip/forecast' => sub {
 	my $c = shift;
-	my $wunderground = new WWW::Wunderground::API(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>Cache::FileCache->new({ namespace=>'infinitude', default_expires_in=>60*240 }));
-	my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
-	
-	sub map_wx {
-		my ($f) = @_;
-		my @wx_status = ( 'Thunderstorms', 'Sleet', 'Rain and Sleet', 'Wintry Mix', 'Rain and Snow', 'Snow', 'Freezing Rain', 'Rain', 'Blizzard', 'Fog', 'Cloudy', 'Partly Cloudy', 'Mostly Cloudy', 'Sunny' );
-		my $lookup = {};
-		my $i = 0;
-		foreach my $stat (@wx_status) { $lookup->{$stat} = $i++; }
-		my $search = $f->{conditions}||$f->{icon};
-		$search =~ s/(heavy|light|chance of|showers)//ig;
-		$search =~ s/^\s+//; $search =~ s/\s+$//;
+	my $xml;
+	if ($config->{wunderground_key}) {
+		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>Cache::FileCache->new({ namespace=>'infinitude', default_expires_in=>60*240 }));
+		my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
+		
+		sub map_wx {
+			my ($f) = @_;
+			my @wx_status = ( 'Thunderstorms', 'Sleet', 'Rain and Sleet', 'Wintry Mix', 'Rain and Snow', 'Snow', 'Freezing Rain', 'Rain', 'Blizzard', 'Fog', 'Cloudy', 'Partly Cloudy', 'Mostly Cloudy', 'Sunny' );
+			my $lookup = {};
+			my $i = 0;
+			foreach my $stat (@wx_status) { $lookup->{$stat} = $i++; }
+			my $search = $f->{conditions}||$f->{icon};
+			$search =~ s/(heavy|light|chance of|showers)//ig;
+			$search =~ s/^\s+//; $search =~ s/\s+$//;
 
-		$search = 'Thunderstorms' if $search =~ /thunder/i;
-		$search = 'Sunny' if $search =~ /clear/i;
-		$search = 'Cloudy' if $search =~ /overcast/i;
-		$search = 'Partly Cloudy' if $search =~ /scattered clouds/i;
-		$search = 'Fog' if $search =~ /fog$/i;
-		$search = 'Sleet' if $search =~ /ice pellet/i;
+			$search = 'Thunderstorms' if $search =~ /thunder/i;
+			$search = 'Sunny' if $search =~ /clear/i;
+			$search = 'Cloudy' if $search =~ /overcast/i;
+			$search = 'Partly Cloudy' if $search =~ /scattered clouds/i;
+			$search = 'Fog' if $search =~ /fog$/i;
+			$search = 'Sleet' if $search =~ /ice pellet/i;
 
-		my $idx = $lookup->{$search};
-		return ($idx, $wx_status[$idx]);
-	};
+			my $idx = $lookup->{$search};
+			return ($idx, $wx_status[$idx]);
+		};
 
-	my @days = ();
-	for my $i (0 .. 5) {
-		my $day = $forecast->[$i];
-		my $date = DateTime->from_epoch(epoch => $day->{date}{epoch}, time_zone=>$day->{date}{tz_long} );
-		my ($status_id, $status_message) = &map_wx($day);
-		push(@days, {
-			id => $day->{date}{weekday},
-			timestamp => [ $date->strftime("%FT%T%z") ],
-			min_temp => [{ units=>'f', content=>$day->{low}{fahrenheit} }],
-			max_temp => [{ units=>'f', content=>$day->{high}{fahrenheit} }],
-			status_id => [$status_id],
-			status_message => [ $status_message ],
-			pop=>[ $day->{pop} ]
-		});
+		my @days = ();
+		for my $i (0 .. 5) {
+			my $day = $forecast->[$i];
+			my $date = DateTime->from_epoch(epoch => $day->{date}{epoch}, time_zone=>$day->{date}{tz_long} );
+			my ($status_id, $status_message) = &map_wx($day);
+			push(@days, {
+				id => $day->{date}{weekday},
+				timestamp => [ $date->strftime("%FT%T%z") ],
+				min_temp => [{ units=>'f', content=>$day->{low}{fahrenheit} }],
+				max_temp => [{ units=>'f', content=>$day->{high}{fahrenheit} }],
+				status_id => [$status_id],
+				status_message => [ $status_message ],
+				pop=>[ $day->{pop} ]
+			});
+		}
+
+		$xml = XML::Simple::Minded->new({ weather_forecast=>{ timestamp=>[DateTime->now->iso8601.'.01234Z'], ping=>[240], day=>\@days } });
 	}
-
-	my $xml = new XML::Simple::Minded({ weather_forecast=>{ timestamp=>[DateTime->now->iso8601.'.01234Z'], ping=>[240], day=>\@days } });
+	$xml||=$store->get('res-'.$c->stash('action_key').'.xml');
 	$c->render(text=>$xml, format=>'xml');
 };
 

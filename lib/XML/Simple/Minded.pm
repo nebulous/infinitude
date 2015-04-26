@@ -86,8 +86,7 @@ use overload '""' => sub {
 			return @out;
 		}
 		1;
-}
-
+	}
 	my $sx = XML::Simple::Minded::Sorter->new( keep_root=>$self->_root ? 1 : 0, xml_decl=>'<?xml version="1.0" encoding="UTF-8"?>', no_indent=>1 );
 	return $sx->XMLout($rstruc);
 };
@@ -124,7 +123,7 @@ sub AUTOLOAD {
 			$self->_parent->$key([$self->_struc]) if $key;
 		}
 	}
-	my $res = $self->_struc->$search();
+	my $res = $self->_struc->{$search};
 	if (!defined($res)) {
 		return XML::Simple::Minded->new(_root=>$search, _parent=>$self, _depth=>99);
 	}
