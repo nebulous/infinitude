@@ -31,6 +31,8 @@ Demonstrated in the video below:
    * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API)
    * [IO::Termios](https://metacpan.org/module/IO::Termios) optional for RS485 serial monitoring
    * Try::Tiny
+   * Cache::FileCache
+   * JSON
 
 ##### Hardware
  * Basic hardware capable of running Linux. This could be a desktop machine, a Raspberry Pi, or an embedded device. The author runs Infinitude on ArchLinux using a [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) which can be obtained for less than $20 USD and sits on top of the air handler like so:
