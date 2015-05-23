@@ -31,6 +31,10 @@ Demonstrated in the video below:
    * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API)
    * [IO::Termios](https://metacpan.org/module/IO::Termios) optional for RS485 serial monitoring
    * Try::Tiny
+   * Cache::FileCache
+   * JSON
+ * Note on Raspberry Pi some CPAN Modules will time out if the command to install them is not run in verbose mode, for instance: "curl -L https://cpanmin.us | perl - -M https://cpan.metacpan.org/ -n IO::Termios --verbose"
+ * Note also, on Raspberry Pi, expat-devel must be installed before installing Wunderground for parsing, so you should do "apt-get install expat libexpat1-dev"
 
 ##### Hardware
  * Basic hardware capable of running Linux. This could be a desktop machine, a Raspberry Pi, or an embedded device. The author runs Infinitude on ArchLinux using a [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) which can be obtained for less than $20 USD and sits on top of the air handler like so:
