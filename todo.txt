@@ -1,5 +1,6 @@
 Limit time inputs to quarter-hours
 Add vacation editor
+Add energymonitor
 Detailed weather display with maps
 Long-term logging
 Add heartbeat indication for both http and serial comms

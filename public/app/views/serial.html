@@ -26,6 +26,33 @@
 </div>
 <div class="row">
 	<div class="col-md-12">
+
+    <nvd3-line-chart data="history.comboT" tooltips="true" interactive="true"></nvd3-line-chart>
+    <nvd3-line-chart data="history.comboS" tooltips="true" interactive="true"></nvd3-line-chart>
+    <nvd3-line-chart data="history.coilTemp" tooltips="true" interactive="true"></nvd3-line-chart>
+    <nvd3-line-chart
+        data="history.outsideTemp"
+        showXAxis="true"
+        showYAxis="true"
+        tooltips="true"
+        interactive="true">
+    </nvd3-line-chart>
+
+    <nvd3-line-chart
+        data="history.blowerRPM"
+        showXAxis="true"
+        showYAxis="true"
+        tooltips="true"
+        interactive="true">
+    </nvd3-line-chart>
+
+    <nvd3-line-chart data="history.airflowCFM"
+        showXAxis="true"
+        showYAxis="true"
+        tooltips="true"
+        interactive="true">
+    </nvd3-line-chart>
+
 		<h3>State</h3>
 		<style>
 			.diff { background-color: #AFA; }

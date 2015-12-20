@@ -4,7 +4,6 @@ use lib "$FindBin::Bin/../lib";
 
 require_ok('Cache::FileDump');
 require_ok('DateTime');
-require_ok('Cache::FileCache');
 require_ok('Hash::AsObject');
 require_ok('IO::File');
 require_ok('JSON');

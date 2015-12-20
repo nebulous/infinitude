@@ -7,22 +7,29 @@ use Mojolicious::Lite;
 use Mojo::JSON qw/encode_json decode_json/;
 use DateTime;
 use WWW::Wunderground::API;
-use Cache::FileCache;
 use Try::Tiny;
 use Time::HiRes qw/time/;
 
 use Cache::FileDump;
 use XML::Simple::Minded;
 
-# -------------- Config ------------------------
-our $config ||= {
-	wunderground_key => '',        #Weather underground API key
-	store_base => 'state',         #State storage base directory
-	serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
-	app_secret => 'Pogotudinal',   #Mojolicious cookie signature
-	pass_reqs => 60*60*2           #Pass requests to Carrier webservice every 2 hours (set to 0 to disable)
-};
-# ----------------------------------------------
+my $store = Cache::FileDump->new(base=>'state', _serializer=>sub{ shift }, _deserializer=>sub{ shift });
+$store->set(started=>time);
+
+our $config;
+if (my $config_json = $store->get('infinitude.json')) {
+	$config = decode_json($config_json);
+} else {
+	# Default configuration if no state/infinitude.json file is found.
+	# customize config by editing state/infinitude.json
+	$config = {
+		wunderground_key => '',        #Weather underground API key
+		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
+		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
+		pass_reqs => 60*60*0           #Pass requests to Carrier webservice every 2 hours (set to 0 to disable)
+	};
+	$store->set('infinitude.json', encode_json($config));
+}
 
 if (defined($config->{serial_tty})) {
 	if (-e $config->{serial_tty}) {
@@ -35,21 +42,16 @@ if (defined($config->{serial_tty})) {
 	}
 }
 
-my $store = Cache::FileDump->new(base=>$config->{store_base});
-$store->set(started=>time);
-
-my $req_cache =Cache::FileCache->new({ namespace=>'myinfinity', default_expires_in=>$config->{pass_reqs} });
+my $req_cache = Cache::FileDump->new( base=>$store->base, default_expires_in=>$config->{pass_reqs} );
 
 app->secrets([$config->{app_secret}]);
-#push @{app->static->paths}, 'public/app'; #development
-push @{app->static->paths}, 'public/dist'; #production
+push @{app->static->paths}, $ENV{MOJO_MODE} eq 'development' ? 'public/app' : 'public/dist';
 
 hook before_dispatch => sub {
 	my $c = shift;
 
 	my $url = $c->req->url;
-	if ($url->to_abs->host =~ /carrier/) {
-		
+	if ($url->to_abs->host =~ /(bryant|carrier)/) {
 		my $nk = $url->path->to_string;
 		$nk =~ s/\//-/g;
 		$nk =~ s/^-//;
@@ -250,7 +252,7 @@ get '/weather/:zip/forecast' => sub {
 	my $c = shift;
 	my $xml;
 	if ($config->{wunderground_key}) {
-		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>Cache::FileCache->new({ namespace=>'infinitude', default_expires_in=>60*240 }));
+		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>$store);
 		my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
 		
 		sub map_wx {
@@ -296,13 +298,15 @@ get '/weather/:zip/forecast' => sub {
 	$c->render(text=>$xml, format=>'xml');
 };
 
+my $handle;
 my $stream;
 my $carbus;
 websocket '/serial' => sub {
 	my $c = shift;
 	if ($config->{serial_tty}) {
-		$c->app->log->debug('WebSocket opened.');
-		$stream ||= Mojo::IOLoop::Stream->new(IO::Termios->open($config->{serial_tty},"38400,8,n,1"));
+		$c->app->log->debug('WebSocket opened. Attempting to access '.$config->{serial_tty});
+		$handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+		$stream ||= Mojo::IOLoop::Stream->new($handle);
 		$carbus ||= CarBus->new(async=>1);
 
 		$stream->on(read => sub {
@@ -336,6 +340,7 @@ websocket '/serial' => sub {
 			$c->app->log->debug("Closed: $code");
 			$stream->stop;
 			$stream = undef;
+			$handle = undef;
 		});
 		$stream->start;
 		$stream->reactor->start unless $stream->reactor->is_running;

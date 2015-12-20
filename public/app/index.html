@@ -25,6 +25,7 @@
     <![endif]-->
 
     <!-- Add your site or application content here -->
+	<span style="display:none" ng-controller="SerialCtrl"></span>
 <div class="header" ng-controller="MainCtrl">
   <ul class="nav nav-pills pull-right">
     <li ng-class="{active:isActive('/')}"><a ng-href="#status">Status</a></li>
@@ -33,7 +34,7 @@
     <li ng-class="{active:isActive('/serial')}"><a ng-href="#serial">Serial</a></li>
     <li ng-class="{active:isActive('/about')}"><a ng-href="#about">About</a></li>
   </ul>
-  <h3 class="text-muted">Infinitude</h3>
+  <h3 class="text-muted">&infin; Infinitude</h3>
 </div>
 
     <div class="container-fluid" ng-view></div>

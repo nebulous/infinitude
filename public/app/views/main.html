@@ -22,15 +22,23 @@
 <div class="row">
 	<div class="col-md-3">
 			<ng-dial-gauge title="Outside" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="carbus.outsideTemp"></ng-dial-gauge>
+			<nvd3-line-chart data="history.outsideTemp" tooltips="true" interactive="true"></nvd3-line-chart>
+			<nvd3-sparkline-chart data="history.outsideTemp[0].values" x="xf()" y="yf()"></nvd3-sparkline-chart>
 	</div>
 	<div class="col-md-3">
 			<ng-dial-gauge title="Coil" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF0000" bar-width="10" ng-model="carbus.coilTemp"></ng-dial-gauge>
+			<nvd3-line-chart data="history.coilTemp" tooltips="true" interactive="true"></nvd3-line-chart>
+			<nvd3-sparkline-chart data="history.coilTemp[0].values" x="xf()" y="yf()"></nvd3-sparkline-chart>
 	</div>
 	<div class="col-md-3">
 			<ng-dial-gauge title="Airflow" units="CFM" border-width="0" scale-min="0" scale-max="1000" bar-color="#FFFF00" bar-color-end="#FF0000" bar-width="10" ng-model="carbus.airflowCFM"></ng-dial-gauge>
+			<nvd3-line-chart data="history.airflowCFM" tooltips="true" interactive="true"></nvd3-line-chart>
+			<nvd3-sparkline-chart data="history.airflowCFM[0].values" x="xf()" y="yf()"></nvd3-sparkline-chart>
 	</div>
 	<div class="col-md-3">
 			<ng-dial-gauge title="Blower speed" units="RPM" border-width="0" bar-color="#FFFF00" bar-color-end="#FF0000" scale-min="0" scale-max="1000" bar-width="10" ng-model="carbus.blowerRPM"></ng-dial-gauge>
+			<nvd3-line-chart data="history.blowerRPM" tooltips="true" interactive="true"></nvd3-line-chart>
+			<nvd3-sparkline-chart data="history.blowerRPM[0].values" x="xf()" y="yf()"></nvd3-sparkline-chart>
 	</div>
 </div>
 
