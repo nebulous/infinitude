@@ -16,7 +16,11 @@ angular.module('infinitude')
 					success(function(data) {
 						var rkey = key;
 						if (rkey === 'systems') { rkey = 'system'; }
+						//console.log(key,rkey,data);
 						$scope[key] = store[key] = data[rkey][0];
+					})
+					.error(function() {
+						console.log('oh noes!',arguments);
 					});
 			});
 			window.localStorage.setItem('infinitude', angular.toJson(store));
@@ -42,8 +46,9 @@ angular.module('infinitude')
 			return route === $location.path();
 		};
 		$scope.save = function() {
-			console.log('saving systems structure');
-			$http.post('/systems/infinitude', $scope.systems)
+			var systems = { "system":[$scope.systems] };
+			//console.log('saving systems structure', systems);
+			$http.post('/systems/infinitude', systems )
 				.success(function() { $scope.debounce = 0; })
 				.error(function() {
 					console.log('oh noes! save fail.');

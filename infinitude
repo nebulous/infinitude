@@ -195,26 +195,26 @@ post '/systems/:id' => sub {
 	my $c = shift;
 	if ($c->stash('id') eq 'infinitude') { # Data is being saved from web client
 		my $xml = XML::Simple::Minded->new($c->req->json);
+		#print STDERR substr($xml.'',0,100)."\n";
+		#print STDERR substr($xml->_as_json,0,100)."\n";
+		#return;
 		$store->set('systems.xml'  => $xml);
-		$store->set('systems.json' => $c->req->body);
+		$store->set('systems.json' => $xml->_as_json);
 		$store->set(changes => 'true');
 	} else { # Data from thermostat.
 		if (!$c->stash('error')) {
 			$store->set( 'systems.xml'  => $store->get($c->stash('store_key').'.xml') );
 			$store->set( 'systems.json' => $store->get($c->stash('store_key').'.json') );
-			#$store->set('config.xml', $xml->system);
 		}
 	}
 	$c->render(text=>'',format=>'txt');
 };
 
-any '/systems/:id/config' => sub {
+get '/systems/:id/config' => sub {
 	my $c = shift;
 	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-	my $config = $xml->system->config();
-	my $out = $config.'';
-	$out =~ s|opt>|config>|gs; #TODO: fix this fragile, lame hack
-	$c->render(text=>$out, format=>'xml');
+	my $config = XML::Simple::Minded->new({config=>$xml->system->config()});
+	$c->render(text=>$config, format=>'xml');
 };
 
 get '/systems/:id' => sub {

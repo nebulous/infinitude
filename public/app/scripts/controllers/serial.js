@@ -80,7 +80,6 @@ angular.module('infinitude')
 		serial.onmessage = function(m) {
 			var frame = angular.fromJson(m.data);
 
-
 			var dataView = new jDataView(frame.data);
 			$rootScope.carbus = $rootScope.carbus || {};
 			$rootScope.history = $rootScope.history || angular.fromJson(window.localStorage.getItem('tmpdat')) || {};
