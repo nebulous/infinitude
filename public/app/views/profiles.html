@@ -1,6 +1,16 @@
 <h2>Comfort Profiles {{ debounce }}</h2>
 
 <div>
+	<div>
+		&nbsp;&nbsp;Mode:
+		<select name="mode" ng-model="systems.config[0].mode[0]">
+			<option>off</option>
+			<option>fanonly</option>
+			<option>auto</option>
+			<option>heat</option>
+			<option>cool</option>
+		</select>
+	</div>
 	<div class="panel" ng-class="zone.enabled[0] == 'on' ? 'panel-primary' : 'panel-default'" ng-repeat="zone in systems.config[0].zones[0].zone">
 		<div class="panel-heading"><strong>{{zone.name[0]}}</strong>
 			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="on" ng-false-value="off">

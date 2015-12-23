@@ -14,7 +14,8 @@
     "c3": "~0.4.8",
     "jdataview": "~2.5.0",
     "angular-timeago": "~0.1.7",
-    "angular-dialgauge": "~0.1.2"
+    "angular-dialgauge": "~0.1.5",
+    "ng-knob": "~0.1.0"
   },
   "devDependencies": {
     "angular-mocks": "1.2.15",
@@ -22,7 +23,7 @@
   },
   "resolutions": {
     "d3": "<=3.5.0",
-    "angular": "1.2.15",
+    "angular": "^1.4.x",
     "nvd3": "~1.7.1"
   }
 }

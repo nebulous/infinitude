@@ -69,7 +69,7 @@ angular.module('infinitude')
 	.filter('toHex', function() {
 		return toHex;
 	})
-  .controller('SerialCtrl', function ($scope,$rootScope) {
+  .controller('SerialCtrl', function ($scope,$rootScope,$timeout) {
 //		alert('started');
 		$scope.rawSerial = 'Loading';
 		$scope.frames = [];
@@ -77,8 +77,14 @@ angular.module('infinitude')
 		serial = serial || new WebSocket(wsu('/serial'));
 		serial.onopen = function() { console.log('Socket open'); };
 		serial.onclose = function() { console.log('Socket closed'); };
+
+		var transferTimer;
 		serial.onmessage = function(m) {
 			var frame = angular.fromJson(m.data);
+			$rootScope.transferColor = '#4F4';
+			$timeout.cancel(transferTimer);
+			$timeout(function() { $rootScope.transferColor = '#5E5'; }, 2000);
+
 
 			var dataView = new jDataView(frame.data);
 			$rootScope.carbus = $rootScope.carbus || {};

@@ -34,7 +34,10 @@
     <li ng-class="{active:isActive('/serial')}"><a ng-href="#serial">Serial</a></li>
     <li ng-class="{active:isActive('/about')}"><a ng-href="#about">About</a></li>
   </ul>
-  <h3 class="text-muted">&infin; Infinitude</h3>
+  <h3 class="text-muted">&infin;&nbsp;Infinitude
+		<span style="cursor: pointer; color: {{ globeColor }};" ng-click="reloadData()" class="glyphicon glyphicon-globe" aria-hidden="true"></span>
+		<span style="color: {{ transferColor }};" class="glyphicon glyphicon-transfer" aria-hidden="true"></span>
+  </h3>
 </div>
 
     <div class="container-fluid" ng-view></div>
@@ -62,6 +65,7 @@
     <script src="bower_components/jdataview/dist/browser/jdataview.js"></script>
     <script src="bower_components/angular-timeago/src/timeAgo.js"></script>
     <script src="bower_components/angular-dialgauge/src/angular-dialgauge.js"></script>
+    <script src="bower_components/ng-knob/dist/ng-knob.js"></script>
     <!-- endbower -->
     <!-- endbuild -->
 <style>

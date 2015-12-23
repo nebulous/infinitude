@@ -1,25 +1,33 @@
 'use strict';
 angular.module('infinitude')
-  .controller('MainCtrl', function ($scope, $http, $interval, $location) {
+  .controller('MainCtrl', function ($scope, $http, $interval, $timeout, $location) {
 		$scope.debounce = 0;
 		$scope.carbus = $scope.carbus||{};
 
 		var store = angular.fromJson(window.localStorage.getItem('infinitude')) || {};
 
-		var reloadData = function() {
+
+		var globeTimer;
+		$scope.reloadData = function() {
 			if ($scope.debounce > 0) {
 				$scope.debounce = $scope.debounce - 1;
 			}
 			var keys = ['systems','status','notifications','energy'];
 			angular.forEach(keys, function(key) {
+				$scope.globeColor = '#16F';
 				$http.get('/'+key+'.json').
 					success(function(data) {
 						var rkey = key;
 						if (rkey === 'systems') { rkey = 'system'; }
 						//console.log(key,rkey,data);
 						$scope[key] = store[key] = data[rkey][0];
+
+						$scope.globeColor = '#44E';
+						$timeout.cancel(globeTimer);
+						globeTimer = $timeout(function() { $scope.globeColor = '#E44' }, 4*60*1000);
 					})
 					.error(function() {
+						$scope.globeColor = '#E44';
 						console.log('oh noes!',arguments);
 					});
 			});
@@ -39,8 +47,8 @@ angular.module('infinitude')
 				$scope.debounce = $scope.debounce + 1;
 			}
 		}, true);
-		reloadData();
-		$interval(reloadData,3*60*1000);
+		$scope.reloadData();
+		$interval($scope.reloadData,3*60*1000);
 
 		$scope.isActive = function(route) {
 			return route === $location.path();
