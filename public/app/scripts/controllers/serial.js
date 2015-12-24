@@ -106,7 +106,7 @@ angular.module('infinitude')
 
 				// Break this out into config once others publish their registers.
 				// Are you reading this? Then you're probably one of those people.
-				if (frame.SrcClass === 'FanCoil') {
+				if (frame.SrcClass.match(/(Furnace|FanCoil)/)) {
 					if (address.match(/00 03 06/)) {
 						$rootScope.carbus.blowerRPM = dataView.getInt16(1  +3);
 						busLog('blowerRPM');
