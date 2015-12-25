@@ -69,6 +69,15 @@ angular.module('infinitude')
 	.filter('toHex', function() {
 		return toHex;
 	})
+	.filter('toList', function() {
+		return function(items) {
+			var filtered = [];
+			angular.forEach(items, function(item) {
+				filtered.push(item);
+			});
+			return filtered;
+		};
+	})
   .controller('SerialCtrl', function ($scope,$rootScope,$timeout) {
 //		alert('started');
 		$scope.rawSerial = 'Loading';
@@ -93,6 +102,7 @@ angular.module('infinitude')
 			if (frame.Function.match(/write|reply/)) {
 				var address = toHex(frame.data.substring(0,3));
 				var id = frame.Function + frame.SrcClass + frame.DstClass + address;
+				frame.Device = frame.Function == 'reply' ? frame.SrcClass : frame.DstClass;
 
 				var busLog = function(key,value) {
 					$rootScope.history[key] = $rootScope.history[key] || [{ 'key':key, values:[] }];

@@ -67,9 +67,9 @@
 				</tr>
 			</thead>
 			<tbody>
-				<tr ng-repeat="(id,frame) in state" ng-class="{'read':'success', 'write':'danger', 'reply':'warning'}[frame.Function]">
+				<tr ng-repeat="frame in state | toList | orderBy: ['Function','Device','data|limitTo:3']" ng-class="{'read':'success', 'write':'danger', 'reply':'warning'}[frame.Function]">
 					<td>{{ frame.timestamp*1000 | timeAgo }}</td>
-					<td>{{ frame.Function=="reply" ? frame.SrcClass : frame.DstClass }}</td>
+					<td>{{ frame.Device }}</td>
 					<td style="white-space: nowrap;">
 							{{ frame.data | limitTo:3 | toHex }}
 							<p class="text-primary" ng-if="frame.field">{{ frame.field }}</p>
