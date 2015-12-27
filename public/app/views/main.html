@@ -4,20 +4,23 @@
 	<strong>{{ notifications.notification[0].timestamp[0] | date:"EEE yyyy-MM-dd 'at' h:mma" }}</strong>
 	</blockquote>
 
-
-<div class="row">
-  <div class="col-md-3">
-		<ng-dial-gauge title="Inside" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="status.zones[0].zone[0].rt[0]"></ng-dial-gauge>
-  </div>
-  <div class="col-md-3">
-		<ng-dial-gauge title="Humidity" units="%" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="status.zones[0].zone[0].rh[0]"></ng-dial-gauge>
-  </div>
-  <div class="col-md-3">
-		<ng-dial-gauge title="Heat Setpoint" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="status.zones[0].zone[0].htsp[0]"></ng-dial-gauge>
-  </div>
-  <div class="col-md-3">
-		<ng-dial-gauge title="Cool Setpoint" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="status.zones[0].zone[0].clsp[0]"></ng-dial-gauge>
-  </div>
+<div ng-repeat="zone in status.zones[0].zone" ng-if="zone.enabled[0]=='on'">
+	<h4>{{zone.name[0]}}</h4>
+	
+	<div class="row">
+	  <div class="col-md-3">
+			<ng-dial-gauge title="Inside" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.rt[0]"></ng-dial-gauge>
+	  </div>
+	  <div class="col-md-3">
+			<ng-dial-gauge title="Humidity" units="%" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.rh[0]"></ng-dial-gauge>
+	  </div>
+	  <div class="col-md-3">
+			<ng-dial-gauge title="Heat Setpoint" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.htsp[0]"></ng-dial-gauge>
+	  </div>
+	  <div class="col-md-3">
+			<ng-dial-gauge title="Cool Setpoint" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.clsp[0]"></ng-dial-gauge>
+	  </div>
+	</div>
 </div>
 
 <div class="row">
