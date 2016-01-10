@@ -1,8 +1,7 @@
 'use strict';
 function wsu(s) {
 	var l = window.location;
-	//var x = 'ws://10.0.8.31:80'+s;
-	//return x;
+	//return 'ws://10.0.8.31:80'+s;
 	return ((l.protocol === 'https:') ? 'wss://' : 'ws://') + l.hostname + (((l.port !== 80) && (l.port !== 443)) ? ':' + l.port : '') + s;
 }
 

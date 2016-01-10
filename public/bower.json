@@ -15,7 +15,9 @@
     "jdataview": "~2.5.0",
     "angular-timeago": "~0.1.7",
     "angular-dialgauge": "~0.1.5",
-    "ng-knob": "~0.1.0"
+    "ng-knob": "~0.1.0",
+    "angular-chart.js": "~0.8.8",
+    "ngTimepicker": "*"
   },
   "devDependencies": {
     "angular-mocks": "1.2.15",

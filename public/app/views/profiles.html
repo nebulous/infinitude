@@ -13,7 +13,7 @@
 	</div>
 	<div class="panel" ng-class="zone.enabled[0] == 'on' ? 'panel-primary' : 'panel-default'" ng-repeat="zone in systems.config[0].zones[0].zone">
 		<div class="panel-heading"><strong>{{zone.name[0]}}</strong>
-			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="on" ng-false-value="off">
+			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="'on'" ng-false-value="'off'">
 			<select name="holdact" ng-model="zone.holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
@@ -21,7 +21,7 @@
 				<option>wake</option>
 				<option>manual</option>
 			</select>
-			Until <input type="time" size="5" ng-model="zone.otmr[0]" /> (  <i>Minutes must be one of 00,15,30,45</i> )
+			Until <ng-timepicker ng-model="zone.otmr[0]" step="15" theme="green"></ng-timepicker>
 			</span>
 		</div>
 		<div class="panel-body" ng-if="zone.enabled[0]=='on'">

@@ -7,7 +7,9 @@ angular
     'ngSanitize',
     'ngRoute',
     'yaru22.angular-timeago',
-    'angular-dialgauge'
+    'angular-dialgauge',
+    'jkuri.timepicker',
+    'chart.js'
   ])
   .config(function ($routeProvider) {
     $routeProvider
