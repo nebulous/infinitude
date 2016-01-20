@@ -8,7 +8,7 @@
 					<tr ng-repeat="day in zone.program[0].day">
 						<th>{{ day.id }}</th>
 						<td ng-repeat="period in day.period">
-							<input type="checkbox" ng-model="period.enabled[0]" ng-true-value="on" ng-false-value="off">
+							<input type="checkbox" ng-model="period.enabled[0]" ng-true-value="'on'" ng-false-value="'off'">
 							<span ng-if="period.enabled[0] == 'on'">
 								<select ng-model="period.activity[0]">
 									<option>wake</option>
@@ -16,7 +16,7 @@
 									<option>home</option>
 									<option>sleep</option>
 								</select>
-								<input type="time" ng-model="period.time[0]">
+								<ng-timepicker ng-model="period.time[0]" step="15" init-time="{{ period.time[0] }}"></ng-timepicker>
 							</span>
 							<span ng-if="period.enabled[0] == 'off'"><i>disabled</i></span>
 						</td>
