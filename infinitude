@@ -338,7 +338,7 @@ websocket '/serial' => sub {
 		$c->on('finish' => sub {
 			my ($c, $code) = @_;
 			$c->app->log->debug("Closed: $code");
-			$stream->stop;
+			$stream->stop if $stream;
 			$stream = undef;
 			$handle = undef;
 		});
