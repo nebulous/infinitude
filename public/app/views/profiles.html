@@ -21,7 +21,7 @@
 				<option>wake</option>
 				<option>manual</option>
 			</select>
-			Until <ng-timepicker ng-model="zone.otmr[0]" step="15" init-time="{{ zone.otmr[0] || '00:00' }}"></ng-timepicker>
+			Until <ng-timepicker ng-model="zone.otmr[0]" step="15" init-time="{{ zone.otmr[0] === {} ? '00:00' : zone.otmr[0] }}"></ng-timepicker>
 			</span>
 		</div>
 		<div class="panel-body" ng-if="zone.enabled[0]=='on'">
