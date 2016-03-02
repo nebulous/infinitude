@@ -168,6 +168,38 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 	$c->render(json=>$setting);
 };
 
+# access simple system config variables by path
+any '/api/*path' => sub {
+	my $c = shift;
+	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+	my $search = $xml->system();
+	foreach my $node (split('/',$c->stash('path'))) {
+		$search = $search->$node;
+	}
+	my $setting = { status=>'success' };
+
+	try {
+		if (ref($search)) {
+			# path returns a structure. Can modify.
+			my %sets = %{$c->req->params->to_hash()};
+			foreach my $key (keys %sets) {
+				$search->$key([$sets{$key}]);
+			}
+			$setting->{data} = { %{$search->TO_JSON()} };
+			$store->set('systems.xml',  $xml);
+			$store->set('systems.json', $xml->_as_json());
+			$store->set(changes => 'true');
+		} else {
+			#path is a scalar. return only.
+			$setting->{data} = $search;
+		}
+	} catch {
+		$setting->{status} = 'fail';
+	};
+
+	$c->render(json=>$setting);
+};
+
 
 get '/' => sub {
   my $c = shift;
