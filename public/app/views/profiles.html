@@ -1,8 +1,8 @@
-<h2>Comfort Profiles {{ debounce }}</h2>
+<h2>Comfort Profiles</h2>
 
 <div>
 	<div>
-		&nbsp;&nbsp;Mode:
+		<p>Climate Mode
 		<select name="mode" ng-model="systems.config[0].mode[0]">
 			<option>off</option>
 			<option>fanonly</option>
@@ -10,10 +10,13 @@
 			<option>heat</option>
 			<option>cool</option>
 		</select>
+		</p>
 	</div>
-	<div class="panel" ng-class="zone.enabled[0] == 'on' ? 'panel-primary' : 'panel-default'" ng-repeat="zone in systems.config[0].zones[0].zone">
+
+	<div class="panel panel-primary" ng-if="zone.enabled[0] == 'on'" ng-repeat="zone in systems.config[0].zones[0].zone">
 		<div class="panel-heading"><strong>{{zone.name[0]}}</strong>
 			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="'on'" ng-false-value="'off'">
+			<span ng-if="zone.hold[0] == 'on'">
 			<select name="holdact" ng-model="zone.holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
@@ -21,7 +24,8 @@
 				<option>wake</option>
 				<option>manual</option>
 			</select>
-			Until <ng-timepicker ng-model="zone.otmr[0]" step="15" init-time="{{ zone.otmr[0] === {} ? '00:00' : zone.otmr[0] }}"></ng-timepicker>
+			Until <ng-timepicker ng-model="zone.otmr[0]" step="15" init-time="{{ mkTime(zone.otmr[0]) }}"></ng-timepicker>
+			</span>
 			</span>
 		</div>
 		<div class="panel-body" ng-if="zone.enabled[0]=='on'">
@@ -37,8 +41,8 @@
 				<tbody>
 					<tr ng-repeat="activity in zone.activities[0].activity">
 						<th>{{ activity.id }}</th>
-						<td><input type="text" min="40" max="90" ng-model="activity.htsp[0]" /></td>
-						<td><input type="text" min="50" max="100" ng-model="activity.clsp[0]" /></td>
+						<td><input type="text" ng-model="activity.htsp[0]" /></td>
+						<td><input type="text" ng-model="activity.clsp[0]" /></td>
 						<td>
 							<select name="fan" ng-model="activity.fan[0]">
 								<option>off</option>
@@ -51,7 +55,7 @@
 				</tbody>
 				<tfoot>
 					<tr><td colspan="5">
-						<button class="btn btn-info" ng-click="save()">Save</button>
+						<button ng-class="debounce>0 ? 'btn-success' : 'btn-default'" class="btn" ng-click="save()">Save</button>
 					</td></tr>
 				</tfoot>
 			</table>

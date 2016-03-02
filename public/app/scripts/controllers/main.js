@@ -4,6 +4,12 @@ angular.module('infinitude')
 		$scope.debounce = 0;
 		$scope.carbus = $scope.carbus||{};
 
+		$scope.empty = function(input) { console.log(input); };
+		$scope.mkTime = function(input) {
+			if (angular.equals({}, input)) return '00:00'
+			return input;
+		};
+
 		var store = angular.fromJson(window.localStorage.getItem('infinitude')) || {};
 
 		//charting
