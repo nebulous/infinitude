@@ -14,6 +14,7 @@ use Cache::FileDump;
 use XML::Simple::Minded;
 
 my $store = Cache::FileDump->new(base=>'state', _serializer=>sub{ shift }, _deserializer=>sub{ shift });
+
 $store->set(started=>time);
 
 our $config;
@@ -284,7 +285,7 @@ get '/weather/:zip/forecast' => sub {
 	my $c = shift;
 	my $xml;
 	if ($config->{wunderground_key}) {
-		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>$store);
+		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>$req_cache);
 		my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
 		
 		sub map_wx {
