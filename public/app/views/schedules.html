@@ -1,6 +1,6 @@
 <h2>Schedules</h2>
 <div>
-	<div class="panel" ng-class="zone.enabled == 'on' ? 'panel-primary' : 'panel-default'" ng-repeat="zone in systems.config[0].zones[0].zone">
+	<div class="panel panel-primary" ng-if="zone.enabled == 'on'" ng-repeat="zone in systems.config[0].zones[0].zone">
 		<div class="panel-heading">{{zone.name[0]}}</div>
 		<div class="panel-body" ng-if="zone.enabled=='on'">
 			<table class="table table-striped table-bordered">

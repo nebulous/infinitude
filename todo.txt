@@ -1,6 +1,6 @@
-Limit time inputs to quarter-hours
 Add vacation editor
 Add energymonitor
 Detailed weather display with maps
 Long-term logging
 Big knob simple manual control. (Tweenmax knob/jQuery knob?)
+MQTT pub/sub
