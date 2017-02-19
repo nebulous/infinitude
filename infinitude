@@ -43,7 +43,7 @@ if (defined($config->{serial_tty})) {
 	}
 }
 
-my $req_cache = Cache::FileDump->new( base=>$store->base, default_expires_in=>$config->{pass_reqs} );
+my $req_cache = Cache::FileDump->new( base=>$store->base, namespace=>'request', default_expires_in=>$config->{pass_reqs} );
 
 app->secrets([$config->{app_secret}]);
 push @{app->static->paths}, $ENV{MOJO_MODE} eq 'development' ? 'public/app' : 'public/dist';
