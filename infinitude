@@ -24,7 +24,7 @@ if (my $config_json = $store->get('infinitude.json')) {
 	# Default configuration if no state/infinitude.json file is found.
 	# customize config by editing state/infinitude.json
 	$config = {
-		wunderground_key => '',        #Weather underground API key
+		wunderground_key => '044841ec6ac9c9f5',        #Weather underground API key
 		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
 		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
 		pass_reqs => 60*60*0           #Pass requests to Carrier webservice every 2 hours (set to 0 to disable)

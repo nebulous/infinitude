@@ -133,14 +133,14 @@ int screenio(void) {
 			frame.crc=framebuf.data[framelen-2]<<8 | framebuf.data[framelen-1];
 
 			if (READ_REQ == frame.type) {
-				fprintf(stderr, "--------------READ from %x ------------\n", frame.dst.type);
+				fprintf(stderr, "--------------READ_REQ from %x ------------\n", frame.dst.type);
 				caread req;
 				memcpy(&req, frame.payload, 3);
 				fprintf(stderr,"Request for table %d, row %d\n", req.reg.table, req.reg.row);
 			}
 
 			if (WRITE_REQ == frame.type) {
-				fprintf(stderr, "--------------WRITE to %x ------------\n", frame.dst.type);
+				fprintf(stderr, "--------------WRITE_REQ to %x ------------\n", frame.dst.type);
 				carwrite req;
 				memcpy(&req, frame.payload, 256);
 				fprintf(stderr,"Write to table %d, row %d\n", req.reg.table, req.reg.row);
@@ -150,6 +150,7 @@ int screenio(void) {
 
 			if (REPLY == frame.type) {
 				//Example of a known data point.
+				fprintf(stderr, "--------------REPLY to %x ------------\n", frame.dst.type);
 				if (frame.src.type == 0x50 && frame.payload[1] == 0x3E && frame.payload[2] == 0x01) {
 					int16_t oat = (frame.payload[3]<<8) | frame.payload[4];
 					int16_t t2 = (frame.payload[5]<<8) | frame.payload[6];
@@ -169,7 +170,18 @@ int screenio(void) {
 
 			printf("%d\t%x\t%x\t%02x\t%d\t", (int)time(NULL),frame.src.type, frame.dst.type, frame.type, frame.len);
 			for (int i=0;i<frame.len;i++) printf("%02x ", frame.payload[i]);
+			printf("\nASCII TRANSLATION:\n");
+			printf("\t\t\t\t\t\t");
+			for (int i=0;i<frame.len;i++) {
+				if(frame.payload[i]>48 && frame.payload[i]<125){
+				    printf(" %c ", frame.payload[i]);
+				 }
+				if(frame.payload[i]<=48 || frame.payload[i]>=125){
+				  printf("   ");
+				 }
+			}
 			printf("\n");
+
 
 			bufshift(&framebuf, framelen);
 		} else {
@@ -236,4 +248,6 @@ void tty_raw() {
 	cfsetospeed(&orig_termios, B38400); //Set 38.4k
 	//printf("input speed set to %d\n",cfgetispeed(&orig_termios));
 }
+
+
 
