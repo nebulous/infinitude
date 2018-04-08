@@ -164,6 +164,26 @@ any '/api/:zone_id/hold' => sub {
 	#$c->render(json=>$setting);
 };
 
+sub api_stat {
+       my $c = shift;
+       my $status = decode_json($store->get('status.json')||'{}');
+       my $zone_id = $c->stash('zone_id');
+       if ($zone_id =~ /^\d+$/) {
+               my $idx = ($zone_id||1) - 1;
+               $status = $status->{status}[0]{zones}[0]{zone}[$idx];
+       } else {
+               $status = $status->{status}[0];
+       }
+       my $prop = $c->stash('prop') || $zone_id;
+       if ($prop =~ /^[A-Z]/i) {
+               $status = { $prop=>$status->{$prop} };
+       }
+       $c->render(json=>$status);
+}
+get '/api/status/:zone_id/:prop' => \&api_stat;
+get '/api/status/:zone_id/' => \&api_stat;
+get '/api/status/' => \&api_stat;
+
 any '/api/:zone_id/activity/:activity_id' => sub {
 	my $c = shift;
 	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
