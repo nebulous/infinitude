@@ -4,11 +4,10 @@ use Test::Mojo;
 # Include application
 use FindBin;
 use lib "$FindBin::Bin/../lib";
+use CHI;
 
-$main::config = {
-	app_secret => 'testing',
-	store_base => 't/test_store'
-};
+$main::config = { app_secret => 'testing' };
+$main::store = CHI->new(driver=>'Memory', global=>1);
 require "$FindBin::Bin/../infinitude";
 
 use XML::Simple::Minded;

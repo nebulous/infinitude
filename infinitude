@@ -1,35 +1,48 @@
 #!/usr/bin/env perl
+use strict;
+use warnings;
+use feature ':5.10';
+
 use FindBin;
 use lib "$FindBin::Bin/lib";
 
-use Carp qw/shortmess/;
 use Mojolicious::Lite;
 use Mojo::JSON qw/encode_json decode_json/;
+use Carp qw/shortmess/;
+use CHI;
 use DateTime;
-use WWW::Wunderground::API;
-use Try::Tiny;
+use Path::Tiny;
 use Time::HiRes qw/time/;
-
-use Cache::FileDump;
+use Try::Tiny;
 use XML::Simple::Minded;
 
-my $store = Cache::FileDump->new(base=>'state', _serializer=>sub{ shift }, _deserializer=>sub{ shift });
-
+my $store = CHI->new(
+    driver         => 'File',
+    root_dir       => 'state',
+    depth          => 0,
+    max_key_length => 256,
+    namespace      => ''
+);
 $store->set(started=>time);
 
 our $config;
-if (my $config_json = $store->get('infinitude.json')) {
-	$config = decode_json($config_json);
+our $config_file = path("infinitude.json");
+
+if (my $config_json = $store->get('infinitude.json')) { #migrate older format config
+	$config_file->spew($config_json);
+	$store->remove('infinitude.json');
 } else {
 	# Default configuration if no state/infinitude.json file is found.
 	# customize config by editing state/infinitude.json
-	$config = {
+	try { $config = decode_json($config_file->slurp) };
+
+	$config //= {
 		wunderground_key => '',        #Weather underground API key
 		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
 		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
-		pass_reqs => 60*60*0           #Pass requests to Carrier webservice every 2 hours (set to 0 to disable)
+		pass_reqs => 60*17             #Pass requests to Carrier webservice every 17 minutes (set to 0 to disable)
 	};
-	$store->set('infinitude.json', encode_json($config));
+	$config_file->spew(encode_json($config));
 }
 
 if (defined($config->{serial_tty})) {
@@ -43,23 +56,22 @@ if (defined($config->{serial_tty})) {
 	}
 }
 
-my $req_cache = Cache::FileDump->new( base=>$store->base, namespace=>'request', default_expires_in=>$config->{pass_reqs} );
-
 app->secrets([$config->{app_secret}]);
-push @{app->static->paths}, $ENV{MOJO_MODE} eq 'development' ? 'public/app' : 'public/dist';
+push @{app->static->paths}, $ENV{MOJO_MODE}//'' eq 'development' ? 'public/app' : 'public/dist';
 
 hook before_dispatch => sub {
 	my $c = shift;
 
 	my $url = $c->req->url;
-	if ($url->to_abs->host =~ /(bryant|carrier)/) {
+	if ($url->to_abs->host =~ /(bryant|carrier)/i) { # request from stat
 		my $nk = $url->path->to_string;
 		$nk =~ s/\//-/g;
 		$nk =~ s/^-//;
 		$c->stash->{action_key} = $nk;
+		#say "action_key: $nk";
 
-		if ($config->{pass_reqs} and !$req_cache->get($nk)) {
-			$req_cache->set($nk,time);
+		if ($config->{pass_reqs} and !$store->get('changes') and ($store->get('carrier_changes') or !$store->get($nk))) {
+			$store->set($nk, time, $config->{pass_reqs});
 			my $o_req = $c->req->clone;
 			my $o_url = Mojo::URL->new($o_req->url->to_abs->to_string);
 			$o_url->scheme('https');
@@ -67,10 +79,16 @@ hook before_dispatch => sub {
 
 			$c->app->log->debug("No cache for $nk. Make Carrier request");
 			$store->set("req-$nk.txt", $o_req->to_string);
+			#say "REQUEST:\n".$o_req->to_string."\n------------";
 			my $ua = Mojo::UserAgent->new;
 			my $tx = $ua->start(Mojo::Transaction::HTTP->new(req=>$o_req));
 			$store->set("res-$nk.txt", $tx->res->to_string);
-			$store->set("res-$nk.xml", $tx->res->body);
+			#say "RESPONSE:\n".$store->get("res-$nk.txt");
+			$c->stash->{pass_res} = $tx->res->body;
+			$store->set("$nk.xml", $tx->res->body)
+			  if ($tx->res->headers->content_type//'' =~ /xml/);
+		} else {
+			$c->app->log->debug("$nk cached or passthru disabled");
 		}
 
 		#Mangle Internet-bound request to self
@@ -125,7 +143,8 @@ any '/api/:zone_id/hold' => sub {
 
 	my $setting = {};
 
-	$setting->{hold} = $c->req->param('hold') eq 'off' ? 'off' : 'on';
+	my $hold = $c->req->param('hold') || '';
+	$setting->{hold} = $hold eq 'off' ? 'off' : 'on';
 	$zone->hold([$setting->{hold}]);
 
 	my $activities = { home=>'home', away=>'away', sleep=>'sleep', wake=>'wake', manual=>'manual' };
@@ -144,6 +163,26 @@ any '/api/:zone_id/hold' => sub {
 
 	#$c->render(json=>$setting);
 };
+
+sub api_stat {
+       my $c = shift;
+       my $status = decode_json($store->get('status.json')||'{}');
+       my $zone_id = $c->stash('zone_id');
+       if ($zone_id =~ /^\d+$/) {
+               my $idx = ($zone_id||1) - 1;
+               $status = $status->{status}[0]{zones}[0]{zone}[$idx];
+       } else {
+               $status = $status->{status}[0];
+       }
+       my $prop = $c->stash('prop') || $zone_id;
+       if ($prop =~ /^[A-Z]/i) {
+               $status = { $prop=>$status->{$prop} };
+       }
+       $c->render(json=>$status);
+}
+get '/api/status/:zone_id/:prop' => \&api_stat;
+get '/api/status/:zone_id/' => \&api_stat;
+get '/api/status/' => \&api_stat;
 
 any '/api/:zone_id/activity/:activity_id' => sub {
 	my $c = shift;
@@ -224,30 +263,41 @@ get '/time' => sub {
 	$c->render(text=>$xml, format=>'xml');
 };
 
+get '/releaseNotes/:id' => sub {
+	my $c = shift;
+	my $text = $store->get('releaseNotes-'.$c->stash('id'));
+	$c->render(text=>"WARNING: installing new firmware may cause Infinitude to stop working\n$text", format=>'txt');
+};
+
 post '/systems/:id' => sub {
 	my $c = shift;
 	if ($c->stash('id') eq 'infinitude') { # Data is being saved from web client
 		my $xml = XML::Simple::Minded->new($c->req->json);
-		#print STDERR substr($xml.'',0,100)."\n";
-		#print STDERR substr($xml->_as_json,0,100)."\n";
-		#return;
-		$store->set('systems.xml'  => $xml);
+		$store->set('systems.xml'  => $xml.'');
 		$store->set('systems.json' => $xml->_as_json);
 		$store->set(changes => 'true');
 	} else { # Data from thermostat.
 		if (!$c->stash('error')) {
-			$store->set( 'systems.xml'  => $store->get($c->stash('store_key').'.xml') );
-			$store->set( 'systems.json' => $store->get($c->stash('store_key').'.json') );
+			my $key = $c->stash('store_key');
+			$store->set( 'systems.xml' => $store->get("$key.xml") );
+			$store->set( 'systems.json' => $store->get("$key.json") );
 		}
 	}
 	$c->render(text=>'',format=>'txt');
 };
 
+# stat fetches config if server has changes
 get '/systems/:id/config' => sub {
 	my $c = shift;
-	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-	my $config = XML::Simple::Minded->new({config=>$xml->system->config()});
-	$c->render(text=>$config, format=>'xml');
+	if ($store->get('carrier_changes') and $c->stash->{pass_res}) {
+	  $store->set(carrier_changes => '' );
+	  $store->set(changes => time+60); # Force a followup stat->infinitude push/pull cycle after 1m
+	  $c->render(text=>$c->stash->{pass_res}, format=>'xml');
+	} else {
+	  my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+	  my $config = XML::Simple::Minded->new({config=>$xml->system->config()});
+	  $c->render(text=>$config, format=>'xml');
+	}
 };
 
 get '/systems/:id' => sub {
@@ -259,9 +309,13 @@ get '/systems/:id' => sub {
 		: $c->render(text=>'', format=>'txt');
 };
 
-any '/systems/:system_id/status' => sub {
+post '/systems/:system_id/status' => sub {
 	my $c = shift;
 	my $changes = $store->get('changes') || '';
+	if ($changes =~ /\d+/) {
+		$changes = (time>$changes) ? 'true' : ''
+	}
+
 	$changes = 'true' unless $store->get('systems.xml'); #Force a change cycle if we have no stat config
 	my $xml = XML::Simple::Minded->new({
 		serverStatus => {
@@ -271,8 +325,19 @@ any '/systems/:system_id/status' => sub {
 			configHasChanges => [$changes || 'false'],
 		}
 	});
-	$c->app->log->debug("********** There are changes. ****************") if $changes;
-	$store->set(changes=>'');
+
+	# if infinitude has no changes, and this is a carrier passthru request, return carrier's response
+	if (!$changes and $c->stash->{pass_res}) {
+	  $c->app->log->debug("********** Check Carrier/Bryant change flags ****************");
+	  $xml = XML::Simple::Minded->new($c->stash->{pass_res});
+	  $changes = $xml->status->serverHasChanges eq 'true' ? 1 : 0;
+	  $store->set(carrier_changes => time, 120) if $changes; # open a window to Carrier passthru, max of 2 minutes
+	}
+
+	if ($changes) {
+	  $c->app->log->debug("********** There are changes. ****************");
+	  $store->set(changes=>'');
+	}
 	$c->render(text=>$xml, format=>'xml');
 };
 
@@ -285,7 +350,8 @@ get '/weather/:zip/forecast' => sub {
 	my $c = shift;
 	my $xml;
 	if ($config->{wunderground_key}) {
-		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>$req_cache);
+		require WWW::Wunderground::API;
+		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>$store);
 		my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
 		
 		sub map_wx {
@@ -327,7 +393,7 @@ get '/weather/:zip/forecast' => sub {
 
 		$xml = XML::Simple::Minded->new({ weather_forecast=>{ timestamp=>[DateTime->now->iso8601.'.01234Z'], ping=>[240], day=>\@days } });
 	}
-	$xml||=$store->get('res-'.$c->stash('action_key').'.xml');
+	$xml||=$store->get($c->stash('action_key').'.xml');
 	$c->render(text=>$xml, format=>'xml');
 };
 
@@ -383,12 +449,8 @@ websocket '/serial' => sub {
 get '/:key' => sub {
 	my $c = shift;
 	my $store_key = join('.', $c->stash('key'), $c->stash('format'));
-	$c->render(text=>$store->get($store_key));
+	my $text = $store->get($store_key) // "Infinitude doesn't know about $store_key yet";
+	$c->render(text=>$text, format=>$c->stash('format')||'text');
 };
 
 app->start;
-__DATA__
-
-@@ not_found.html.ep
-% my $key||='undefined';
-<%= $key %> not found
