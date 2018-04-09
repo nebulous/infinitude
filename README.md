@@ -1,6 +1,6 @@
-#Infinitude
+# Infinitude
 
-###Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
+### Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
 
 #### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
 
@@ -26,13 +26,18 @@ Demonstrated in the video below:
 
 ##### Software
  * Some flavor of UNIX. Both Linux and OSX are known to work.
- * Perl
+ * Perl with the following modules
    * Mojolicious
    * DateTime
-   * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API)
+   * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API) optional weather source
    * [IO::Termios](https://metacpan.org/module/IO::Termios) optional for RS485 serial monitoring
+   * Path::Tiny
    * Try::Tiny
    * JSON
+   
+##### Installation
+  * a cpanfile is provided which lists Infinitude's minimum dependencies.
+  * use your distribution's packaging system, your favorite cpan installer, or `sudo cpanm --installdeps .` to install
 
 ###### Raspbian-specific
 Many users opt to run Infinitude on a Raspberry Pi.
@@ -45,7 +50,7 @@ Many users opt to run Infinitude on a Raspberry Pi.
 
 See <a target="_blank" href="http://www.amazon.com/Infinitude-hardware/lm/R2G4T8HWC1AQDK/?_encoding=UTF8&camp=1789&creative=390957&linkCode=ur2&tag=sbec-20&linkId=THB3EP6RU76EIXOA">Infinitude Hardware</a><img src="https://ir-na.amazon-adsystem.com/e/ir?t=sbec-20&l=ur2&o=1" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.
 
-####Usage
+#### Usage
  * Set your proxy server/port in the advanced wireless settings on the thermostat to point to your infinitude host/port. 
  * Edit the $conf section of the infinitude file to set your optional Wunderground API key or RS485 serial tty device.
  * Start Infinitude. This traffic is _not encrypted_, so only run on a trusted network.
