@@ -393,8 +393,8 @@ get '/weather/:zip/forecast' => sub {
 
 		$xml = XML::Simple::Minded->new({ weather_forecast=>{ timestamp=>[DateTime->now->iso8601.'.01234Z'], ping=>[240], day=>\@days } });
 	}
-	$xml||=$store->get($c->stash('action_key').'.xml');
-	$c->render(text=>$xml, format=>'xml');
+	$xml||=$c->stash->{pass_res};
+	$c->render(text=>$xml||'<xml><err>no forecast</err></xml>', format=>'xml');
 };
 
 my $handle;
