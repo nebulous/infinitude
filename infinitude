@@ -57,7 +57,7 @@ if (defined($config->{serial_tty})) {
 }
 
 app->secrets([$config->{app_secret}]);
-push @{app->static->paths}, $ENV{MOJO_MODE}//'' eq 'development' ? 'public/app' : 'public/dist';
+push (@{app->static->paths}, ('development' eq $ENV{MOJO_MODE}) ? 'public/app' : 'public/dist');
 
 hook before_dispatch => sub {
 	my $c = shift;
