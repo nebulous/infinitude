@@ -11,6 +11,7 @@ my %device_classes = (
 	FanCoil => 0x42,
 	HeatPump0 => 0x50,
 	HeatPump1 => 0x51,
+	HeatPump2 => 0x52,
 	SAM => 0x92,
 	Broadcast => 0xF1,
 	_default_ => $DefaultPass
