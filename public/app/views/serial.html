@@ -13,7 +13,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				<tr ng-repeat="frame in frames" ng-class="{'reply':'success', 'write':'warning', 'exception':'danger'}[frame.Function]">
+				<tr ng-repeat="frame in frames" ng-class="{'ACK06':'success', 'WRITE_TABLE_BLOCK':'warning', 'NACK':'danger'}[frame.Function]">
 					<td>{{ frame.SrcClass }}</td>
 					<td>{{ frame.DstClass }}</td>
 					<td>{{ frame.Function }}</td>
@@ -67,7 +67,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				<tr ng-repeat="frame in state | toList | orderBy: ['Function','Device','data|limitTo:3']" ng-class="{'read':'success', 'write':'danger', 'reply':'warning'}[frame.Function]">
+				<tr ng-repeat="frame in state | toList | orderBy: ['Function','Device','data|limitTo:3']" ng-class="{'READ_TABLE_BLOCK':'success', 'WRITE_TABLE_BLOCK':'danger', 'ACK06':'warning'}[frame.Function]">
 					<td>{{ frame.timestamp*1000 | timeAgo }}</td>
 					<td>{{ frame.Device }}</td>
 					<td style="white-space: nowrap;">

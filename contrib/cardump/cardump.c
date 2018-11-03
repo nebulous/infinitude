@@ -39,10 +39,18 @@ int main(int argc, char **argv) {
 
 
 
-#define READ_REQ 0x0b
-#define WRITE_REQ 0x0c
-#define REPLY 0x06
-#define ERROR 0x15
+#define ACK02 0x02
+#define ACK06 0x06
+#define READ_TABLE_BLOCK 0x0b
+#define WRITE_TABLE_BLOCK 0x0c
+#define CHANGE_TABLE_NAME 0x10
+#define NACK 0x15
+#define ALARM_PACKET 0x1e
+#define READ_OBJECT_DATA 0x22
+#define READ_VARIABLE 0x62
+#define WRITE_VARIABLE 0x63
+#define AUTO_VARIABLE 0x64
+#define READ_LIST 0x75
 
 #pragma pack(push, 1)
 
@@ -132,14 +140,14 @@ int screenio(void) {
 			memcpy(&frame, framebuf.data, framelen);
 			frame.crc=framebuf.data[framelen-2]<<8 | framebuf.data[framelen-1];
 
-			if (READ_REQ == frame.type) {
+			if (READ_TABLE_BLOCK == frame.type) {
 				fprintf(stderr, "--------------READ from %x ------------\n", frame.dst.type);
 				caread req;
 				memcpy(&req, frame.payload, 3);
 				fprintf(stderr,"Request for table %d, row %d\n", req.reg.table, req.reg.row);
 			}
 
-			if (WRITE_REQ == frame.type) {
+			if (WRITE_TABLE_BLOCK == frame.type) {
 				fprintf(stderr, "--------------WRITE to %x ------------\n", frame.dst.type);
 				carwrite req;
 				memcpy(&req, frame.payload, 256);
@@ -148,7 +156,7 @@ int screenio(void) {
 				fprintf(stderr, "\n");
 			}
 
-			if (REPLY == frame.type) {
+			if (ACK06 == frame.type) {
 				//Example of a known data point.
 				if (frame.src.type == 0x50 && frame.payload[1] == 0x3E && frame.payload[2] == 0x01) {
 					int16_t oat = (frame.payload[3]<<8) | frame.payload[4];

@@ -98,10 +98,10 @@ angular.module('infinitude')
 			$rootScope.carbus = $rootScope.carbus || {};
 			$rootScope.history = $rootScope.history || angular.fromJson(window.localStorage.getItem('tmpdat')) || {};
 
-			if (frame.Function.match(/write|reply/)) {
+			if (frame.Function.match(/WRITE_TABLE_BLOCK|ACK06/)) {
 				var address = toHex(frame.data.substring(0,3));
 				var id = frame.Function + frame.SrcClass + frame.DstClass + address;
-				frame.Device = frame.Function == 'reply' ? frame.SrcClass : frame.DstClass;
+				frame.Device = frame.Function == 'ACK06' ? frame.SrcClass : frame.DstClass;
 
 				var busLog = function(key,value) {
 					$rootScope.history[key] = $rootScope.history[key] || [{ 'key':key, values:[] }];
