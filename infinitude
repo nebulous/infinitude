@@ -106,7 +106,6 @@ hook before_dispatch => sub {
 				$store->set("$store_key.raw", $data);
 				$store->set("$store_key.xml" , $xml.'');
 				$store->set("$store_key.json", $xml->_as_json);
-				$c->stash->{data} = $xml;
 				$c->stash(store_key=>$store_key);
 			} catch {
 				$c->stash('error','true');
