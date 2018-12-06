@@ -155,7 +155,7 @@ any '/api/:zone_id/hold' => sub {
 	$setting->{until} = &qtr_hr($c->req->param('until') || ((localtime)[2] + 1));
 	$zone->otmr([$setting->{until}]);
 
-	$store->set('systems.xml',  $xml);
+	$store->set('systems.xml',  $xml.'');
 	$store->set('systems.json', $xml->_as_json());
 	$store->set(changes => 'true');
 
@@ -198,7 +198,7 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 				$activity->$set([$c->req->param($set)]) if $c->req->param($set);
 			}
 			$setting = decode_json($activity->_as_json);
-			$store->set('systems.xml',  $xml);
+			$store->set('systems.xml',  $xml.'');
 			$store->set('systems.json', $xml->_as_json());
 			$store->set(changes => 'true');
 			last;
@@ -226,7 +226,7 @@ any '/api/*path' => sub {
 				$search->$key([$sets{$key}]);
 			}
 			$setting->{data} = { %{$search->TO_JSON()} };
-			$store->set('systems.xml',  $xml);
+			$store->set('systems.xml',  $xml.'');
 			$store->set('systems.json', $xml->_as_json());
 			$store->set(changes => 'true');
 		} else {
