@@ -317,8 +317,8 @@ post '/systems/:system_id/status' => sub {
 
 	$changes = 'true' unless $store->get('systems.xml'); #Force a change cycle if we have no stat config
 	my $xml = XML::Simple::Minded->new({
-		serverStatus => {
-			 version => '1.6',
+		status => {
+			 version => '1.37',
 			pingRate => [$changes eq 'true' ? 20 : 12],
 			serverHasChanges => [$changes || 'false'],
 			configHasChanges => [$changes || 'false'],
