@@ -340,8 +340,9 @@ post '/systems/:system_id/status' => sub {
 	$c->render(text=>$xml, format=>'xml');
 };
 
-post '/systems/:system_id/(:part)' => sub {
+any '/systems/:system_id/:part' => sub {
 	my $c = shift;
+	$c->app->log->debug('Unimplemented request: ' . $c->stash->{'part'});
 	$c->render(text=>'', format=>'txt');
 };
 
