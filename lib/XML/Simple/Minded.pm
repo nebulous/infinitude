@@ -88,7 +88,13 @@ use overload '""' => sub {
 		1;
 	}
 	my $sx = XML::Simple::Minded::Sorter->new( keep_root=>$self->_root ? 1 : 0, xml_decl=>'<?xml version="1.0" encoding="UTF-8"?>', no_indent=>1 );
-	return $sx->XMLout($rstruc);
+	my $xml_string = $sx->XMLout($rstruc);
+	$xml_string =~ s/<(\w+)><\/(\w+)>/&selfclose($1,$2)/gse;
+	sub selfclose {
+		my ($one, $two) = @_;
+		return ($one eq $two) ? "<$one/>" : "<$one></$two>"
+	}
+	return $xml_string;
 };
 
 our $AUTOLOAD;
