@@ -330,6 +330,7 @@ post '/systems/:system_id/status' => sub {
 	if (!$changes and $c->stash->{pass_res}) {
 	  $c->app->log->debug("********** Check Carrier/Bryant change flags ****************");
 	  $xml = XML::Simple::Minded->new($c->stash->{pass_res});
+	  $xml->status->pingRate([12]);
 	  $changes = $xml->status->serverHasChanges eq 'true' ? 1 : 0;
 	  $store->set(carrier_changes => time, 120) if $changes; # open a window to Carrier passthru, max of 2 minutes
 	}
