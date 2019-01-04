@@ -9,7 +9,7 @@ It allows direct web-based control of
   * Schedules
   * Dealer information
 
-As well as monitoring of weather and any other sensors you may want to integrate.
+As well as providing an open RESTful api and monitoring of weather and any other sensors you may want to integrate.
 
 <img src="http://i.imgur.com/1LhLKbp.png" />
 
