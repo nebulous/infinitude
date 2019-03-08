@@ -1,0 +1,18 @@
+version: "2.1"
+
+services:
+  infinitude:
+    container_name: infinitude
+    hostname: infinitude
+    build:
+      context: .
+      dockerfile: Dockerfile
+    network_mode: host
+    environment:
+      - APP_SECRET=Pogotudinal
+      - PASS_REQS=1020
+      - WUNDERGROUND_KEY=<INSERT_YOUR_KEY>
+      - MODE=Production
+#    devices:
+#      - /dev/ttyUSB0:/dev/ttyUSB0
+    restart: always
