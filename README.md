@@ -14,7 +14,7 @@ As well as providing an open RESTful api and monitoring of weather and any other
 <img src="http://i.imgur.com/1LhLKbp.png" />
 
 
-Infinitude can also optionally monitor the Carrier/Bryant RS485 bus for higher resolution access to your thermostat, air handler, heat pump, and other devices. The serial monitor keeps track of the current state, and highlights changing bytes to aid in protocol analysis. Infinitude does **not** control thermostats via the RS485 bus at this time. RS485 communication is optional, and _read only_. Limited control of _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
+Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus for higher resolution access to your thermostat, air handler, heat pump, and other devices. The serial monitor keeps track of the current state, and highlights changing bytes to aid in protocol analysis. Infinitude does **not** control thermostats via the RS485 bus at this time. RS485 communication is optional, and _read only_. Limited control of _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
 
 <img src="http://i.imgur.com/5Ge1zEM.png" />
 
