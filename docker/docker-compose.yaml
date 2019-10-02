@@ -13,7 +13,6 @@ services:
     environment:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=1020
-      - WUNDERGROUND_KEY=YOUR_KEY_KERE
       - MODE=Production
 #    devices:
 #      - /dev/ttyUSB0:/dev/ttyUSB0

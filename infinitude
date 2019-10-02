@@ -37,7 +37,6 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 	try { $config = decode_json($config_file->slurp) };
 
 	$config //= {
-		wunderground_key => '',        #Weather underground API key
 		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
 		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
 		pass_reqs => 60*17             #Pass requests to Carrier webservice every 17 minutes (set to 0 to disable)
@@ -346,57 +345,6 @@ any '/systems/:system_id/:part' => sub {
 	my $c = shift;
 	$c->app->log->debug('Unimplemented request: ' . $c->stash->{'part'});
 	$c->render(text=>'', format=>'txt');
-};
-
-get '/weather/:zip/forecast' => sub {
-	my $c = shift;
-	my $xml;
-	if ($config->{wunderground_key}) {
-		require WWW::Wunderground::API;
-		my $wunderground = WWW::Wunderground::API->new(auto_api=>1, api_key=>$config->{wunderground_key}, location=>$c->stash('zip'), cache=>$store);
-		my $forecast = $wunderground->forecast10day->simpleforecast->forecastday;
-		
-		sub map_wx {
-			my ($f) = @_;
-			my @wx_status = ( 'Thunderstorms', 'Sleet', 'Rain and Sleet', 'Wintry Mix', 'Rain and Snow', 'Snow', 'Freezing Rain', 'Rain', 'Blizzard', 'Fog', 'Cloudy', 'Partly Cloudy', 'Mostly Cloudy', 'Sunny' );
-			my $lookup = {};
-			my $i = 0;
-			foreach my $stat (@wx_status) { $lookup->{$stat} = $i++; }
-			my $search = $f->{conditions}||$f->{icon};
-			$search =~ s/(heavy|light|chance of|showers)//ig;
-			$search =~ s/^\s+//; $search =~ s/\s+$//;
-
-			$search = 'Thunderstorms' if $search =~ /thunder/i;
-			$search = 'Sunny' if $search =~ /clear/i;
-			$search = 'Cloudy' if $search =~ /overcast/i;
-			$search = 'Partly Cloudy' if $search =~ /scattered clouds/i;
-			$search = 'Fog' if $search =~ /fog$/i;
-			$search = 'Sleet' if $search =~ /ice pellet/i;
-
-			my $idx = $lookup->{$search};
-			return ($idx, $wx_status[$idx]);
-		};
-
-		my @days = ();
-		for my $i (0 .. 5) {
-			my $day = $forecast->[$i];
-			my $date = DateTime->from_epoch(epoch => $day->{date}{epoch}, time_zone=>$day->{date}{tz_long} );
-			my ($status_id, $status_message) = &map_wx($day);
-			push(@days, {
-				id => $day->{date}{weekday},
-				timestamp => [ $date->strftime("%FT%T%z") ],
-				min_temp => [{ units=>'f', content=>$day->{low}{fahrenheit} }],
-				max_temp => [{ units=>'f', content=>$day->{high}{fahrenheit} }],
-				status_id => [$status_id],
-				status_message => [ $status_message ],
-				pop=>[ $day->{pop} ]
-			});
-		}
-
-		$xml = XML::Simple::Minded->new({ weather_forecast=>{ timestamp=>[DateTime->now->iso8601.'.01234Z'], ping=>[240], day=>\@days } });
-	}
-	$xml||=$c->stash->{pass_res};
-	$c->render(text=>$xml||'<xml><err>no forecast</err></xml>', format=>'xml');
 };
 
 my $handle;

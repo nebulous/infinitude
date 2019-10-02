@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Generate the config file from environment variables
-echo "{\"app_secret\":\"$APP_SECRET\",\"pass_reqs\":$PASS_REQS,\"serial_tty\":\"/dev/ttyUSB0\",\"wunderground_key\":\"$WUNDERGROUND_KEY\"}" > /infinitude/infinitude.json
+echo "{\"app_secret\":\"$APP_SECRET\",\"pass_reqs\":$PASS_REQS,\"serial_tty\":\"/dev/ttyUSB0\"}" > /infinitude/infinitude.json
 
 if [ -z ${MODE+x} ]; then 
 	echo "MODE is not set.  Defaulting to Production";

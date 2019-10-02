@@ -13,7 +13,6 @@ require_ok('Mojo::JSON');
 require_ok('Path::Tiny');
 require_ok('Try::Tiny');
 require_ok('Time::HiRes');
-require_ok('WWW::Wunderground::API');
 require_ok('XML::Simple');
 require_ok('XML::Simple::Minded');
 

@@ -9,7 +9,7 @@ It allows direct web-based control of
   * Schedules
   * Dealer information
 
-As well as providing an open RESTful api and monitoring of weather and any other sensors you may want to integrate.
+As well as providing an open RESTish api and monitoring of weather and any other sensors you may want to integrate.
 
 <img src="http://i.imgur.com/1LhLKbp.png" />
 
@@ -29,7 +29,6 @@ Demonstrated in the video below:
  * Perl with the following modules
    * Mojolicious
    * DateTime
-   * [WWW::Wunderground::API](https://metacpan.org/module/WWW::Wunderground::API) optional weather source
    * [IO::Termios](https://metacpan.org/module/IO::Termios) optional for RS485 serial monitoring
    * Path::Tiny
    * Try::Tiny
@@ -59,7 +58,6 @@ Infinitude configuration parameters can be passed through environment variables 
 | --- | 
 | APP_SECRET | 
 | PASS_REQS | 
-| WUNDERGROUND_KEY | 
 | MODE | 
 
 The latest docker image can be built directly from this repository
@@ -71,7 +69,6 @@ and the corresponding container can be run as
 docker run \
 -e APP_SECRET='YOUR_SECRET_HERE' \
 -e PASS_REQS='1020' \
--e WUNDERGROUND_KEY='YOUR_KEY_HERE' \
 -e MODE='Production' \
 -p 3000:3000 \
 --name infinitude docker_infinitude
@@ -82,7 +79,7 @@ An [example docker-compose file](https://github.com/nebulous/infinitude/blob/mas
 
 #### Usage
  * Set your proxy server/port in the advanced wireless settings on the thermostat to point to your infinitude host/port. 
- * Edit the $conf section of the infinitude file to set your optional Wunderground API key or RS485 serial tty device.
+ * Edit the $conf section of the infinitude file to set your optional RS485 serial tty device.
  * Start Infinitude. This traffic is _not encrypted_, so only run on a trusted network.
 
 Infinitude is a Mojolicious application, so the simplest way to run it is via:
