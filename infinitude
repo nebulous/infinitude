@@ -165,7 +165,7 @@ any '/api/:zone_id/hold' => sub {
 sub api_stat {
        my $c = shift;
        my $status = decode_json($store->get('status.json')||'{}');
-       my $zone_id = $c->stash('zone_id');
+       my $zone_id = $c->stash('zone_id')||'';
        if ($zone_id =~ /^\d+$/) {
                my $idx = ($zone_id||1) - 1;
                $status = $status->{status}[0]{zones}[0]{zone}[$idx];
