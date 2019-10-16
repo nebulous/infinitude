@@ -277,9 +277,10 @@ post '/systems/:id' => sub {
 		$store->set(changes => 'true');
 	} else { # Data from thermostat.
 		if (!$c->stash('error')) {
-			my $key = $c->stash('store_key');
-			$store->set( 'systems.xml' => $store->get("$key.xml") );
-			$store->set( 'systems.json' => $store->get("$key.json") );
+			if (my $key = $c->stash('store_key')) {
+				$store->set( 'systems.xml' => $store->get("$key.xml") );
+				$store->set( 'systems.json' => $store->get("$key.json") );
+			}
 		}
 	}
 	$c->render(text=>'',format=>'txt');
