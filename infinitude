@@ -38,22 +38,28 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 
 	$config //= {
 		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
+		serial_socket => '127.0.0.1:23',  #RS485 socket relay
 		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
 		pass_reqs => 60*17             #Pass requests to Carrier webservice every 17 minutes (set to 0 to disable)
 	};
 	$config_file->spew(encode_json($config));
 }
 
-if (defined($config->{serial_tty})) {
+if (defined($config->{serial_tty}) or defined($config->{serial_socket})) {
+	require CarBus;
 	if (-e $config->{serial_tty}) {
 		require IO::Termios;
-		require CarBus;
 		warn "Using $config->{serial_tty} serial interface\n";
 	} else {
-		warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n";
+		warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
 		delete $config->{serial_tty};
 	}
+	if ($config->{serial_socket}) {
+		require IO::Socket::IP;
+		warn "Using $config->{serial_socket} for serial interface\n";
+	}
 }
+
 
 app->secrets([$config->{app_secret}]);
 push (@{app->static->paths}, ('development' eq ($ENV{MOJO_MODE}//'')) ? 'public/app' : 'public/dist');
@@ -174,7 +180,10 @@ sub api_stat {
        }
        my $prop = $c->stash('prop') || $zone_id;
        if ($prop =~ /^[A-Z]/i) {
-               $status = { $prop=>$status->{$prop} };
+	       my $val = $status->{$prop};
+	       $val = $val->[0] if ref($val) eq 'ARRAY' && scalar(@$val)==1;
+	       $val *=1 if $val =~ /^[\.\d]+$/;
+	       $status = { $prop=>$val };
        }
        $c->render(json=>$status);
 }
@@ -352,9 +361,19 @@ my $stream;
 my $carbus;
 websocket '/serial' => sub {
 	my $c = shift;
-	if ($config->{serial_tty}) {
-		$c->app->log->debug('WebSocket opened. Attempting to access '.$config->{serial_tty});
-		$handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+	if ($config->{serial_socket} or $config->{serial_tty} and -e $config->{serial_tty}) {
+		if ($config->{serial_socket}) {
+			$c->app->log->debug('Attempting to access '.$config->{serial_socket});
+			my ($host,$port) = split(':',$config->{serial_socket});
+			$handle ||= IO::Socket::IP->new(
+				PeerHost => $host//'localhost',
+				PeerPort => $port//'telnet',
+			);
+		} else {
+			$c->app->log->debug('Attempting to access '.$config->{serial_tty});
+			$handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+		}
+
 		$stream ||= Mojo::IOLoop::Stream->new($handle);
 		$carbus ||= CarBus->new(async=>1);
 
@@ -393,6 +412,8 @@ websocket '/serial' => sub {
 		});
 		$stream->start;
 		$stream->reactor->start unless $stream->reactor->is_running;
+	} else {
+		$c->spp->log->debug("Websocket opened, but no serial device found")
 	}
 };
 
