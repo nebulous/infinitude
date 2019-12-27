@@ -236,7 +236,9 @@ any '/api/*path' => sub {
 			$setting->{data} = { %{$search->TO_JSON()} };
 			$store->set('systems.xml',  $xml.'');
 			$store->set('systems.json', $xml->_as_json());
-			$store->set(changes => 'true');
+			if (('POST' eq $c->req->method) or ('PUT' eq $c->req->method)) { # Only set changes if it's a POST
+				$store->set(changes => 'true');
+			}
 		} else {
 			#path is a scalar. return only.
 			$setting->{data} = $search;
