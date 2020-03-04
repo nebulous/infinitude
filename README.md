@@ -43,11 +43,11 @@ Many users opt to run Infinitude on a Raspberry Pi.
 [More specific installation instructions are available on the wiki](https://github.com/nebulous/infinitude/wiki/Installing-Infinitude-on-Raspberry-PI-(raspbian))
  
 ##### Hardware
- * Basic hardware capable of running Linux. This could be a desktop machine, a Raspberry Pi, or an embedded device. The author runs Infinitude on ArchLinux using a [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) which can be obtained for less than $10 USD and sits on top of the air handler like so:
+ * Basic hardware capable of running Linux. This could be a desktop machine, many people use a [Raspberry Pi](https://amzn.to/2StGo8z), or any embedded device with sufficient memory and storage. The author runs Infinitude in a Docker container on an [Atomic PI](https://amzn.to/3bgufMV), but has run it on such limited hardware as a [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) which at the time cost less than $10 USD and sits on top of the air handler like so:
 
 <a href="http://imgur.com/a/bkcHX#1"><img src="http://i.imgur.com/IESJCCw.jpg" title="source: imgur.com" /></a>
 
-See <a target="_blank" href="http://www.amazon.com/Infinitude-hardware/lm/R2G4T8HWC1AQDK/?_encoding=UTF8&camp=1789&creative=390957&linkCode=ur2&tag=sbec-20&linkId=THB3EP6RU76EIXOA">Infinitude Hardware</a><img src="https://ir-na.amazon-adsystem.com/e/ir?t=sbec-20&l=ur2&o=1" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.
+See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAOB3IGADYQPGQRC566Z2FA/19DKMPAQCZX12?type=explore&ref=idea_cp_vl_ov_d&tag=sbec-20" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.
 
 #### Docker
 Docker support is provided in the `docker` directory.
