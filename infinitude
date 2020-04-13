@@ -416,7 +416,7 @@ websocket '/serial' => sub {
 		$stream->start;
 		$stream->reactor->start unless $stream->reactor->is_running;
 	} else {
-		$c->spp->log->debug("Websocket opened, but no serial device found")
+		$c->app->log->debug("Websocket opened, but no serial device found")
 	}
 };
 
