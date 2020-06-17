@@ -156,7 +156,8 @@ any '/api/:zone_id/hold' => sub {
 	$zone->holdActivity([$setting->{activity}]);
 
 	# default to about an hour from now
-	$setting->{until} = &qtr_hr($c->req->param('until') || ((localtime)[2] + 1));
+	my $until = $c->req->param('until') || ((localtime)[2] + 1);
+	$setting->{until} = $until eq 'forever' ? {} : &qtr_hr($until);
 	$zone->otmr([$setting->{until}]);
 
 	$store->set('systems.xml',  $xml.'');
