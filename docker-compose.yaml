@@ -4,6 +4,7 @@ services:
   infinitude:
     container_name: infinitude
     hostname: infinitude
+    image: nebulous/infinitude
     build:
       context: .
       dockerfile: Dockerfile
@@ -14,6 +15,8 @@ services:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=1020
       - MODE=Production
+#      - SERIAL_TTY=/dev/ttyUSB0
+#      - SERIAL_SOCKET=10.0.0.1:1234
 #    devices:
 #      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always
