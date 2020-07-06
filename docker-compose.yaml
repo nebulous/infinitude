@@ -4,16 +4,18 @@ services:
   infinitude:
     container_name: infinitude
     hostname: infinitude
-    image: nebulous/infinitude
+    image: nebulous/infinitude:latest
     build:
       context: .
       dockerfile: Dockerfile
     network_mode: host
     ports:
       - "3000:3000"
+    volumes:
+      - ./state:/infinitude/state
     environment:
       - APP_SECRET=Pogotudinal
-      - PASS_REQS=1020
+      - PASS_REQS=300
       - MODE=Production
 #      - SERIAL_TTY=/dev/ttyUSB0
 #      - SERIAL_SOCKET=10.0.0.1:1234
