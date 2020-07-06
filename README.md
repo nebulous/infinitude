@@ -47,7 +47,7 @@ Many users opt to run Infinitude on a Raspberry Pi.
 
 <a href="http://imgur.com/a/bkcHX#1"><img src="http://i.imgur.com/IESJCCw.jpg" title="source: imgur.com" /></a>
 
-See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAOB3IGADYQPGQRC566Z2FA/19DKMPAQCZX12?type=explore&ref=idea_cp_vl_ov_d&tag=sbec-20" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.
+See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAOB3IGADYQPGQRC566Z2FA/19DKMPAQCZX12?type=explore&ref=idea_cp_vl_ov_d&tag=sbec-20" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.</a>
 
 #### Docker
 A docker container build is available on [DockerHub](https://hub.docker.com/r/nebulous/infinitude) or you can build one manually with the included Dockerfile
