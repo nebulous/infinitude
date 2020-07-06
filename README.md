@@ -47,10 +47,10 @@ Many users opt to run Infinitude on a Raspberry Pi.
 
 <a href="http://imgur.com/a/bkcHX#1"><img src="http://i.imgur.com/IESJCCw.jpg" title="source: imgur.com" /></a>
 
-See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAOB3IGADYQPGQRC566Z2FA/19DKMPAQCZX12?type=explore&ref=idea_cp_vl_ov_d&tag=sbec-20" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.
+See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAOB3IGADYQPGQRC566Z2FA/19DKMPAQCZX12?type=explore&ref=idea_cp_vl_ov_d&tag=sbec-20" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> for recommended devices.</a>
 
 #### Docker
-Docker support is provided in the `docker` directory.
+A docker container build is available on [DockerHub](https://hub.docker.com/r/nebulous/infinitude) or you can build one manually with the included Dockerfile
 
 Infinitude configuration parameters can be passed through environment variables into the container.  Support is included for:
 
@@ -59,12 +59,11 @@ Infinitude configuration parameters can be passed through environment variables 
 | APP_SECRET | 
 | PASS_REQS | 
 | MODE | 
+| SERIAL_TTY |
+| SERIAL_SOCKET |
 
-The latest docker image can be built directly from this repository
 
-```docker build -t infinitude https://raw.githubusercontent.com/nebulous/infinitude/master/docker/Dockerfile```
-
-and the corresponding container can be run as
+the corresponding container can be run as
 ```
 docker run \
 -e APP_SECRET='YOUR_SECRET_HERE' \
@@ -74,7 +73,7 @@ docker run \
 --name infinitude docker_infinitude
 ```
 
-An [example docker-compose file](https://github.com/nebulous/infinitude/blob/master/docker/docker-compose.yaml) is also included.
+Or more convieniently, via the included [docker-compose file](https://github.com/nebulous/infinitude/blob/master/docker-compose.yaml).
 
 
 #### Usage

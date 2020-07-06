@@ -32,8 +32,8 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 	$config_file->spew($config_json);
 	$store->remove('infinitude.json');
 } else {
-	# Default configuration if no state/infinitude.json file is found.
-	# customize config by editing state/infinitude.json
+	# Default configuration if no infinitude.json file is found.
+	# customize config by editing infinitude.json
 	try { $config = decode_json($config_file->slurp) };
 
 	$config //= {
@@ -90,6 +90,7 @@ hook before_dispatch => sub {
 			$store->set("res-$nk.txt", $tx->res->to_string);
 			#say "RESPONSE:\n".$store->get("res-$nk.txt");
 			$c->stash->{pass_res} = $tx->res->body;
+			$c->stash->{format} = 'xml' if $tx->res->headers->content_type =~ /xml/;
 			$store->set("$nk.xml", $tx->res->body)
 			  if ($tx->res->headers->content_type//'' =~ /xml/);
 		} else {
@@ -156,7 +157,8 @@ any '/api/:zone_id/hold' => sub {
 	$zone->holdActivity([$setting->{activity}]);
 
 	# default to about an hour from now
-	$setting->{until} = &qtr_hr($c->req->param('until') || ((localtime)[2] + 1));
+	my $until = $c->req->param('until') || ((localtime)[2] + 1);
+	$setting->{until} = $until eq 'forever' ? {} : &qtr_hr($until);
 	$zone->otmr([$setting->{until}]);
 
 	$store->set('systems.xml',  $xml.'');
@@ -416,15 +418,17 @@ websocket '/serial' => sub {
 		$stream->start;
 		$stream->reactor->start unless $stream->reactor->is_running;
 	} else {
-		$c->spp->log->debug("Websocket opened, but no serial device found")
+		$c->app->log->debug("Websocket opened, but no serial device found")
 	}
 };
 
-get '/:key' => sub {
+any '/*catchall' => sub {
 	my $c = shift;
-	my $store_key = join('.', $c->stash('key'), $c->stash('format'));
-	my $text = $store->get($store_key) // "Infinitude doesn't know about $store_key yet";
-	$c->render(text=>$text, format=>$c->stash('format')||'text');
+	my $store_key = $c->stash('catchall').'.'.($c->stash('format') || 'xml');
+	$store_key =~ s/\//-/g;
+	my $text = $c->stash->{pass_res} || $store->get($store_key) // "Infinitude doesn't know how to ".$c->req->method." $store_key";
+	my $format = $c->stash('format') || ($text =~ /^</ ? 'xml' : 'text');
+	$c->render(text=>$text, format=>$format);
 };
 
 app->start;
