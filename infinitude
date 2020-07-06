@@ -90,6 +90,7 @@ hook before_dispatch => sub {
 			$store->set("res-$nk.txt", $tx->res->to_string);
 			#say "RESPONSE:\n".$store->get("res-$nk.txt");
 			$c->stash->{pass_res} = $tx->res->body;
+			$c->stash->{format} = 'xml' if $tx->res->headers->content_type =~ /xml/;
 			$store->set("$nk.xml", $tx->res->body)
 			  if ($tx->res->headers->content_type//'' =~ /xml/);
 		} else {
@@ -421,11 +422,13 @@ websocket '/serial' => sub {
 	}
 };
 
-get '/:key' => sub {
+any '/*catchall' => sub {
 	my $c = shift;
-	my $store_key = join('.', $c->stash('key'), $c->stash('format'));
-	my $text = $store->get($store_key) // "Infinitude doesn't know about $store_key yet";
-	$c->render(text=>$text, format=>$c->stash('format')||'text');
+	my $store_key = $c->stash('catchall').'.'.($c->stash('format') || 'xml');
+	$store_key =~ s/\//-/g;
+	my $text = $c->stash->{pass_res} || $store->get($store_key) // "Infinitude doesn't know how to ".$c->req->method." $store_key";
+	my $format = $c->stash('format') || ($text =~ /^</ ? 'xml' : 'text');
+	$c->render(text=>$text, format=>$format);
 };
 
 app->start;
