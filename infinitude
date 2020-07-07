@@ -90,7 +90,7 @@ hook before_dispatch => sub {
 			$store->set("res-$nk.txt", $tx->res->to_string);
 			#say "RESPONSE:\n".$store->get("res-$nk.txt");
 			$c->stash->{pass_res} = $tx->res->body;
-			$c->stash->{format} = 'xml' if $tx->res->headers->content_type =~ /xml/;
+			$c->stash->{format} = 'xml' if ($tx->res->headers->content_type//'') =~ /xml/;
 			$store->set("$nk.xml", $tx->res->body)
 			  if ($tx->res->headers->content_type//'' =~ /xml/);
 		} else {
@@ -184,7 +184,7 @@ sub api_stat {
        if ($prop =~ /^[A-Z]/i) {
 	       my $val = $status->{$prop};
 	       $val = $val->[0] if ref($val) eq 'ARRAY' && scalar(@$val)==1;
-	       $val *=1 if $val =~ /^[\.\d]+$/;
+	       $val *=1 if defined($val) and $val =~ /^[\.\d]+$/;
 	       $status = { $prop=>$val };
        }
        $c->render(json=>$status);
@@ -378,6 +378,7 @@ websocket '/serial' => sub {
 			$c->app->log->debug('Attempting to access '.$config->{serial_tty});
 			$handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
 		}
+		return unless $handle;
 
 		$stream ||= Mojo::IOLoop::Stream->new($handle);
 		$carbus ||= CarBus->new(async=>1);
@@ -424,10 +425,24 @@ websocket '/serial' => sub {
 
 any '/*catchall' => sub {
 	my $c = shift;
-	my $store_key = $c->stash('catchall').'.'.($c->stash('format') || 'xml');
+	my $store_key = $c->stash('catchall');
 	$store_key =~ s/\//-/g;
-	my $text = $c->stash->{pass_res} || $store->get($store_key) // "Infinitude doesn't know how to ".$c->req->method." $store_key";
-	my $format = $c->stash('format') || ($text =~ /^</ ? 'xml' : 'text');
+	my $text = $c->stash->{pass_res}
+	        || $store->get($store_key)
+		|| $store->get("$store_key.xml")
+		|| $store->get("$store_key.json")
+		// '';
+
+	my $format = $c->stash('format')     ? $c->stash('format')
+	           : $store_key =~ /\.json$/ ? 'json'
+		   : $text =~ /^\s*{/        ? 'json'
+	           : $store_key =~ /\.xml$/  ? 'xml'
+	           : $text =~ /^\s*</        ? 'xml'
+		   :                           'text';
+
+	$text = '{}' if ($format eq 'json' and !$text);
+	$text = "Infinitude doesn't know how to ".$c->req->method." $store_key" unless $text;
+
 	$c->render(text=>$text, format=>$format);
 };
 
