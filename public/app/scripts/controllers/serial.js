@@ -92,7 +92,7 @@ angular.module('infinitude')
 			$timeout.cancel(transferTimer);
 			$timeout(function() { $rootScope.transferColor = '#5E5'; }, 2000);
 
-
+			/* jshint ignore:start */
 			var dataView = new jDataView(frame.data);
 			$rootScope.carbus = $rootScope.carbus || {};
 			$rootScope.history = $rootScope.history || angular.fromJson(window.localStorage.getItem('tmpdat')) || {};
@@ -100,7 +100,7 @@ angular.module('infinitude')
 			if (frame.Function.match(/write|reply/)) {
 				var address = toHex(frame.data.substring(0,3));
 				var id = frame.Function + frame.SrcClass + frame.DstClass + address;
-				frame.Device = frame.Function == 'reply' ? frame.SrcClass : frame.DstClass;
+				frame.Device = frame.Function === 'reply' ? frame.SrcClass : frame.DstClass;
 
 				var busLog = function(key,value) {
 					$rootScope.history[key] = $rootScope.history[key] || [{ 'key':key, values:[] }];
@@ -145,6 +145,7 @@ angular.module('infinitude')
 
 				window.localStorage.setItem('infinitude-serial-state',angular.toJson($scope.state));
 			}
+			/* jshint ignore:end */
 
 			$scope.frames.push(frame);
 			if ($scope.frames.length>9) { $scope.frames.shift(); }

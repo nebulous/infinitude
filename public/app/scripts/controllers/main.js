@@ -6,7 +6,7 @@ angular.module('infinitude')
 
 		$scope.empty = function(input) { console.log(input); };
 		$scope.mkTime = function(input) {
-			if (angular.equals({}, input)) return '00:00'
+			if (angular.equals({}, input)) { return '00:00'; }
 			return input;
 		};
 
@@ -19,7 +19,7 @@ angular.module('infinitude')
 			angular.forEach($scope.history.coilTemp[0].values, function(v,i) {
 				var valen = $scope.history.coilTemp[0].values.length;
 				var modul = Math.round(valen/20); //20 data points
-				if (i % modul == 0) {
+				if (i % modul === 0) {
 					labels.push(new Date(1000*v[0]).toLocaleString());
 					lindat[0].push(v[1]);
 					lindat[1].push($scope.history.outsideTemp[0].values[i][1]);
@@ -46,7 +46,7 @@ angular.module('infinitude')
 						$scope[key] = store[key] = data[rkey][0];
 						$scope.globeColor = '#44E';
 						$timeout.cancel(globeTimer);
-						globeTimer = $timeout(function() { $scope.globeColor = '#E44' }, 4*60*1000);
+						globeTimer = $timeout(function() { $scope.globeColor = '#E44'; }, 4*60*1000);
 					})
 					.error(function() {
 						$scope.globeColor = '#E44';
@@ -69,12 +69,12 @@ angular.module('infinitude')
 			return route === $location.path();
 		};
 		$scope.save = function() {
-			var systems = { "system":[$scope.systems] };
+			var systems = { 'system':[$scope.systems] };
 			//console.log('saving systems structure', systems);
 			$http.post('/systems/infinitude', systems )
 				.success(function() {
 					$scope.debounce = 0;
-					setTimeout(function() { if ($scope.debounce == 0) $scope.reloadData(); }, 10*1000);
+					setTimeout(function() { if ($scope.debounce === 0) { $scope.reloadData(); }}, 10*1000);
 				})
 				.error(function() {
 					console.log('oh noes! save fail.');
