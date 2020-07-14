@@ -4,17 +4,18 @@
 	<strong>{{ notifications.notification[0].timestamp[0] | date:"EEE yyyy-MM-dd 'at' h:mma" }}</strong>
 	</blockquote>
 
-
 <h4>Global</h4>
+
 <div class="row">
 	<div class="col-xs-6 col-sm-4 col-md-2">
 			<ng-dial-gauge title="Humidity" units="%" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="status.zones[0].zone[0].rh[0]"></ng-dial-gauge>
 	</div>
 	<div class="col-xs-6 col-sm-4 col-md-2" ng-if="status.oat[0] || carbus.outsideTemp">
-			<ng-dial-gauge title="Outside" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="carbus.outsideTemp || status.oat[0]"></ng-dial-gauge>
+		<ng-dial-gauge ng-if="status.cfgem[0]=='F'" title="Outside" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="carbus.outsideTemp || status.oat[0]"></ng-dial-gauge>
+		<ng-dial-gauge ng-if="status.cfgem[0]=='C'" title="Outside" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="((carbus.outsideTemp || status.oat[0])-32)*5/9"></ng-dial-gauge>
 	</div>
 	<div class="col-xs-6 col-sm-4 col-md-2" ng-if="carbus.coilTemp">
-			<ng-dial-gauge title="Coil" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF0000" bar-width="10" ng-model="carbus.coilTemp"></ng-dial-gauge>
+			<ng-dial-gauge title="Coil" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF0000" bar-width="10" ng-model="carbus.coilTemp"></ng-dial-gauge>
 	</div>
 	<div class="col-xs-6 col-sm-4 col-md-2" ng-if="carbus.airflowCFM">
 			<ng-dial-gauge title="Airflow" units="CFM" border-width="0" bar-color="#00FF00" bar-color-end="#FF0000" scale-min="0" scale-max="1000" bar-width="10" ng-model="carbus.airflowCFM"></ng-dial-gauge>
@@ -34,13 +35,13 @@
 
 	<div class="row">
 	  <div class="col-xs-6 col-sm-4 col-md-4">
-			<ng-dial-gauge title="Inside" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.rt[0]"></ng-dial-gauge>
+			<ng-dial-gauge title="Inside" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.rt[0]"></ng-dial-gauge>
 	  </div>
 	  <div class="col-xs-6 col-sm-4 col-md-4">
-			<ng-dial-gauge title="Heat Setpoint" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.htsp[0]"></ng-dial-gauge>
+			<ng-dial-gauge title="Heat Setpoint" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.htsp[0]"></ng-dial-gauge>
 	  </div>
 	  <div class="col-xs-6 col-sm-4 col-md-4">
-			<ng-dial-gauge title="Cool Setpoint" units="&deg;F" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.clsp[0]"></ng-dial-gauge>
+			<ng-dial-gauge title="Cool Setpoint" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="zone.clsp[0]"></ng-dial-gauge>
 	  </div>
 	</div>
 </div>
