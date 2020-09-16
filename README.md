@@ -31,13 +31,13 @@ A docker container build is available on [DockerHub](https://hub.docker.com/r/ne
 
 Infinitude configuration parameters can be passed through environment variables into the container.  Support is included for:
 
-| Variable | 
-| --- | 
-| APP_SECRET | 
-| PASS_REQS | 
-| MODE | 
-| SERIAL_TTY |
-| SERIAL_SOCKET |
+| Variable | Description |
+| --- | --- |
+| APP_SECRET | Cookie signature string. Matters to almost nobody | 
+| PASS_REQS | Minimum amount of time to wait(in seconds) between requests to Carrier/Bryant servers. `0` means never. |
+| MODE | `production`(default) or `development`(more logging) |
+| SERIAL_TTY | optional rs485 device string eg `/dev/ttyUSB0` |
+| SERIAL_SOCKET | optional tcp/rs485 bridge string eg `192.168.1.42:23` | 
 
 
 the published container can be run as
