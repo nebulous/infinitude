@@ -1,4 +1,4 @@
-# Infinitude
+# Infinitude - Scyto's Multiarch Build
 
 ### Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
 
