@@ -1,4 +1,4 @@
-name: build our image
+name: build-my-image
 
 on:
   push:
