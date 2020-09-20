@@ -25,7 +25,4 @@ jobs:
         run: echo ${{ steps.buildx.outputs.platforms }}
 
       - name: build the image
-        run: |
-        docker buildx build \
-          --platform linux/amd64,linux/arm/v7,linux/arm64 \
-          -t scyto/infinitude:multi-test . 
+        run: docker buildx build --platform linux/amd64,linux/arm/v7,linux/arm64  -t scyto/infinitude:multi-test --push .
