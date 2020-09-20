@@ -1,4 +1,4 @@
-name: buildx
+name: crazymax-buildx
 
 on:
   push:
