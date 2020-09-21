@@ -1,6 +1,7 @@
 # Infinitude - Scyto's Multiarch Build
 
 ![docker-buildx-pushto-dockerhub](https://github.com/scyto/infinitude/workflows/docker-buildx-pushto-dockerhub/badge.svg?branch=master)
+![Push Description & README to Docker Hub](https://github.com/scyto/infinitude/workflows/Push%20Description%20&%20README%20to%20Docker%20Hub/badge.svg?branch=master)
 
 ## Fork of  [nebulous/ininitude](https://github.com/nebulous/infinitude). Please file functional bugs on the original project.
 

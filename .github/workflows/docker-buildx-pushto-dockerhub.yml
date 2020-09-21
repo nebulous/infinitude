@@ -1,4 +1,4 @@
-name: docker-buildx-pushto-dockerhub
+name: Multi-architecture Build Status
 
 on:
   push:
