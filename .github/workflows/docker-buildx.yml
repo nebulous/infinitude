@@ -5,7 +5,8 @@ on:
     branches: 
     - master
     paths-ignore:
-        - "README.md"
+        - 'README.md'
+        - 'update-dockerhub-description-readme.yml'
   
 jobs:
   buildx:
@@ -48,9 +49,3 @@ jobs:
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
         
-      - name: Update repo description
-        uses: peter-evans/dockerhub-description@v2
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-          DOCKERHUB_REPOSITORY: scyto/infinitude
