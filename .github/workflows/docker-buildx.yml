@@ -6,7 +6,7 @@ on:
     - master
     paths-ignore:
         - 'README.md'
-        - 'update-dockerhub-description-readme.yml'
+        - '.github/workflows/update-dockerhub-description-readme.yml'
   
 jobs:
   buildx:
