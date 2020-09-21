@@ -4,7 +4,9 @@ on:
   push:
     branches: 
     - master
-
+    paths-ignore:
+        - "!README.md"
+  
 jobs:
   buildx:
     runs-on: ubuntu-latest
@@ -41,8 +43,7 @@ jobs:
         with:
           push: true
           platforms: ${{ steps.buildx.outputs.platforms }}
- #         platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x
-          tags: scyto/infinitude:github-autobuild-docker
+          tags: scyto/infinitude:latest
      
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
