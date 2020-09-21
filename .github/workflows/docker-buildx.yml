@@ -2,7 +2,8 @@ name: docker-buildx
 
 on:
   push:
-    branches: master
+    branches: 
+    - master
 
 jobs:
   buildx:
@@ -14,7 +15,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/s390x
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le
 
       - name: Set up Docker Buildx
         id: buildx
