@@ -5,7 +5,7 @@ on:
     branches: 
     - master
     paths:
-        - 'README.md'
+        - 'README.md' #ensures this workflow is only processed when the README.md changes and not any other file
 
 jobs:
   PushContainerReadme:
@@ -22,10 +22,10 @@ jobs:
         with:
           destination_container_repo: scyto/infinitude
           provider: dockerhub
-          short_description: 'Multiarcitecture Infinitude 😊'
+          short_description: 'Multiarcitecture Infinitude (arm-v6,arm-v7,arm-64,i386,amd64,s390x,ppc64le)'
           readme_file: 'README.md'
 
-
+# holding text for other solution that is more elgant but seems to not do the description but only README.md, i filed a bug
     #  - name: Update repo description
     #    uses: peter-evans/dockerhub-description@v2
     #    env:

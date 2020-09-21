@@ -1,4 +1,4 @@
-name: docker-buildx
+name: docker-buildx-pushto-dockerhub
 
 on:
   push:
