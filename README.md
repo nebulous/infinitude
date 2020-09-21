@@ -2,7 +2,7 @@
 
 ## Fork of  [nebulous/ininitude](https://github.com/nebulous/infinitude). Please file functional bugs on the original project.
 
-## For multi-architecture bugs please file on [scyto/infinitude](https://github.com/scyto/infinitude/)
+## For multi-architecture bugs please file on [scyto/infinitude](https://github.com/scyto/infinitude/).
 
 
 ### Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
