@@ -2,23 +2,23 @@ name: Multi-architecture Build Status
 
 on:
   push:
-    branches: 
+    branches:
     - master
     paths-ignore: #this ensures auto rebuilds don't occure when README.md is updated or the seperate workflow for updating descriptions and readme is modifies
         - 'README.md'
         - '.github/workflows/update-dockerhub-description-readme.yml'
-  
+
 jobs:
   buildx:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v2
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x #set to architectures supported by the FROM image in your dockerfile 
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/ppc64le,linux/s390x #set to architectures supported by the FROM image in your dockerfile
 
       - name: Set up Docker Buildx
         id: buildx
@@ -32,7 +32,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }} #set these secrets in your guthub account
           password: ${{ secrets.DOCKERHUB_TOKEN }} #set these secrets in your github account
 
-      - name: Available_platforms 
+      - name: Available_platforms
         run: echo ${{ steps.buildx.outputs.platforms }} #this is for logging
 
       - name: Builder instance name
@@ -44,8 +44,8 @@ jobs:
         with:
           push: true
           platforms: ${{ steps.buildx.outputs.platforms }} #this builds one tag per architecture platforms you specified in the set up QEMU.
-          tags: scyto/infinitude:latest #set to the dockerhub repo this will be pushed to
-      
+          tags: nebulous/infinitude:latest #set to the dockerhub repo this will be pushed to
+
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }} #this is for logging.
-        
+
