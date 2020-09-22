@@ -1,0 +1,36 @@
+name: Push Description & README to Docker Hub
+
+on: 
+  push:
+    branches: 
+    - master
+    paths: #ensures this workflow is only processed when the README.md changes or this file but not any other file.
+        - 'README.md' 
+        - '.github/workflows/update-dockerhub-description-readme.yml' 
+
+jobs:
+  PushContainerReadme:
+    runs-on: ubuntu-latest
+    name: Push README to Docker Hub
+    steps:
+      - name: git checkout
+        uses: actions/checkout@v2
+      - name: push README to Dockerhub
+        uses: christian-korneck/update-container-description-action@v1
+        env:
+          DOCKER_USER: scyto
+          DOCKER_PASS: ${{ secrets.DOCKERHUB_PASSWORD}} #this must be a password it can't be API token or personal toke due to issue with way API works
+        with:
+          destination_container_repo: scyto/infinitude
+          provider: dockerhub
+          short_description: 'Multiarcitecture Infinitude (arm-v6,arm-v7,arm-64,i386,amd64,s390x,ppc64le)'
+          readme_file: 'README.md'
+
+# holding text for other solution that is more elgant but seems to not do the description but only README.md, i filed a bug
+    #  - name: Update repo description
+    #    uses: peter-evans/dockerhub-description@v2
+    #    env:
+    #      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    #      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}  #this must be a password it can't be API token or personal toke due to issue with way API works
+    #      DOCKERHUB_REPOSITORY: scyto/infinitude
+    

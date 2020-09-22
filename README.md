@@ -1,8 +1,16 @@
-# Infinitude
+# Infinitude - Scyto's Multiarch Build
 
-### Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
+![Multi-architecture Build Status](https://github.com/scyto/infinitude/workflows/Multi-architecture%20Build%20Status/badge.svg?branch=master)
+![Push Description & README to Docker Hub](https://github.com/scyto/infinitude/workflows/Push%20Description%20&%20README%20to%20Docker%20Hub/badge.svg?branch=master)
 
-#### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
+### Fork of  [nebulous/ininitude](https://github.com/nebulous/infinitude), please use that repo to file functional bugs on the original project.
+
+### For multi-architecture bugs please file on [scyto/infinitude](https://github.com/scyto/infinitude/).
+
+
+## Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
+
+### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
 
 It allows direct web-based control of
   * Temperature setpoints
