@@ -1,10 +1,13 @@
 # Infinitude
 
-### Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
+![Docker image Build Status](https://github.com/nebulous/infinitude/workflows/Multi-architecture%20Build%20Status/badge.svg?branch=master)
+![Docker Hub documentation](https://github.com/nebulous/infinitude/workflows/Push%20Description%20&%20README%20to%20Docker%20Hub/badge.svg?branch=master)
 
-#### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
+## Documentation and [information on protocol(s) available on the Wiki](https://github.com/nebulous/infinitude/wiki). Please contribute!
 
-It allows direct web-based control of
+### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
+
+Infinitude allows direct web-based control of
   * Temperature setpoints
   * Schedules
   * Dealer information
@@ -13,7 +16,10 @@ As well as providing an open RESTish API
 
 <img src="http://i.imgur.com/1LhLKbp.png" />
 
-Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus for higher resolution access to your thermostat, air handler, heat pump, and other devices. The serial monitor keeps track of the current state, and highlights changing bytes to aid in protocol analysis. Infinitude can open a serial port directly, or monitor a serial bridge over the network.
+Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus for higher resolution access to your thermostat, air handler, heat pump, and other devices.
+Infinitude provides a serial monitor to keeps track of the current state of registers on the serial bus, and highlights changing bytes to aid in protocol analysis.
+Serial monitoring can be done via an attached serial port or via a networked serial bridge.
+
 
 <img src="http://i.imgur.com/5Ge1zEM.png" />
 
@@ -27,7 +33,8 @@ Serial-based control of some older _non-touch_ thermostats is provided by the [I
 
 
 #### Docker
-A docker container build is available on [DockerHub](https://hub.docker.com/r/nebulous/infinitude) or you can build one manually with the included Dockerfile
+Prebuilt Docker containers are available on [DockerHub](https://hub.docker.com/r/nebulous/infinitude) or you can build one manually with the included Dockerfile.
+Special thanks go to @scyto for instrumental contributions to the Infinitude containers in general, and multiarch builds in particular.
 
 Infinitude configuration parameters can be passed through environment variables into the container.  Support is included for:
 
@@ -78,13 +85,13 @@ The easiest way to run Infinitude is by running a published Docker image, but if
   * use your distribution's packaging system, your favorite cpan installer, or `sudo cpanm --installdeps .` to install
 
 ###### Raspbian-specific
-Many users opt to run Infinitude on a Raspberry Pi.
+Many users opt to run Infinitude on a Raspberry Pi. This is also most easily accomplished using a Docker image, but
 [More specific manual installation instructions are available on the wiki](https://github.com/nebulous/infinitude/wiki/Installing-Infinitude-on-Raspberry-PI-(raspbian))
 
 
 ##### Hardware
 
-Basic hardware capable of running docker or a unix variant. This could be a desktop machine, many people use a [Raspberry Pi](https://amzn.to/2StGo8z), or any embedded device with sufficient memory and storage. The author runs Infinitude in a Docker container on an [Atomic PI](https://amzn.to/3bgufMV), but has also used a Pandaboard and first ran it on the very limited [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) hardware, which at the time(2014) cost less than $10 USD and sat on top of the air handler and allowed for a USB RS485 dongle to interface with it.
+Basic hardware capable of running docker or a unix/posix system. This could be a desktop machine, many people use a [Raspberry Pi](https://amzn.to/2StGo8z), or any embedded device with sufficient memory and storage. The author runs Infinitude in a Docker container on an [Atomic PI](https://amzn.to/3bgufMV), but has also used a Pandaboard and first ran it on the very limited [Pogoplug v4](http://www.amazon.com/Pogoplug-Series-4-Backup-Device/dp/B006I5MKZY/ref=sr_1_1?ie=UTF8&tag=sbhq-20&qid=1415825203&sr=8-1&keywords=pogoplug) hardware, which at the time(2014) cost less than $10 USD and sat on top of the air handler and allowed for a USB RS485 dongle to interface with it.
 
 See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAOB3IGADYQPGQRC566Z2FA/19DKMPAQCZX12?type=explore&ref=idea_cp_vl_ov_d&tag=sbec-20" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;">a list of hardware others have used.</a>
 
