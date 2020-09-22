@@ -4,8 +4,9 @@ on:
   push:
     branches: 
     - master
-    paths:
-        - 'README.md' #ensures this workflow is only processed when the README.md changes and not any other file
+    paths: #ensures this workflow is only processed when the README.md changes or this file but not any other file.
+        - 'README.md' 
+        - '.github/workflows/update-dockerhub-description-readme.yml' 
 
 jobs:
   PushContainerReadme:
