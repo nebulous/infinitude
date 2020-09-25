@@ -366,7 +366,7 @@ my $stream;
 my $carbus;
 websocket '/serial' => sub {
 	my $c = shift;
-	if ($config->{serial_socket} or $config->{serial_tty} and -e $config->{serial_tty}) {
+	if ($config->{serial_socket} or ($config->{serial_tty} and -e $config->{serial_tty})) {
 		if ($config->{serial_socket}) {
 			$c->app->log->info('Attempting to access '.$config->{serial_socket});
 			my ($host,$port) = split(':',$config->{serial_socket});
@@ -380,7 +380,7 @@ websocket '/serial' => sub {
 		}
 		return unless $handle;
 
-		$stream ||= Mojo::IOLoop::Stream->new($handle);
+		$stream ||= Mojo::IOLoop::Stream->new($handle)->timeout(90);
 		$carbus ||= CarBus->new(async=>1);
 
 		$stream->on(read => sub {
@@ -408,7 +408,10 @@ websocket '/serial' => sub {
 			my ($stream) = @_;
 			$c->app->log->info("Closed stream");
 		});
-
+		$stream->on(timeout=>sub {
+			my ($stream) = @_;
+			$c->app->log->info("Inactive stream timeout");
+		});
 		$c->on('finish' => sub {
 			my ($c, $code) = @_;
 			$c->app->log->info("Closed: $code");
@@ -419,7 +422,7 @@ websocket '/serial' => sub {
 		$stream->start;
 		$stream->reactor->start unless $stream->reactor->is_running;
 	} else {
-		$c->app->log->info("Websocket opened, but no serial device found")
+		$c->app->log->info("Websocket opened, but no streaming source found")
 	}
 };
 
