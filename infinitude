@@ -32,7 +32,7 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 	$config_file->spew($config_json);
 	$store->remove('infinitude.json');
 } else {
-	# Default configuration if no infinitude.json file is found.
+	# Default configuration if no infinitude.json file is found
 	# customize config by editing infinitude.json
 	try { $config = decode_json($config_file->slurp) };
 
