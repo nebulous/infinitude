@@ -16,7 +16,7 @@ As well as providing an open RESTish API
 
 <img src="http://i.imgur.com/1LhLKbp.png" />
 
-Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus for higher resolution access to your thermostat, air handler, heat pump, and other devices.
+Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus to obtain higher resolution access to values within your thermostat, air handler, heat pump, and other devices.
 Infinitude provides a serial monitor which keeps track of the current state of registers on the serial bus, and highlights changing bytes to aid in protocol analysis.
 Serial monitoring can be done via an attached serial port or via a networked serial bridge.
 
