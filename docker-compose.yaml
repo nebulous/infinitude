@@ -5,10 +5,7 @@ services:
     container_name: infinitude
     hostname: infinitude
     image: nebulous/infinitude:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-    network_mode: host
+    network_mode: bridge
     ports:
       - "3000:3000"
     volumes:
