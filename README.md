@@ -116,3 +116,9 @@ With any luck, Carrier will allow the owners of these devices and data direct ac
 than this ridiculous work around. If you have one of these thermostats, tell
 Carrier you'd like direct network access to your thermostat, or at the very
 least, access to a public API!
+
+
+### See Also
+
+- [Infinitude Home Assistant Integration](https://github.com/MizterB/homeassistant-infinitude)
+- [Infinitive project for RS485 control of non-touch thermostats](https://github.com/acd/infinitive)
