@@ -68,7 +68,7 @@ hook before_dispatch => sub {
 	my $c = shift;
 
 	my $url = $c->req->url;
-	if ($url->to_abs->host =~ /(bryant|carrier)/i) { # request from stat
+	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort)/i) { # request from stat
 		my $nk = $url->path->to_string;
 		$nk =~ s/\//-/g;
 		$nk =~ s/^-//;
