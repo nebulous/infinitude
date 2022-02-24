@@ -218,11 +218,11 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 };
 
 # access simple system config variables by path
-any '/api/*path' => sub {
+any '/api/*variable_path' => sub {
 	my $c = shift;
 	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
 	my $search = $xml->system();
-	foreach my $node (split('/',$c->stash('path'))) {
+	foreach my $node (split('/',$c->stash('variable_path'))) {
 		$search = ($node =~ /^\d+$/) ? $search->[$node]
 		                             : $search->$node;
 	}
