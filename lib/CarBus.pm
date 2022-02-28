@@ -28,10 +28,10 @@ sub get_frame {
 			my $frame_len = 10+$data_len;
 			if ($self->buflen>=$frame_len) {
 				my $frame_string = substr($self->buffer,0,$frame_len);
-				my $raw_frame = $raw_frame_parser->parse($frame_string);
-				if ($raw_frame->{valid}) {
+                my $cbf = CarBus::Frame->new($frame_string);
+				if ($cbf->valid) {
 					$self->shift_stream($frame_len);
-					return $frame_parser->parse($raw_frame->{frame});
+                    return $cbf;
 				}
 				$self->shift_stream(1);
 			}
@@ -59,7 +59,7 @@ sub buflen {
 sub push_stream {
 	my $self = shift;
 	my ($input) = @_;
-	return unless $input;
+	return unless defined $input;
 	$self->buffer($self->buffer().$input);
 	$self->shift_stream($self->buflen - MAX_BUFFER);
 }
@@ -67,7 +67,7 @@ sub push_stream {
 sub shift_stream {
 	my $self = shift;
 	my ($byte_num) = @_;
-	return if $byte_num<0;
+	return if $byte_num<1;
 	$byte_num = $self->buflen if $self->buflen<$byte_num;
 	$self->buffer(substr($self->buffer,$byte_num));
 }
