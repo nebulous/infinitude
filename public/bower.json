@@ -2,15 +2,15 @@
   "name": "public",
   "version": "0.0.0",
   "dependencies": {
-    "angular": "1.2.15",
+    "angular": "1.4.14",
     "json3": "~3.2.6",
     "es5-shim": "~2.1.0",
     "jquery": "~1.11.0",
     "bootstrap": "~3.0.3",
-    "angular-resource": "1.2.15",
-    "angular-cookies": "1.2.15",
-    "angular-sanitize": "1.2.15",
-    "angular-route": "1.2.15",
+    "angular-resource": "1.4.14",
+    "angular-cookies": "1.4.14",
+    "angular-sanitize": "1.4.14",
+    "angular-route": "1.4.14",
     "c3": "~0.4.8",
     "jdataview": "~2.5.0",
     "angular-timeago": "~0.1.7",
@@ -20,12 +20,11 @@
     "ngTimepicker": "*"
   },
   "devDependencies": {
-    "angular-mocks": "1.2.15",
-    "angular-scenario": "1.2.15"
+    "angular-mocks": "1.4.14",
+    "angular-scenario": "1.4.14"
   },
   "resolutions": {
     "d3": "<=3.5.0",
-    "angular": "^1.4.x",
     "nvd3": "~1.7.1"
   }
 }

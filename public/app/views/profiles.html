@@ -4,27 +4,153 @@
 	<div>
 		<p>Climate Mode
 		<select name="mode" ng-model="systems.config[0].mode[0]">
-			<option>off</option>
-			<option>fanonly</option>
-			<option>auto</option>
-			<option>heat</option>
-			<option>cool</option>
+			<option value="off">Off</option>
+			<option value="fanonly">Fan only</option>
+			<option value="auto">Auto</option>
+			<option value="heat">Heat</option>
+			<option value="cool">Cool</option>
 		</select>
 		</p>
+	</div>
+	<div ng-if="status.odu[0].type[0].includes('hp')">
+		<p>Heat Source
+		<select name="heatsource" ng-model="systems.config[0].heatsource[0]">
+			<option value="system">System in control</option>
+			<option value="odu only">Heat pump only</option>
+			<option value="idu only">Aux heat only</option>
+		</select>
+		</p>
+	</div>
+
+	<div class="panel panel-primary">
+		<div class="panel-heading"><strong>whole house</strong>
+			<br>Hold: <input type="checkbox" ng-model="systems.config[0].wholeHouse[0].hold[0]" ng-true-value="'on'" ng-false-value="'off'">
+			<span ng-if="systems.config[0].wholeHouse[0].hold[0] == 'on'">
+			<select name="holdact" ng-init="systems.config[0].wholeHouse[0].holdActivity[0] = 'home'" ng-model="systems.config[0].wholeHouse[0].holdActivity[0]">
+				<option>home</option>
+				<option>away</option>
+			</select>
+			Forever <input type="checkbox" ng-model="systems.config[0].wholeHouse[0].otmr[0]" ng-true-value="{}" ng-false-value="'00:00'"><br/>
+			<span ng-if="systems.config[0].wholeHouse[0].otmr[0].includes(':')">Until <ng-timepicker ng-model="systems.config[0].wholeHouse[0].otmr[0]" step="15" init-time="{{ mkTime(systems.config[0].wholeHouse[0].otmr[0]) }}"></ng-timepicker></span>
+			</span>
+		</div>
+		<div class="panel-body">
+			<table class="table table-striped table-bordered">
+				<thead>
+					<tr>
+						<th></th>
+						<th>Dehum. Overcool</th>
+						<th>Cooling Humidity</th>
+						<th ng-if="systems.config[0].cfgvent[0]">Cooling Ventilator</th>
+						<th ng-if="systems.config[0].cfgvent[0]">Cooling Vent. Speed</th>
+						<th ng-if="systems.config[0].cfgvent[0]">Heating Ventilator</th>
+						<th ng-if="systems.config[0].cfgvent[0]">Heating Vent. Speed</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th>Home</th>
+						<td><input type="checkbox" ng-model="systems.config[0].humidityHome[0].rclgovercool[0]" ng-true-value="'on'" ng-false-value="'off'" /></td>
+						<td>
+							<select name="coolingdehum" ng-model="systems.config[0].humidityHome[0].rclg[0]">
+								<option value="1">46%</option>
+								<option value="2">48%</option>
+								<option value="3">50%</option>
+								<option value="4">52%</option>
+								<option value="5">54%</option>
+								<option value="6">56%</option>
+								<option value="7">58%</option>
+							</select>
+						</td>
+						<td>
+							<select name="coolingvent" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityHome[0].ventclg[0]">
+								<option>off</option>
+								<option>manual</option>
+								<option>auto</option>
+							</select>
+						</td>
+						<td>
+							<select name="coolingventspeed" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityHome[0].ventspdclg[0]">
+								<option>low</option>
+								<option>med</option>
+								<option>high</option>
+							</select>
+						</td>
+						<td>
+							<select name="heatingvent" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityHome[0].venthtg[0]">
+								<option>off</option>
+								<option>manual</option>
+								<option>auto</option>
+							</select>
+						</td>
+						<td>
+							<select name="heatingventspeed" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityHome[0].ventspdhtg[0]">
+								<option>low</option>
+								<option>med</option>
+								<option>high</option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th>Away</th>
+						<td><input type="checkbox" ng-model="systems.config[0].humidityAway[0].rclgovercool[0]" ng-true-value="'on'" ng-false-value="'off'" /></td>
+						<td>
+							<select name="coolingdehum" ng-model="systems.config[0].humidityAway[0].rclg[0]">
+								<option value="3">50%</option>
+								<option value="12">55%</option>
+								<option value="13">60%</option>
+								<option value="14">65%</option>
+								<option value="15">None</option>
+							</select>
+						</td>
+						<td>
+							<select name="coolingvent" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityAway[0].ventclg[0]">
+								<option>off</option>
+								<option>manual</option>
+								<option>auto</option>
+							</select>
+						</td>
+						<td>
+							<select name="coolingventspeed" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityAway[0].ventspdclg[0]">
+								<option>low</option>
+								<option>med</option>
+								<option>high</option>
+							</select>
+						</td>
+						<td>
+							<select name="heatingvent" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityAway[0].venthtg[0]">
+								<option>off</option>
+								<option>manual</option>
+								<option>auto</option>
+							</select>
+						</td>
+						<td>
+							<select name="heatingventspeed" ng-if="systems.config[0].cfgvent[0]" ng-model="systems.config[0].humidityAway[0].ventspdhtg[0]">
+								<option>low</option>
+								<option>med</option>
+								<option>high</option>
+							</select>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<button ng-class="debounce>0 ? 'btn-success' : 'btn-default'" class="btn" ng-click="save()">Save</button>
+		</div>
 	</div>
 
 	<div class="panel panel-primary" ng-if="zone.enabled[0] == 'on'" ng-repeat="zone in systems.config[0].zones[0].zone">
 		<div class="panel-heading"><strong>{{zone.name[0]}}</strong>
 			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="'on'" ng-false-value="'off'">
 			<span ng-if="zone.hold[0] == 'on'">
-			<select name="holdact" ng-model="zone.holdActivity[0]">
+			<select name="holdact" ng-init="zone.holdActivity[0] = 'home'" ng-model="zone.holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
 				<option>sleep</option>
 				<option>wake</option>
 				<option>manual</option>
 			</select>
-			Until <ng-timepicker ng-model="zone.otmr[0]" step="15" init-time="{{ mkTime(zone.otmr[0]) }}"></ng-timepicker>
+			Forever <input type="checkbox" ng-model="zone.otmr[0]" ng-true-value="{}" ng-false-value="'00:00'"><br/>
+			<span ng-if="zone.otmr[0].includes(':')">Until <ng-timepicker ng-model="zone.otmr[0]" step="15" init-time="{{ mkTime(zone.otmr[0]) }}"></ng-timepicker></span>
 			</span>
 			</span>
 		</div>
@@ -53,12 +179,8 @@
 						</td>
 					</tr>
 				</tbody>
-				<tfoot>
-					<tr><td colspan="5">
-						<button ng-class="debounce>0 ? 'btn-success' : 'btn-default'" class="btn" ng-click="save()">Save</button>
-					</td></tr>
-				</tfoot>
 			</table>
+			<button ng-class="debounce>0 ? 'btn-success' : 'btn-default'" class="btn" ng-click="save()">Save</button>
 		</div>
 	</div>
 </div>
