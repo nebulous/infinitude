@@ -4,6 +4,8 @@ angular.module('infinitude')
 		$scope.debounce = 0;
 		$scope.carbus = $scope.carbus||{};
 
+		$scope.selectedZone = 0;
+
 		$scope.empty = function(input) { console.log(input); };
 		$scope.mkTime = function(input) {
 			if (angular.equals({}, input)) { return '00:00'; }
@@ -79,5 +81,9 @@ angular.module('infinitude')
 				.error(function() {
 					console.log('oh noes! save fail.');
 				});
+		};
+
+		$scope.selectZone = function(zone) {
+			$scope.selectedZone = zone;
 		};
   });

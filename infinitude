@@ -143,8 +143,14 @@ any '/api/:zone_id/hold' => sub {
 	my $c = shift;
 	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
 
-	my $idx = ($c->stash('zone_id')||1) - 1;
-	my $zone = $xml->system->config->zones->zone->[$idx];
+	my $zone;
+	my $idx = $c->stash('zone_id')||1;
+	if ($idx eq 'wholeHouse') {
+		$zone = $xml->system->config->wholeHouse;
+	} else {
+		$idx--;
+		$zone = $xml->system->config->zones->zone->[$idx];
+	}
 
 	my $setting = {};
 
