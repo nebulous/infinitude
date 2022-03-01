@@ -11,29 +11,26 @@ angular
     'jkuri.timepicker',
     'chart.js'
   ])
-  .config(function ($routeProvider) {
+  .config(function ($routeProvider, $locationProvider) {
     $routeProvider
       .when('/', {
-        templateUrl: 'views/main.html',
-        controller: 'MainCtrl'
+        templateUrl: 'views/main.html'
       })
       .when('/profiles', {
-        templateUrl: 'views/profiles.html',
-        controller: 'MainCtrl'
+        templateUrl: 'views/profiles.html'
       })
       .when('/schedules', {
-        templateUrl: 'views/schedules.html',
-        controller: 'MainCtrl'
+        templateUrl: 'views/schedules.html'
       })
       .when('/serial', {
-        templateUrl: 'views/serial.html',
-        controller: 'SerialCtrl'
+        templateUrl: 'views/serial.html'
       })
       .when('/about', {
-        templateUrl: 'views/about.html',
-        controller: 'MainCtrl'
+        templateUrl: 'views/about.html'
       })
       .otherwise({
         redirectTo: '/'
       });
+
+      $locationProvider.hashPrefix('');
   });
