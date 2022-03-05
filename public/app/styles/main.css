@@ -76,3 +76,8 @@ body {
     border-bottom: 0;
   }
 }
+
+div.panel-heading select,
+div.panel-heading input {
+  color: #333
+}

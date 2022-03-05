@@ -40,17 +40,17 @@ angular.module('infinitude')
 			var keys = ['systems','status','notifications','energy'];
 			angular.forEach(keys, function(key) {
 				$scope.globeColor = '#16F';
-				$http.get('/'+key+'.json').
-					success(function(data) {
+				$http.get('/'+key+'.json')
+					.then(function(response) {
 						var rkey = key;
 						if (rkey === 'systems') { rkey = 'system'; }
-						//console.log(key,rkey,data);
-						$scope[key] = store[key] = data[rkey][0];
+						//console.log(key,rkey,response.data);
+						$scope[key] = store[key] = response.data[rkey][0];
 						$scope.globeColor = '#44E';
 						$timeout.cancel(globeTimer);
 						globeTimer = $timeout(function() { $scope.globeColor = '#E44'; }, 4*60*1000);
-					})
-					.error(function() {
+					},
+					function() {
 						$scope.globeColor = '#E44';
 						console.log('oh noes!',arguments);
 					});
@@ -74,11 +74,11 @@ angular.module('infinitude')
 			var systems = { 'system':[$scope.systems] };
 			//console.log('saving systems structure', systems);
 			$http.post('/systems/infinitude', systems )
-				.success(function() {
+				.then(function() {
 					$scope.debounce = 0;
 					setTimeout(function() { if ($scope.debounce === 0) { $scope.reloadData(); }}, 10*1000);
-				})
-				.error(function() {
+				},
+				function() {
 					console.log('oh noes! save fail.');
 				});
 		};

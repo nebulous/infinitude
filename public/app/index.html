@@ -13,7 +13,6 @@
     <!-- bower:css -->
     <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.css" />
     <link rel="stylesheet" href="bower_components/c3/c3.css" />
-    <link rel="stylesheet" href="bower_components/angular-chart.js/dist/angular-chart.css" />
     <link rel="stylesheet" href="bower_components/fontawesome/css/font-awesome.css" />
     <!-- endbower -->
     <!-- endbuild -->
@@ -21,14 +20,14 @@
     <link rel="stylesheet" href="styles/main.css">
     <!-- endbuild -->
   </head>
-  <body ng-app="infinitude">
+  <body ng-app="infinitude" ng-controller="MainCtrl">
     <!--[if lt IE 7]>
       <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
     <![endif]-->
 
     <!-- Add your site or application content here -->
 	<span style="display:none" ng-controller="SerialCtrl"></span>
-<div class="header" ng-controller="MainCtrl">
+<div class="header">
   <ul class="nav nav-pills pull-right">
     <li ng-class="{active:isActive('/')}"><a ng-href="#status">Status</a></li>
     <li ng-class="{active:isActive('/profiles')}"><a ng-href="#profiles">Comfort Profiles</a></li>
@@ -48,11 +47,6 @@
   <p><a href="https://www.github.com/nebulous/infinitude">Infinitude on github</a></p>
 </div>
 
-    <!--[if lt IE 9]>
-    <script src="bower_components/es5-shim/es5-shim.js"></script>
-    <script src="bower_components/json3/lib/json3.min.js"></script>
-    <![endif]-->
-
     <!-- build:js scripts/vendor.js -->
     <!-- bower:js -->
     <script src="bower_components/jquery/dist/jquery.js"></script>
@@ -65,10 +59,9 @@
     <script src="bower_components/d3/d3.js"></script>
     <script src="bower_components/c3/c3.js"></script>
     <script src="bower_components/jdataview/dist/browser/jdataview.js"></script>
-    <script src="bower_components/angular-timeago/src/timeAgo.js"></script>
+    <script src="bower_components/angular-timeago/dist/angular-timeago.js"></script>
     <script src="bower_components/angular-dialgauge/src/angular-dialgauge.js"></script>
-    <script src="bower_components/ng-knob/dist/ng-knob.js"></script>
-    <script src="bower_components/Chart.js/Chart.js"></script>
+    <script src="bower_components/chart.js/dist/Chart.js"></script>
     <script src="bower_components/angular-chart.js/dist/angular-chart.js"></script>
     <script src="bower_components/ngTimepicker/src/js/ngTimepicker.js"></script>
     <!-- endbower -->
