@@ -43,7 +43,8 @@ Infinitude configuration parameters can be passed through environment variables 
 | PASS_REQS | Minimum amount of time to wait(in seconds) between requests to Carrier/Bryant servers. `0` means never. |
 | MODE | `production`(default) or `development`(more logging) |
 | SERIAL_TTY | optional rs485 device string eg `/dev/ttyUSB0` |
-| SERIAL_SOCKET | optional tcp/rs485 bridge string eg `192.168.1.42:23` | 
+| SERIAL_SOCKET | optional tcp/rs485 bridge string eg `192.168.1.42:23` |
+| LOGLEVEL | optional [minimum severity of log messages to print](https://docs.mojolicious.org/Mojo/Log#level) |
 
 
 the published container can be run as
