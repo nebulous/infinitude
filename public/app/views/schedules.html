@@ -1,6 +1,6 @@
 <h2>Schedules</h2>
 <div>
-	<div class="panel panel-primary" ng-if="zone.enabled == 'on'" ng-repeat="zone in systems.config[0].zones[0].zone">
+	<div class="panel panel-primary" ng-if="zone.enabled == 'on'" ng-repeat="zone in systemsEdit.config[0].zones[0].zone">
 		<div class="panel-heading">{{zone.name[0]}}</div>
 		<div class="panel-body" ng-if="zone.enabled=='on'">
 			<table class="table table-striped table-bordered">
@@ -23,7 +23,7 @@
 					</tr>
 				</tbody>
 				<tfoot>
-					<tr><td colspan="6"><button ng-click="save()" class="btn btn-info">Save</button>
+					<tr><td colspan="6"><button class="btn btn-primary" ng-disabled="systemsEdited !== true" ng-click="save()">Save</button>
 				</tfoot>
 			</table>
 		</div>
