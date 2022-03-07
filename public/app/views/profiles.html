@@ -26,7 +26,7 @@
 		<div class="panel-heading"><strong>whole house</strong>
 			<br>Hold: <input type="checkbox" ng-model="systems.config[0].wholeHouse[0].hold[0]" ng-true-value="'on'" ng-false-value="'off'">
 			<span ng-if="systems.config[0].wholeHouse[0].hold[0] == 'on'">
-			<select name="holdact" ng-init="systems.config[0].wholeHouse[0].holdActivity[0] = 'home'" ng-model="systems.config[0].wholeHouse[0].holdActivity[0]">
+			<select name="holdact" ng-init="systems.config[0].wholeHouse[0].holdActivity[0] !== 'none' || (systems.config[0].wholeHouse[0].holdActivity[0] = 'home')" ng-model="systems.config[0].wholeHouse[0].holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
 			</select>
@@ -142,7 +142,7 @@
 		<div class="panel-heading"><strong>{{zone.name[0]}}</strong>
 			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="'on'" ng-false-value="'off'">
 			<span ng-if="zone.hold[0] == 'on'">
-			<select name="holdact" ng-init="zone.holdActivity[0] = 'home'" ng-model="zone.holdActivity[0]">
+			<select name="holdact" ng-init="angular.equals(zone.holdActivity[0], {}) || (zone.holdActivity[0] = 'home')" ng-model="zone.holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
 				<option>sleep</option>
