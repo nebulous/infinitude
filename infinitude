@@ -115,7 +115,7 @@ hook before_dispatch => sub {
 				$c->stash(store_key=>$store_key);
 			} catch {
 				$c->stash('error','true');
-				$c->app->log->info($url, shortmess(), "Caught error: $_".$@);
+				$c->app->log->error($url, shortmess(), "Caught error: $_".$@);
 				$store->set("error-".time() => 'url:'.$url."\nerror: $_\ndata:".$data);
 			};
 		}
@@ -408,7 +408,7 @@ websocket '/serial' => sub {
 		});
 		$stream->on(error=>sub {
 			my ($stream, $err) = @_;
-			$c->app->log->info("ERROR $err");
+			$c->app->log->error("ERROR $err");
 		});
 		$stream->on(close=>sub {
 			my ($stream) = @_;
@@ -455,4 +455,6 @@ any '/*catchall' => sub {
 	$c->render(text=>$text, format=>$format);
 };
 
+app->log->level($ENV{LOGLEVEL}//'trace');
 app->start;
+
