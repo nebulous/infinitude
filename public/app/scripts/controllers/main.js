@@ -51,7 +51,10 @@ angular.module('infinitude')
 			}
 			var keys = ['systems','status','notifications','energy'];
 			angular.forEach(keys, function(key) {
-				$scope.globeColor = GLOBE_COLOR_LOADING;
+				// If "systemsEdit" has been edited, don't switch away from the magenta globe
+				if ($scope.systemsEdited !== true) {
+					$scope.globeColor = GLOBE_COLOR_LOADING;
+				}
 				$http.get('/'+key+'.json')
 					.then(function(response) {
 						var rkey = key;
