@@ -393,17 +393,10 @@ websocket '/serial' => sub {
 			my ($stream, $bytes) = @_;
 			$carbus->push_stream($bytes);
 			my $frame = $carbus->get_frame();
-			$frame->{timestamp} = time;
-
 			unless ($frame->{error}) {
-				my $key = substr($frame->{data},0,3);
-				my $registers = {
-					"\x00\x02\x02" => 'Time',
-					"\x00\x02\x03" => 'Date',
-				};
-				$frame->{field} = $registers->{$key};
-
-				$c->send({json=>$frame});
+				my $fstruc = $frame->frame_hash;
+				$fstruc->{timestamp} = time;
+				$c->send({json=>$fstruc});
 			}
 		});
 		$stream->on(error=>sub {
