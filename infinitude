@@ -455,6 +455,6 @@ any '/*catchall' => sub {
 	$c->render(text=>$text, format=>$format);
 };
 
-app->log->level($ENV{LOGLEVEL}//'trace');
+app->log->level($ENV{LOGLEVEL}//app->log->level);
 app->start;
 
