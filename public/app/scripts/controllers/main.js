@@ -128,4 +128,8 @@ angular.module('infinitude')
 		$scope.selectZone = function(zone) {
 			$scope.selectedZone = zone;
 		};
+
+		$scope.equals = function(a, b) {
+			return angular.equals(a, b);
+		}
 	});

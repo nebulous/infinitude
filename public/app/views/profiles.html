@@ -24,9 +24,9 @@
 
 	<div class="panel panel-primary">
 		<div class="panel-heading"><strong>whole house</strong>
-			<br>Hold: <input type="checkbox" ng-model="systemsEdit.config[0].wholeHouse[0].hold[0]" ng-true-value="'on'" ng-false-value="'off'">
+			<br>Hold: <input type="checkbox" ng-model="systemsEdit.config[0].wholeHouse[0].hold[0]" ng-true-value="'on'" ng-false-value="'off'" ng-change="systemsEdit.config[0].wholeHouse[0].holdActivity[0] !== 'none' || (systemsEdit.config[0].wholeHouse[0].holdActivity[0] = 'home')">
 			<span ng-if="systemsEdit.config[0].wholeHouse[0].hold[0] == 'on'">
-			<select name="holdact" ng-init="systemsEdit.config[0].wholeHouse[0].holdActivity[0] !== 'none' || (systemsEdit.config[0].wholeHouse[0].holdActivity[0] = 'home')" ng-model="systemsEdit.config[0].wholeHouse[0].holdActivity[0]">
+			<select name="holdact" ng-model="systemsEdit.config[0].wholeHouse[0].holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
 			</select>
@@ -140,9 +140,9 @@
 
 	<div class="panel panel-primary" ng-if="zone.enabled[0] == 'on'" ng-repeat="zone in systemsEdit.config[0].zones[0].zone">
 		<div class="panel-heading"><strong>{{zone.name[0]}}</strong>
-			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="'on'" ng-false-value="'off'">
+			<span ng-if="zone.enabled[0] == 'on'"><br>Hold: <input type="checkbox" ng-model="zone.hold[0]" ng-true-value="'on'" ng-false-value="'off'" ng-change="!equals(zone.holdActivity[0], {}) || (zone.holdActivity[0] = 'home')">
 			<span ng-if="zone.hold[0] == 'on'">
-			<select name="holdact" ng-init="angular.equals(zone.holdActivity[0], {}) || (zone.holdActivity[0] = 'home')" ng-model="zone.holdActivity[0]">
+			<select name="holdact" ng-model="zone.holdActivity[0]">
 				<option>home</option>
 				<option>away</option>
 				<option>sleep</option>
