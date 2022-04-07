@@ -16,7 +16,7 @@ Operating Mode: <strong>{{status.mode[0]}}</strong>
 		<ng-dial-gauge ng-if="status.cfgem[0]=='C'" title="Outside" units="&deg;" border-width="0" bar-color="#0000FF" bar-color-end="#FF2010" bar-width="10" ng-model="((carbus.outsideTemp || status.oat[0])-32)*5/9"></ng-dial-gauge>
 	</div>
 	<div class="col-xs-6 col-sm-4 col-md-2" ng-if="status.odu[0].type[0].includes('proteus')">
-			<ng-dial-gauge title="HP Stage" border-width="0" bar-color="#00FF00" bar-color-end="#FF0000" scale-min="0" scale-max="5" bar-width="10" ng-model="status.odu[0].opstat[0] === 'off' ? 0 : status.odu[0].opstat[0].replace('Stage ','')"></ng-dial-gauge>
+			<ng-dial-gauge title="HP Stage" border-width="0" bar-color="#00FF00" bar-color-end="#FF0000" scale-min="0" scale-max="5" bar-width="10" ng-model="status.odu[0].opstat[0] === 'off' ? 0 : status.odu[0].opstat[0].replace('Stage ','').replace('dehumidify', '1')"></ng-dial-gauge>
 	</div>
 	<div class="col-xs-6 col-sm-4 col-md-2" ng-if="status.idu[0].type[0].includes('electric')">
 			<ng-dial-gauge title="E. Ht. Stage" border-width="0" bar-color="#00FF00" bar-color-end="#FF0000" scale-min="0" scale-max="3" bar-width="10" ng-model="status.idu[0].opstat[0].replace('off','0').replace('low','1').replace('med','2').replace('high','3')"></ng-dial-gauge>
