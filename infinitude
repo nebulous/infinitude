@@ -45,6 +45,11 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 	$config_file->spew(encode_json($config));
 }
 
+$config->{serial_tty}    = $ENV{SERIAL_TTY} || $config->{serial_tty};
+$config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
+$config->{app_secret}    = $ENV{APP_SECRET} || $config->{app_secret};
+$config->{pass_reqs}     = $ENV{PASS_REQS} || $config->{pass_reqs};
+
 if (defined($config->{serial_tty}) or defined($config->{serial_socket})) {
 	require CarBus;
 	if (-e $config->{serial_tty}) {
@@ -223,6 +228,12 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 	$c->render(json=>$setting);
 };
 
+get '/api/state_keys' => sub {
+	my $c = shift;
+	$c->render(json=>[sort $store->get_keys] );
+};
+
+
 # access simple system config variables by path
 any '/api/*variable_path' => sub {
 	my $c = shift;
@@ -281,10 +292,10 @@ get '/time' => sub {
 	$c->render(text=>$xml, format=>'xml');
 };
 
-get '/releaseNotes/:id' => sub {
+get '/releaseNotes/#id' => sub {
 	my $c = shift;
 	my $text = $store->get('releaseNotes-'.$c->stash('id'));
-	$c->render(text=>"WARNING: installing new firmware may cause Infinitude to stop working\n$text", format=>'txt');
+	$c->render(text=>"WARNING: installing new firmware may cause Infinitude to stop working!\n\n$text", format=>'txt');
 };
 
 post '/systems/:id' => sub {
@@ -367,62 +378,45 @@ any '/systems/:system_id/:part' => sub {
 	$c->render(text=>'', format=>'txt');
 };
 
-my $handle;
-my $stream;
-my $carbus;
 websocket '/serial' => sub {
 	my $c = shift;
+	my $handle;
 	if ($config->{serial_socket} or ($config->{serial_tty} and -e $config->{serial_tty})) {
 		if ($config->{serial_socket}) {
 			$c->app->log->info('Attempting to access '.$config->{serial_socket});
 			my ($host,$port) = split(':',$config->{serial_socket});
-			$handle ||= IO::Socket::IP->new(
+			$handle = IO::Socket::IP->new(
 				PeerHost => $host//'localhost',
 				PeerPort => $port//'telnet',
 			);
 		} else {
 			$c->app->log->info('Attempting to access '.$config->{serial_tty});
-			$handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+			$handle = IO::Termios->open($config->{serial_tty},"38400,8,n,1");
 		}
-		return unless $handle;
-
-		$stream ||= Mojo::IOLoop::Stream->new($handle)->timeout(90);
-		$carbus ||= CarBus->new(async=>1);
-
-		$stream->on(read => sub {
-			my ($stream, $bytes) = @_;
-			$carbus->push_stream($bytes);
-			my $frame = $carbus->get_frame();
-			unless ($frame->{error}) {
-				my $fstruc = $frame->frame_hash;
-				$fstruc->{timestamp} = time;
-				$c->send({json=>$fstruc});
-			}
-		});
-		$stream->on(error=>sub {
-			my ($stream, $err) = @_;
-			$c->app->log->error("ERROR $err");
-		});
-		$stream->on(close=>sub {
-			my ($stream) = @_;
-			$c->app->log->info("Closed stream");
-		});
-		$stream->on(timeout=>sub {
-			my ($stream) = @_;
-			$c->app->log->info("Inactive stream timeout");
-		});
-		$c->on('finish' => sub {
-			my ($c, $code) = @_;
-			$c->app->log->info("Closed: $code");
-			$stream->stop if $stream;
-			$stream = undef;
-			$handle = undef;
-		});
-		$stream->start;
-		$stream->reactor->start unless $stream->reactor->is_running;
-	} else {
-		$c->app->log->info("Websocket opened, but no streaming source found")
 	}
+	unless ($handle) {
+		$c->app->log->info("Websocket opened, but no streaming source found");
+		return;
+	}
+
+	my $carbus = CarBus->new(async=>1);
+	Mojo::IOLoop->recurring(0.0625 => sub {
+		my $buffer;
+		$handle->sysread($buffer, 128);
+		$carbus->push_stream($buffer);
+		my $frame = $carbus->get_frame;
+		unless ($frame->{error}) {
+			my $fstruc = $frame->frame_hash;
+			$fstruc->{timestamp} = time;
+			$c->send({json=>$fstruc});
+			#print $frame->frame_hex."\n";
+		}
+	});
+	$c->on('finish' => sub {
+		my ($c, $code) = @_;
+		$c->app->log->info("Websocket Closed: $code");
+		$handle->close;
+	});
 };
 
 any '/*catchall' => sub {
@@ -440,10 +434,10 @@ any '/*catchall' => sub {
 		   : $text =~ /^\s*{/        ? 'json'
 	           : $store_key =~ /\.xml$/  ? 'xml'
 	           : $text =~ /^\s*</        ? 'xml'
-		   :                           'text';
+		   :                           'txt';
 
 	$text = '{}' if ($format eq 'json' and !$text);
-	$text = "Infinitude doesn't know how to ".$c->req->method." $store_key" unless $text;
+	$text = "Infinitude doesn't know how to ".$c->req->method." $store_key" unless ($text or $store->is_valid($store_key));
 
 	$c->render(text=>$text, format=>$format);
 };

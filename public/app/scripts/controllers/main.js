@@ -215,6 +215,7 @@ angular.module('infinitude')
 		var serial = new WebSocket(wsu('/serial'));
 		serial.onopen = function() { console.log('Socket open'); };
 		serial.onclose = function() { console.log('Socket closed'); };
+		serial.onerror = function(err) { console.log('Socket error',err); };
 		var transferTimer;
 		serial.onmessage = function(m) {
 			var frame = angular.fromJson(m.data);
@@ -224,7 +225,9 @@ angular.module('infinitude')
 
 			/* jshint ignore:start */
 			var dataView = new jDataView(frame.data);
-			$scope.carbus = {};
+			if (typeof($scope.carbus) == 'undefined') {
+				$scope.carbus = {};
+			}
 			$scope.history = angular.fromJson(window.localStorage.getItem('tmpdat')) || {};
 
 			if (frame.Function.match(/write|reply/)) {
@@ -234,7 +237,7 @@ angular.module('infinitude')
 
 				var busLog = function(key,value) {
 					$scope.history[key] = $scope.history[key] || [{ 'key':key, values:[] }];
-					value = $scope.carbus[key];
+					value = value || $scope.carbus[key];
 					$scope.history[key][0].values.push([frame.timestamp,value]);
 					if ($scope.history[key][0].values.length>500) {
 						$scope.history[key][0].values.shift();
@@ -244,22 +247,25 @@ angular.module('infinitude')
 
 				// Break this out into config once others publish their registers.
 				// Are you reading this? Then you're probably one of those people.
-				if (frame.SrcClass.match(/(Furnace|FanCoil)/)) {
+				if (frame.Function == 'reply' && frame.SrcClass.match(/IndoorUnit/)) {
 					if (address.match(/00 03 06/)) {
 						$scope.carbus.blowerRPM = dataView.getInt16(1  +3);
-						busLog('blowerRPM');
+						busLog('blowerRPM', $scope.carbus.blowerRPM);
 					}
 					if (address.match(/00 03 16/)) {
 						$scope.carbus.airflowCFM = dataView.getInt16(4  +3);
-						busLog('airflowCFM');
+						busLog('airflowCFM', $scope.carbus.airflowCFM);
 					}
 				}
-				if (frame.SrcClass.match(/HeatPump/)) {
+				if (frame.Function == 'reply' && frame.SrcClass.match(/OutdoorUnit/)) {
+					if (address.match(/00 03 02/)) {
+						$scope.carbus.outsideTemp = dataView.getInt16(2  +3)/16;
+					}
 					if (address.match(/00 3E 01/)) {
 						$scope.carbus.outsideTemp = dataView.getInt16(0  +3)/16;
 						$scope.carbus.coilTemp = dataView.getInt16(2  +3)/16;
-						busLog('coilTemp');
-						busLog('outsideTemp');
+						busLog('coilTemp', $scope.carbus.coilTem);
+						busLog('outsideTemp', $scope.carbus.outsideTemp);
 					}
 				}
 

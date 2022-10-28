@@ -62,7 +62,7 @@ Operating Mode: <strong>{{status.mode[0]}}</strong>
 	</div>
 </div>
 
-
+<div>{{ status.zones[0].zone[selectedZone].name[0] }}</div>
 <div class="row">
   <div class="col-md-6">
 	<div class="table-responsive">
@@ -78,7 +78,7 @@ Operating Mode: <strong>{{status.mode[0]}}</strong>
   <div class="col-md-6">
 	<div class="table-responsive">
 		<table class="table table-striped table-bordered table-rounded">
-				<tr ng-repeat="(key,value) in status">
+				<tr ng-repeat="(key,value) in status" ng-if="key!='zones'">
 						<th>{{key}}</th>
 						<td>{{ value[0] }}</td>
 				</tr>
