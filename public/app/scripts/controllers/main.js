@@ -48,19 +48,18 @@ angular.module('infinitude')
 			var tmp = '';
 			var out = '';
 			for(var i=0;i<str.length;i++) {
-				if (str.charCodeAt(i) === 0 && instring) {
-					out+=tmp+'\n';
-				}
 				if (str.charCodeAt(i) >= 32 && str.charCodeAt(i)<=127) {
 					tmp += str.substr(i,1);
 					cnt += 1;
 					if (cnt>=min) { instring = true; }
 				} else {
+                    if (instring) { out+=tmp+'\n'; }
 					cnt = 0;
 					instring = false;
 					tmp = '';
 				}
 			}
+            if (instring) { out+=tmp }
 			return out;
 		};
 	})

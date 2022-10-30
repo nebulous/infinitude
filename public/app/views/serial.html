@@ -25,33 +25,6 @@
 </div>
 <div class="row">
 	<div class="col-md-12">
-
-    <nvd3-line-chart data="history.comboT" tooltips="true" interactive="true"></nvd3-line-chart>
-    <nvd3-line-chart data="history.comboS" tooltips="true" interactive="true"></nvd3-line-chart>
-    <nvd3-line-chart data="history.coilTemp" tooltips="true" interactive="true"></nvd3-line-chart>
-    <nvd3-line-chart
-        data="history.outsideTemp"
-        showXAxis="true"
-        showYAxis="true"
-        tooltips="true"
-        interactive="true">
-    </nvd3-line-chart>
-
-    <nvd3-line-chart
-        data="history.blowerRPM"
-        showXAxis="true"
-        showYAxis="true"
-        tooltips="true"
-        interactive="true">
-    </nvd3-line-chart>
-
-    <nvd3-line-chart data="history.airflowCFM"
-        showXAxis="true"
-        showYAxis="true"
-        tooltips="true"
-        interactive="true">
-    </nvd3-line-chart>
-
 		<h3>State</h3>
 		<style>
 			.diff { background-color: #AFA; }
@@ -69,7 +42,7 @@
 				<tr ng-repeat="frame in state | toList | orderBy: ['Function','Device','data|limitTo:3']" ng-class="{'read':'success', 'write':'danger', 'reply':'warning'}[frame.Function]">
 					<td>{{ frame.timestamp*1000 | timeAgo }}</td>
 					<td>{{ frame.Device }}</td>
-					<td style="white-space: nowrap;">
+					<td style="white-space: pre-line">
 							{{ frame.data | limitTo:3 | toHex }}
 							<p class="text-primary" ng-if="frame.field">{{ frame.field }}</p>
 					</td>
