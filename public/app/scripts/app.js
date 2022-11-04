@@ -9,7 +9,8 @@ angular
     'yaru22.angular-timeago',
     'angular-dialgauge',
     'jkuri.timepicker',
-    'chart.js'
+    'chart.js',
+    'angular-toArrayFilter'
   ])
   .config(function ($routeProvider, $locationProvider) {
     $routeProvider
@@ -24,6 +25,9 @@ angular
       })
       .when('/serial', {
         templateUrl: 'views/serial.html'
+      })
+      .when('/energy', {
+        templateUrl: 'views/energy.html'
       })
       .when('/about', {
         templateUrl: 'views/about.html'

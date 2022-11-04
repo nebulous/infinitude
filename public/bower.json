@@ -14,7 +14,8 @@
     "angular-timeago": "~0.4.6",
     "angular-dialgauge": "~0.1.5",
     "angular-chart.js": "~1.1.1",
-    "ngTimepicker": "*"
+    "ngTimepicker": "*",
+    "angular-toArrayFilter": "^1.0.3"
   },
   "devDependencies": {
     "angular-mocks": "1.8.2",
