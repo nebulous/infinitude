@@ -10,7 +10,7 @@ has fill_buffer => (is=>'ro', default=>sub{
 		$self->fh ? $self->fh_fill : sub{};
 	});
 
-use constant MAX_BUFFER => 512;
+use constant MAX_BUFFER => 1024;
 
 sub BUILDARGS {
   my ( $class, @args ) = @_;
@@ -20,6 +20,7 @@ sub BUILDARGS {
 
 sub get_frame {
 	my $self = shift;
+
 	my $max_attempts = $self->async ? $self->buflen : MAX_BUFFER;
 	my $attempts = 0;
 	while ($attempts++<$max_attempts) {
@@ -31,6 +32,7 @@ sub get_frame {
                 my $cbf = CarBus::Frame->new($frame_string);
 				if ($cbf->valid) {
 					$self->shift_stream($frame_len);
+                    $self->handlers($cbf);
                     return $cbf;
 				}
 				$self->shift_stream(1);
@@ -46,7 +48,7 @@ sub get_frame {
 sub fh_fill {
 	my $self = shift;
 	my $buf = '';
-	my $len = $self->fh->sysread($buf, 266); #255+10
+	my $len = $self->fh->sysread($buf, 1024);
 	$self->push_stream($buf);
 	return $len;
 }
@@ -70,6 +72,30 @@ sub shift_stream {
 	return if $byte_num<1;
 	$byte_num = $self->buflen if $self->buflen<$byte_num;
 	$self->buffer(substr($self->buffer,$byte_num));
+}
+
+sub samreq {
+    my $self = shift;
+    my ($table, $row) = @_;
+    my $samframe = CarBus::Frame->new(data=>pack("C*", 0, $table, $row));
+    $self->fh->syswrite($samframe->frame);
+    return $samframe;
+}
+
+sub handlers {
+    my $self = shift;
+    my $frame = shift;
+    my $f = $frame->frame_hash;
+    #if (
+    #     $f->{DstClass} eq 'SAM' and $f->{Function} eq 'read' and
+    #     $f->{table} == 1 and $f->{row} == 4 ) {
+    #    my $nf = CarBus::Frame->new( Function=>'reply',
+    #        DstClass=>$f->{SrcClass},      SrcClass=>'SAM',
+    #        DstAddress=>$f->{SrcAddress},  SrcAddress=>1,
+    #        data => pack("C*",0,1,4)."\0SYSTEM ACCESS MODULE\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0CESR131379-03   SYSTXCCSAM01\0\0\0\0\0\0\0\01009N182206-1009N182206-------------",
+    #    );
+    #$self->fh->syswrite($nf->frame);
+    #}
 }
 
 1;

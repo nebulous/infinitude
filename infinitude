@@ -50,21 +50,47 @@ $config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
 $config->{app_secret}    = $ENV{APP_SECRET} || $config->{app_secret};
 $config->{pass_reqs}     = $ENV{PASS_REQS} || $config->{pass_reqs};
 
-if (defined($config->{serial_tty}) or defined($config->{serial_socket})) {
-	require CarBus;
-	if (-e $config->{serial_tty}) {
-		require IO::Termios;
-		warn "Using $config->{serial_tty} serial interface\n";
-	} else {
-		warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
-		delete $config->{serial_tty};
-	}
-	if ($config->{serial_socket}) {
-		require IO::Socket::IP;
-		warn "Using $config->{serial_socket} for serial interface\n";
-	}
+my $handle;
+my $carbus;
+my $init_attempt;
+sub serial_init {
+    return if $init_attempt and time<($init_attempt+7);
+    if (defined($config->{serial_tty}) or defined($config->{serial_socket})) {
+        $init_attempt = time;
+        require CarBus;
+        if (-e $config->{serial_tty}) {
+            require IO::Termios;
+            warn "Using $config->{serial_tty} serial interface\n";
+            $handle = IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+        } else {
+            warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
+            delete $config->{serial_tty};
+        }
+        if ($config->{serial_socket} and not $handle) {
+            require IO::Socket::IP;
+            my ($host,$port) = split(':',$config->{serial_socket});
+            warn "Using $host port $port for serial interface\n";
+            $handle = IO::Socket::IP->new(
+                PeerHost => $host//'localhost',
+                PeerPort => $port//'telnet',
+            );
+        }
+        $carbus = CarBus->new(async=>1, fh=>$handle) if $handle;
+    }
 }
+serial_init();
 
+my @inbox = ();
+Mojo::IOLoop->recurring(0.0625 => sub {
+    if ($carbus) {
+        $carbus->fh_fill();
+        my $frame = $carbus->get_frame;
+        push(@inbox, $frame) unless $frame->{error};
+        shift @inbox if scalar(@inbox)>128;
+    } else {
+        serial_init();
+    }
+});
 
 app->secrets([$config->{app_secret}]);
 push (@{app->static->paths}, ('development' eq ($ENV{MOJO_MODE}//'')) ? 'public/app' : 'public/dist');
@@ -233,6 +259,16 @@ get '/api/state_keys' => sub {
 	$c->render(json=>[sort $store->get_keys] );
 };
 
+# quick and dirty thermostat register request
+post '/api/samreq' => sub {
+    my $c = shift;
+    my $reg = $c->req->json->{register};
+    my ($tab,$row) = $reg =~ m/([0-9a-fA-F]{2})\s*([0-9a-fA-F]{2})$/;
+    my $frame = $carbus->samreq(hex($tab),hex($row));
+    $c->log->debug("Making Virtual SAM request: register $reg table $tab and row $row".$frame->frame_hex);
+    $c->render( json=>{ frame_hex=>$frame->frame_hex });
+};
+
 
 # access simple system config variables by path
 any '/api/*variable_path' => sub {
@@ -378,44 +414,54 @@ any '/systems/:system_id/:part' => sub {
 	$c->render(text=>'', format=>'txt');
 };
 
+my $scantab = 0;
+my $scanrow = 0;
+my $scansec = 0;
 websocket '/serial' => sub {
 	my $c = shift;
-	my $handle;
-	if ($config->{serial_socket} or ($config->{serial_tty} and -e $config->{serial_tty})) {
-		if ($config->{serial_socket}) {
-			$c->app->log->info('Attempting to access '.$config->{serial_socket});
-			my ($host,$port) = split(':',$config->{serial_socket});
-			$handle = IO::Socket::IP->new(
-				PeerHost => $host//'localhost',
-				PeerPort => $port//'telnet',
-			);
-		} else {
-			$c->app->log->info('Attempting to access '.$config->{serial_tty});
-			$handle = IO::Termios->open($config->{serial_tty},"38400,8,n,1");
-		}
-	}
 	unless ($handle) {
 		$c->app->log->info("Websocket opened, but no streaming source found");
 		return;
 	}
 
-	my $carbus = CarBus->new(async=>1);
-	Mojo::IOLoop->recurring(0.0625 => sub {
-		my $buffer;
-		$handle->sysread($buffer, 128);
-		$carbus->push_stream($buffer);
-		my $frame = $carbus->get_frame;
-		unless ($frame->{error}) {
+	Mojo::IOLoop->recurring(0.03125 => sub {
+		if (my $frame = shift @inbox) {
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = time;
+            my $reg = sprintf("%02x%02x",$frame->frame_hash->{table}, $frame->frame_hash->{row});
+            if ($fstruc->{Function} eq 'reply' and my $regparse = $frame->reg_parser($reg)) {
+                my $payf = try { $regparse->parse($frame->frame_hash->{data}); };
+                if ($payf) {
+                    if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
+                        $scanrow = $payf->{rows}+1;
+                        warn ">>>>>>>>>>> table $scantab has ".($scanrow-1)." rows <<<<<<<<<<<<<<<<<<<";
+                    }
+                    $fstruc->{field} = $payf;
+                }
+            }
+
+            if ($ENV{SCAN_THERMOSTAT}) {
+                if (time>=$scansec+1) {
+                    $scansec = time;
+                    if ($scanrow > 0) {
+                        $scanrow--;
+                    }
+                    if ($scanrow == 0) {
+                        $scantab+=1;
+                        $scanrow=1;
+                        $scantab=0x51 if $scantab>0x51;
+                    }
+                    warn sprintf("scanning table %02x row %02x", $scantab, $scanrow);
+                    $carbus->samreq($scantab, $scanrow);
+                }
+            }
 			$c->send({json=>$fstruc});
-			#print $frame->frame_hex."\n";
 		}
 	});
+
 	$c->on('finish' => sub {
 		my ($c, $code) = @_;
 		$c->app->log->info("Websocket Closed: $code");
-		$handle->close;
 	});
 };
 

@@ -1,3 +1,11 @@
+<div class="row" ng-if="frames">
+	<div class="col-md-12">
+        <h4>Virtual SAM Request</h4>
+        Thermostat Register <input type="text" ng-model="samreqReg" name="data" placeholder="000104" />
+        <button ng-click="samreq(samreqReg)" >send request</button>
+        <hr />
+    </div>
+</div>
 <div class="row">
 	<div class="col-md-12">
 		<h3>Stream</h3>
@@ -8,7 +16,6 @@
 					<th>dst</th>
 					<th>function</th>
 					<th>address</th>
-					<th>data</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -17,7 +24,7 @@
 					<td>{{ frame.DstClass }}</td>
 					<td>{{ frame.Function }}</td>
 					<td style="white-space: nowrap;">{{ frame.data | limitTo:3 | toHex }}</td>
-					<td>{{ (frame.data | strings) || (frame.data | toHex) }}</td>
+					<!-- <td>{{ (frame.data | strings) || (frame.data | toHex) }}</td> -->
 				</tr>
 			</tbody>
 		</table>
@@ -39,19 +46,20 @@
 				</tr>
 			</thead>
 			<tbody>
-				<tr ng-repeat="frame in state | toList | orderBy: ['Function','Device','data|limitTo:3']" ng-class="{'read':'success', 'write':'danger', 'reply':'warning'}[frame.Function]">
+				<tr ng-repeat="frame in state | toList | orderBy: ['-Device','Function','data|limitTo:3']" ng-class="{'read':'success', 'write':'danger', 'reply':'warning'}[frame.Function]">
 					<td>{{ frame.timestamp*1000 | timeAgo }}</td>
 					<td>{{ frame.Device }}</td>
 					<td style="white-space: pre-line">
 							{{ frame.data | limitTo:3 | toHex }}
-							<p class="text-primary" ng-if="frame.field">{{ frame.field }}</p>
+                            <p class="text-primary" ng-if="frame.field.name">{{ frame.field.name }}</p>
 					</td>
 					<td style="font-family: monospace">
 						<strong ng-bind-html="frame.data | subStr:3 | toHex | markDiff:(frame.history[0]|subStr:3|toHex)"></strong>
-						<br /><p class="text-primary" style="white-space: pre">{{ frame.data | strings }}</p>
+						<br /><pre class="text-primary" style="white-space: pre" ng-if="frame.data|strings">{{ frame.data | strings }}</pre>
 						<div ng-repeat="log in frame.history track by $index">
 							<p ng-if="!$last" ng-bind-html="(log|toHex)|markDiff:(frame.history[$index+1]|toHex)|subStr:9"></p>
 						</div>
+                        <p class="text-primary" style="white-space: pre-wrap" ng-if="frame.field">{{ frame.field }}</p>
 					</td>
 				</tr>
 			</tbody>

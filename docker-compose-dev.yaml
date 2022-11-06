@@ -5,7 +5,7 @@ services:
     container_name: infinitude
     hostname: infinitude
     image: nebulous/infinitude:latest
-    entrypoint: "/usr/bin/morbo /infinitude/infinitude"
+    entrypoint: "morbo -v /infinitude/infinitude"
     build:
       context: .
       dockerfile: Dockerfile
@@ -18,10 +18,10 @@ services:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=300
       - SERIAL_TTY=/dev/ttyUSB0
-#      - SERIAL_SOCKET=10.0.0.1:1234
       - MOJO_MODE=development
       - MOJO_LOG_COLOR=1
       - MOJO_LOG_LEVEL=debug
+      - SCAN_THERMOSTAT=1
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always

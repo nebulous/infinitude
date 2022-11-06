@@ -45,6 +45,7 @@ my $frame_parser = Struct("CarFrame",
     ),
     Field("data", sub { $_->ctx->{length} }),
     ULInt16("checksum"),
+    Value("bus",   sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 0,1)) : 0 }),
     Value("table", sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 1,1)) : 0 }),
     Value("row",   sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 2,1)) : 0 }),
 );
@@ -109,35 +110,51 @@ sub frame_hash {
     return $self->parser->parse($self->frame);
 }
 
-sub parser_for {
-    my $table = shift;
+my @regdef = (Byte("bus"), Byte("table"), Byte("row"));
+my @schedchunk = (
+    Byte('min15s'), Enum(Byte('mode'), home=>0, away=>1, sleep=>2, wake=>3),
+    Value('enabled', sub { $_->ctx->{min15s} == 0x60 ? 0 : 1 }),
+    Value("time", sub { sprintf("%02d:%02d", int($_->ctx->{min15s}/4), 15*int($_->ctx->{min15s}%4)) }),
+    );
 
-    my $ps = {
-        1 => Struct('tabledef',
-            Byte("bus"), Byte("table"), Byte("row"),
-            ULInt16('type'),
-            String('name', 8),
-            ULInt16('size'),
-            Byte('rows'),
-            Array(sub { $_->ctx->{rows} },
-                Struct("rowdef",
-                    Byte("size"),
-                    Byte("flags")
-                )
+my $parsers = {
+    '01' => Struct('tabledef',
+        @regdef,
+        UBInt16('type'),
+        String('name', 8),
+        UBInt16('size'),
+        Byte('rows'),
+        Array(sub { $_->ctx->{rows} },
+            Struct("rowdef",
+                Byte("size"),
+                Enum(Byte("flags"), 'read'=>1, 'write'=>2,'read/write'=>3, _default_ => $DefaultPass)
             )
-        ),
-
-        4 => Struct('device_info',
-            Byte("bus"), Byte("table"), Byte("row"),
-            PaddedString('device', 24, paddir=>'right'),
-            PaddedString('location', 24, paddir=>'right'),
-            PaddedString('software', 16, paddir=>'right'),
-            PaddedString('model', 20, paddir=>'right'),
-            PaddedString('serial', 12, paddir=>'right'),
-            PaddedString('reference', 24, paddir=>'right'),
         )
-    };
-    return $ps->{$table};
+    ),
+
+    '0104' => Struct('device_info',
+        @regdef,
+        PaddedString('device', 24, paddir=>'right'),
+        PaddedString('location', 24, paddir=>'right'),
+        PaddedString('software', 16, paddir=>'right'),
+        PaddedString('model', 20, paddir=>'right'),
+        PaddedString('serial', 12, paddir=>'right'),
+        PaddedString('reference', 24, paddir=>'right'),
+    ),
+
+    '4002' => Struct('schedule',
+        @regdef,
+        Array(7, Array(5, Struct('chunk',@schedchunk)))
+    )
+
+};
+
+sub reg_parser {
+    my $self = shift;
+    my $reg = shift;
+    foreach my $key (keys %$parsers) {
+        return $parsers->{$key} if $reg =~ /$key$/;
+    }
 }
 
 1;

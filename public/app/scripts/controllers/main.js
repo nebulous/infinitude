@@ -200,6 +200,14 @@ angular.module('infinitude')
 				});
 		};
 
+        $scope.samreq = function(reg) {
+            console.log(reg);
+            $http.post('/api/samreq', { "register": reg })
+                .then(function(res) {
+                    console.log(res.data.frame_hex);
+                });
+        };
+
 		$scope.selectZone = function(zone) {
 			$scope.selectedZone = zone;
 		};
@@ -210,10 +218,11 @@ angular.module('infinitude')
 
 		$scope.rawSerial = 'Loading';
 		$scope.frames = [];
+        $scope.devices = {};
 		$scope.state = angular.fromJson(window.localStorage.getItem('infinitude-serial-state')) || {};
 		var serial = new WebSocket(wsu('/serial'));
 		serial.onopen = function() { console.log('Socket open'); };
-		serial.onclose = function() { console.log('Socket closed'); };
+		serial.onclose = function() { console.log('Socket closed'); window.location.reload(); };
 		serial.onerror = function(err) { console.log('Socket error',err); };
 		var transferTimer;
 		serial.onmessage = function(m) {
@@ -221,6 +230,7 @@ angular.module('infinitude')
 			$scope.transferColor = '#4F4';
 			$timeout.cancel(transferTimer);
 			$timeout(function() { $scope.transferColor = '#5E5'; }, 2000);
+
 
 			/* jshint ignore:start */
 			var dataView = new jDataView(frame.data);
@@ -233,6 +243,7 @@ angular.module('infinitude')
 				var address = toHex(frame.data.substring(0,3));
 				var id = frame.Function + frame.SrcClass + frame.DstClass + address;
 				frame.Device = frame.Function === 'reply' ? frame.SrcClass : frame.DstClass;
+                $scope.devices[frame.Device] = 1;
 
 				var busLog = function(key,value) {
 					$scope.history[key] = $scope.history[key] || [{ 'key':key, values:[] }];
