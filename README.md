@@ -45,6 +45,7 @@ Infinitude configuration parameters can be passed through environment variables 
 | SERIAL_TTY | optional rs485 device string eg `/dev/ttyUSB0` |
 | SERIAL_SOCKET | optional tcp/rs485 bridge string eg `192.168.1.42:23` |
 | LOGLEVEL | optional [minimum severity of log messages to print](https://docs.mojolicious.org/Mojo/Log#level) |
+| SCAN_THERMOSTAT | truthy values on systems with serial connectivity cause Infinitude to continuously scan each Thermostat table |
 
 
 the published container can be run as
