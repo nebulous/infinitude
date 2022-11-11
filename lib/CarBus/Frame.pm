@@ -142,16 +142,32 @@ my $parsers = {
         PaddedString('reference', 24, paddir=>'right'),
     ),
 
+    # zone 1
     '4002' => Struct('schedule',
         @regdef,
         Array(7, Array(5, Struct('chunk',@schedchunk)))
-    )
+    ),
+    # zone 1
+    '400A' => Struct('comfort_profile',
+        @regdef,
+        Struct('home', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
+        Struct('away', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
+        Struct('sleep', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
+        Struct('wake', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
+        Struct('manual', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
+    ),
+    # zone 1
+    '4012' => Struct('vacation_settings',
+        @regdef,
+        Byte('min_temp'), Byte('max_temp'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown')),
+    ),
 
 };
 
 sub reg_parser {
     my $self = shift;
     my $reg = shift;
+    $reg = uc($reg);
     foreach my $key (keys %$parsers) {
         return $parsers->{$key} if $reg =~ /$key$/;
     }

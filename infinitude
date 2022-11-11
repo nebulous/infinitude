@@ -40,7 +40,7 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
 		serial_socket => '127.0.0.1:23',  #RS485 socket relay
 		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
-		pass_reqs => 60*17             #Pass requests to Carrier webservice every 17 minutes (set to 0 to disable)
+		pass_reqs => 60*5             #Pass requests to Carrier webservice every 5 minutes (set to 0 to disable)
 	};
 	$config_file->spew(encode_json($config));
 }
@@ -55,8 +55,8 @@ my $carbus;
 my $init_attempt;
 sub serial_init {
     return if $init_attempt and time<($init_attempt+7);
+    $init_attempt = time;
     if (defined($config->{serial_tty}) or defined($config->{serial_socket})) {
-        $init_attempt = time;
         require CarBus;
         if (-e $config->{serial_tty}) {
             require IO::Termios;
@@ -81,11 +81,22 @@ sub serial_init {
 serial_init();
 
 my @inbox = ();
-Mojo::IOLoop->recurring(0.0625 => sub {
-    if ($carbus) {
+my $last_frame_time = time;
+my $frame_inbox_id = Mojo::IOLoop->recurring(0.0625 => sub {
+    my $loop = shift;
+    $loop->on(finish => sub {
+        warn "Frame filler loop finishing";
+    });
+    $loop->on(reset => sub {
+        warn "Frame filler loop resetting";
+    });
+    if ((time - $last_frame_time) < 10) {
         $carbus->fh_fill();
         my $frame = $carbus->get_frame;
-        push(@inbox, $frame) unless $frame->{error};
+        if (not $frame->{error}) {
+            push(@inbox, $frame);
+            $last_frame_time = time;
+        }
         shift @inbox if scalar(@inbox)>128;
     } else {
         serial_init();
@@ -265,7 +276,7 @@ post '/api/samreq' => sub {
     my $reg = $c->req->json->{register};
     my ($tab,$row) = $reg =~ m/([0-9a-fA-F]{2})\s*([0-9a-fA-F]{2})$/;
     my $frame = $carbus->samreq(hex($tab),hex($row));
-    $c->log->debug("Making Virtual SAM request: register $reg table $tab and row $row".$frame->frame_hex);
+    $c->log->debug("Making Virtual SAM request: register $reg table $tab and row $row\n".$frame->frame_hex);
     $c->render( json=>{ frame_hex=>$frame->frame_hex });
 };
 
@@ -425,6 +436,13 @@ websocket '/serial' => sub {
 	}
 
 	Mojo::IOLoop->recurring(0.03125 => sub {
+        my $loop = shift;
+        $loop->on(finish => sub {
+            warn "Frame websocket loop finishing";
+        });
+        $loop->on(reset => sub {
+            warn "Frame websocket loop resetting";
+        });
 		if (my $frame = shift @inbox) {
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = time;
@@ -434,14 +452,14 @@ websocket '/serial' => sub {
                 if ($payf) {
                     if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
                         $scanrow = $payf->{rows}+1;
-                        warn ">>>>>>>>>>> table $scantab has ".($scanrow-1)." rows <<<<<<<<<<<<<<<<<<<";
+                        warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
                     }
                     $fstruc->{field} = $payf;
                 }
             }
 
             if ($ENV{SCAN_THERMOSTAT}) {
-                if (time>=$scansec+1) {
+                if (time>=$scansec+3) {
                     $scansec = time;
                     if ($scanrow > 0) {
                         $scanrow--;
@@ -449,9 +467,9 @@ websocket '/serial' => sub {
                     if ($scanrow == 0) {
                         $scantab+=1;
                         $scanrow=1;
-                        $scantab=0x51 if $scantab>0x51;
+                        $scantab=0x01 if $scantab>0x51;
                     }
-                    warn sprintf("scanning table %02x row %02x", $scantab, $scanrow);
+                    $c->log->debug(sprintf("scanning table %02x row %02x", $scantab, $scanrow));
                     $carbus->samreq($scantab, $scanrow);
                 }
             }
