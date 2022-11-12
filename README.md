@@ -27,7 +27,10 @@ RS485 stream monitoring example video:
 [![Real time RS485 monitoring](http://img.youtube.com/vi/ybjCumDG_d8/0.jpg)](https://www.youtube.com/watch?v=ybjCumDG_d8)
 
 
-Infinitude does **not** control thermostats via the RS485 bus at this time. RS485 communication is optional, and _read only_. 
+Infinitude does **not** control thermostats via the RS485 bus in the default build at this time. RS485 communication is optional, and _read only_.
+
+Serial-based control of touch thermostats is possible and has been demonstrated by writing to thermostat table 0x40 via Infinitude's CarBus library, but is experiemental at this time. 
+
 Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
 
 
