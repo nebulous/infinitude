@@ -1,6 +1,6 @@
+ESPHome rs485 integration which writes to table 0x40
+MQTT pub/sub 
+  HomeAssistant climate.mqtt implementation
 Add vacation editor
-Add energymonitor
 Detailed weather display with maps
 Long-term logging
-Big knob simple manual control. (Tweenmax knob/jQuery knob?)
-MQTT pub/sub
