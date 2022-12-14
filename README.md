@@ -27,7 +27,10 @@ RS485 stream monitoring example video:
 [![Real time RS485 monitoring](http://img.youtube.com/vi/ybjCumDG_d8/0.jpg)](https://www.youtube.com/watch?v=ybjCumDG_d8)
 
 
-Infinitude does **not** control thermostats via the RS485 bus at this time. RS485 communication is optional, and _read only_. 
+Infinitude does **not** control thermostats via the RS485 bus in the default build at this time. RS485 communication is optional, and _read only_.
+
+Serial-based control of touch thermostats is possible and has been demonstrated by writing to thermostat table 0x40 via Infinitude's CarBus library, but is experimental at this time. 
+
 Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
 
 
@@ -45,6 +48,7 @@ Infinitude configuration parameters can be passed through environment variables 
 | SERIAL_TTY | optional rs485 device string eg `/dev/ttyUSB0` |
 | SERIAL_SOCKET | optional tcp/rs485 bridge string eg `192.168.1.42:23` |
 | LOGLEVEL | optional [minimum severity of log messages to print](https://docs.mojolicious.org/Mojo/Log#level) |
+| SCAN_THERMOSTAT | truthy values on systems with serial connectivity cause Infinitude to continuously scan each Thermostat table |
 
 
 the published container can be run as
