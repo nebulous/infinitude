@@ -36,9 +36,10 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 	# customize config by editing infinitude.json
 	try { $config = decode_json($config_file->slurp) };
 
+    #TODO: depricate file-based config in favor of ENV
 	$config //= {
-		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
-		serial_socket => '127.0.0.1:23',  #RS485 socket relay
+#		serial_tty => '/dev/ttyUSB0',  #RS485 serial tty interface
+#		serial_socket => '127.0.0.1:23',  #RS485 socket relay
 		app_secret => 'Pogotudinal',   #Mojolicious cookie signature
 		pass_reqs => 60*5             #Pass requests to Carrier webservice every 5 minutes (set to 0 to disable)
 	};
@@ -56,27 +57,27 @@ my $init_attempt;
 sub serial_init {
     return if $init_attempt and time<($init_attempt+7);
     $init_attempt = time;
-    if (defined($config->{serial_tty}) or defined($config->{serial_socket})) {
-        require CarBus;
-        if (-e $config->{serial_tty}) {
-            require IO::Termios;
-            warn "Using $config->{serial_tty} serial interface\n";
-            $handle = IO::Termios->open($config->{serial_tty},"38400,8,n,1");
-        } else {
-            warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
-            delete $config->{serial_tty};
-        }
-        if ($config->{serial_socket} and not $handle) {
-            require IO::Socket::IP;
-            my ($host,$port) = split(':',$config->{serial_socket});
-            warn "Using $host port $port for serial interface\n";
-            $handle = IO::Socket::IP->new(
-                PeerHost => $host//'localhost',
-                PeerPort => $port//'telnet',
-            );
-        }
-        $carbus = CarBus->new(async=>1, fh=>$handle) if $handle;
+    return unless defined($config->{serial_tty}) or defined($config->{serial_socket});
+    require CarBus;
+    if (defined($config->{serial_tty}) and -e $config->{serial_tty}) {
+        require IO::Termios;
+        warn "Using $config->{serial_tty} serial interface\n";
+        $handle = IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+    } else {
+        warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
+        delete $config->{serial_tty};
     }
+    if (defined($config->{serial_socket}) and not $handle) {
+        require IO::Socket::IP;
+        my ($host,$port) = split(':',$config->{serial_socket});
+        warn "Using $host port $port for serial interface\n";
+        $handle = IO::Socket::IP->new(
+            PeerHost => $host//'localhost',
+            PeerPort => $port//'telnet',
+            Timeout => 4
+        );
+    }
+    $carbus = CarBus->new(async=>1, fh=>$handle) if $handle;
 }
 serial_init();
 
@@ -91,7 +92,8 @@ my $frame_inbox_id = Mojo::IOLoop->recurring(0.0625 => sub {
         warn "Frame filler loop resetting";
     });
     if ((time - $last_frame_time) < 10) {
-        $carbus->fh_fill();
+        return unless $carbus;
+        $carbus->fh_fill() if $carbus->fh;
         my $frame = $carbus->get_frame;
         if (not $frame->{error}) {
             push(@inbox, $frame);

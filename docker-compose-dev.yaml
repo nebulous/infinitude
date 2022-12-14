@@ -18,6 +18,7 @@ services:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=300
       - SERIAL_TTY=/dev/ttyUSB0
+      #- SERIAL_SOCKET=192.168.1.47:23
       - MOJO_MODE=development
       - MOJO_LOG_COLOR=1
       - MOJO_LOG_LEVEL=debug
