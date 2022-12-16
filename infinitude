@@ -8,6 +8,7 @@ use lib "$FindBin::Bin/lib";
 
 use Mojolicious::Lite;
 use Mojo::JSON qw/encode_json decode_json/;
+use CarBus;
 use Carp qw/shortmess/;
 use CHI;
 use DateTime;
@@ -46,23 +47,26 @@ if (my $config_json = $store->get('infinitude.json')) { #migrate older format co
 	$config_file->spew(encode_json($config));
 }
 
-$config->{serial_tty}    = $ENV{SERIAL_TTY} || $config->{serial_tty};
+$config->{serial_tty}    = $ENV{SERIAL_TTY}    || $config->{serial_tty};
 $config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
-$config->{app_secret}    = $ENV{APP_SECRET} || $config->{app_secret};
-$config->{pass_reqs}     = $ENV{PASS_REQS} || $config->{pass_reqs};
+$config->{app_secret}    = $ENV{APP_SECRET}    || $config->{app_secret};
+$config->{pass_reqs}     = $ENV{PASS_REQS}     || $config->{pass_reqs};
 
 my $handle;
 my $carbus;
 my $init_attempt;
+my $use_serial = ( (defined($config->{serial_tty})    and $config->{serial_tty})
+                or (defined($config->{serial_socket}) and $config->{serial_socket}) );
+
 sub serial_init {
+    return unless $use_serial;
     return if $init_attempt and time<($init_attempt+7);
     $init_attempt = time;
-    return unless defined($config->{serial_tty}) or defined($config->{serial_socket});
-    require CarBus;
+    return unless $use_serial;
     if (defined($config->{serial_tty}) and -e $config->{serial_tty}) {
         require IO::Termios;
         warn "Using $config->{serial_tty} serial interface\n";
-        $handle = IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+        $handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
     } else {
         warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
         delete $config->{serial_tty};
@@ -70,40 +74,40 @@ sub serial_init {
     if (defined($config->{serial_socket}) and not $handle) {
         require IO::Socket::IP;
         my ($host,$port) = split(':',$config->{serial_socket});
+        $host //= 'localhost';
+        $port //= 'telnet';
         warn "Using $host port $port for serial interface\n";
-        $handle = IO::Socket::IP->new(
-            PeerHost => $host//'localhost',
-            PeerPort => $port//'telnet',
-            Timeout => 4
-        );
+        $handle ||= IO::Socket::IP->new( PeerHost=>$host, PeerPort=>$port);
     }
     $carbus = CarBus->new(async=>1, fh=>$handle) if $handle;
 }
 serial_init();
 
 my @inbox = ();
-my $last_frame_time = time;
-my $frame_inbox_id = Mojo::IOLoop->recurring(0.0625 => sub {
-    my $loop = shift;
-    $loop->on(finish => sub {
-        warn "Frame filler loop finishing";
-    });
-    $loop->on(reset => sub {
-        warn "Frame filler loop resetting";
-    });
-    if ((time - $last_frame_time) < 10) {
-        return unless $carbus;
-        $carbus->fh_fill() if $carbus->fh;
-        my $frame = $carbus->get_frame;
-        if (not $frame->{error}) {
-            push(@inbox, $frame);
-            $last_frame_time = time;
+if ($use_serial) {
+    my $last_frame_time = time;
+    my $frame_inbox_id = Mojo::IOLoop->recurring(0.0625 => sub {
+        my $loop = shift;
+        $loop->on(finish => sub {
+            warn "Frame filler loop finishing";
+        });
+        $loop->on(reset => sub {
+            warn "Frame filler loop resetting";
+        });
+        if ((time - $last_frame_time) < 10) {
+            return unless $carbus;
+            $carbus->fh_fill() if $carbus->fh;
+            my $frame = $carbus->get_frame;
+            if (not $frame->{error}) {
+                push(@inbox, $frame);
+                $last_frame_time = time;
+            }
+            shift @inbox if scalar(@inbox)>128;
+        } else {
+            serial_init();
         }
-        shift @inbox if scalar(@inbox)>128;
-    } else {
-        serial_init();
-    }
-});
+    });
+}
 
 app->secrets([$config->{app_secret}]);
 push (@{app->static->paths}, ('development' eq ($ENV{MOJO_MODE}//'')) ? 'public/app' : 'public/dist');
@@ -112,7 +116,8 @@ hook before_dispatch => sub {
 	my $c = shift;
 
 	my $url = $c->req->url;
-	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort)/i) { # request from stat
+
+	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort|127.0.0.1)/i) { # request from stat or test harness
 		my $nk = $url->path->to_string;
 		$nk =~ s/\//-/g;
 		$nk =~ s/^-//;
@@ -432,8 +437,8 @@ my $scanrow = 0;
 my $scansec = 0;
 websocket '/serial' => sub {
 	my $c = shift;
-	unless ($handle) {
-		$c->app->log->info("Websocket opened, but no streaming source found");
+	unless ($use_serial) {
+		$c->app->log->info("Websocket opened, but no streaming source is available");
 		return;
 	}
 

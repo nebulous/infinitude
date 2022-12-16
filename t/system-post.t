@@ -6,9 +6,9 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use CHI;
 
-$main::config = { app_secret => 'testing' };
-$main::store = CHI->new(driver=>'Memory', global=>1);
 require "$FindBin::Bin/../infinitude";
+$main::config = { app_secret => 'testing', pass_reqs=>0 };
+$main::store = CHI->new(driver=>'Memory', global=>1);
 
 use XML::Simple::Minded;
 
