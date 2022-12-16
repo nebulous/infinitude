@@ -442,14 +442,8 @@ websocket '/serial' => sub {
 		return;
 	}
 
-	Mojo::IOLoop->recurring(0.03125 => sub {
+	my $socketloop_id = Mojo::IOLoop->recurring(0.03125 => sub {
         my $loop = shift;
-        $loop->on(finish => sub {
-            warn "Frame websocket loop finishing";
-        });
-        $loop->on(reset => sub {
-            warn "Frame websocket loop resetting";
-        });
 		if (my $frame = shift @inbox) {
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = time;
@@ -486,6 +480,7 @@ websocket '/serial' => sub {
 
 	$c->on('finish' => sub {
 		my ($c, $code) = @_;
+        Mojo::IOLoop->remove($socketloop_id);
 		$c->app->log->info("Websocket Closed: $code");
 	});
 };
