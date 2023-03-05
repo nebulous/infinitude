@@ -17,6 +17,7 @@ use Time::HiRes qw/time/;
 use Try::Tiny;
 use XML::Simple::Minded;
 
+
 my $store = CHI->new(
     driver         => 'File',
     root_dir       => 'state',
@@ -111,6 +112,8 @@ if ($use_serial) {
 
 app->secrets([$config->{app_secret}]);
 push (@{app->static->paths}, ('development' eq ($ENV{MOJO_MODE}//'')) ? 'public/app' : 'public/dist');
+
+#app->plugin('leak_tracker', { ignore_mode=>1, loglevel=>'debug' });
 
 hook before_dispatch => sub {
 	my $c = shift;
@@ -228,7 +231,7 @@ any '/api/:zone_id/hold' => sub {
 sub api_stat {
        my $c = shift;
        my $status = decode_json($store->get('status.json')||'{}');
-       my $zone_id = $c->stash('zone_id')||'';
+       my $zone_id = $c->stash('zone_id')//'';
        if ($zone_id =~ /^\d+$/) {
                my $idx = ($zone_id||1) - 1;
                $status = $status->{status}[0]{zones}[0]{zone}[$idx];
@@ -268,7 +271,6 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 			last;
 		}
 	}
-
 	$c->render(json=>$setting);
 };
 
