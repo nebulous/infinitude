@@ -305,13 +305,15 @@ any '/api/*variable_path' => sub {
 		if (ref($search)) {
 			# path returns a structure. Can modify.
 			my %sets = %{$c->req->params->to_hash()};
+			my $set_changes = delete $sets{set_changes} || 0; #set change flag upon request
 			foreach my $key (keys %sets) {
+				$set_changes ||= ($search->$key ne $sets{$key}); # set change flag if value has changed
 				$search->$key([$sets{$key}]);
 			}
 			$setting->{data} = { %{$search->TO_JSON()} };
 			$store->set('systems.xml',  $xml.'');
 			$store->set('systems.json', $xml->_as_json());
-			if (('POST' eq $c->req->method) or ('PUT' eq $c->req->method)) { # Only set changes if it's a POST
+			if (('POST' eq $c->req->method) or ('PUT' eq $c->req->method) or $set_changes) {
 				$store->set(changes => 'true');
 			}
 		} else {
