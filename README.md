@@ -33,6 +33,13 @@ Serial-based control of touch thermostats is possible and has been demonstrated 
 
 Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
 
+## Installation
+
+### Please note: Infinitude is not compatible with certain newer thermostat firmware versions.
+
+For Carrier/Bryant/ICP ION thermostats, it seems that the latest working firmware version is 4.05. Some users have held off
+upgrading to a newer version or have successfully downgraded to a previous version.
+See [issues/148](https://github.com/nebulous/infinitude/issues/148) for a discussion and more information about this issue.
 
 #### Docker - Recommended
 Prebuilt Docker containers are available for multiple architectures on [DockerHub](https://hub.docker.com/r/nebulous/infinitude), or you can build a container manually with the included Dockerfile.
