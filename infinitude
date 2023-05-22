@@ -274,6 +274,12 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 	$c->render(json=>$setting);
 };
 
+get '/api/profile' => sub {
+	my $c = shift;
+	my $profile = decode_json($store->get('profile.json')||'{}');
+	$c->render(json=>$profile);
+};
+
 get '/api/state_keys' => sub {
 	my $c = shift;
 	$c->render(json=>[sort $store->get_keys] );
