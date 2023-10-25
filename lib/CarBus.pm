@@ -76,8 +76,9 @@ sub shift_stream {
 
 sub samreq {
     my $self = shift;
-    my ($table, $row) = @_;
-    my $samframe = CarBus::Frame->new(data=>pack("C*", 0, $table, $row));
+    my ($table, $row, $frameopts) = @_;
+    $frameopts //= {};
+    my $samframe = CarBus::Frame->new(data=>pack("C*", 0, $table, $row), %$frameopts);
     $self->fh->syswrite($samframe->frame);
     return $samframe;
 }

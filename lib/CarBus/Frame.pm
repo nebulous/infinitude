@@ -7,6 +7,7 @@ my %device_classes = (
 	SystemInit => 0x1F,
 	NIM => 0x80,
 	SAM => 0x92,
+	FakeSAM => 0x93,
 	Broadcast => 0xF1,
 	_default_ => $DefaultPass
 );
@@ -50,14 +51,13 @@ my $frame_parser = Struct("CarFrame",
     Value("row",   sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 2,1)) : 0 }),
 );
 
-
 around BUILDARGS => sub {
     my ( $orig, $class, @args ) = @_;
 
 
     my $defaults = {
         DstClass => 'Thermostat', DstAddress=>1,
-        SrcClass => 'SAM', SrcAddress=>1,
+        SrcClass => 'FakeSAM', SrcAddress=>1,
         Function => 'read',
         checksum => 0,
         length => 0,
@@ -142,6 +142,76 @@ my $parsers = {
         PaddedString('reference', 24, paddir=>'right'),
     ),
 
+    '0202' => Struct('time', @regdef, Byte('hour'), Byte('minute'), Byte('unknown')),
+    '0203' => Struct('date', @regdef, Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
+
+
+    # SAMINFO
+    '3B02' => Struct('sam_state', @regdef,
+        Byte('active_zones'),
+        Padding(2),
+        Array(8, Byte('temperature')),
+        Array(8, Byte('humidity')),
+        Padding(1),
+        Byte('oat'),
+        BitStruct('zones_unoccupied',
+            Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
+            Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
+        ),
+
+        Nibble('stage'),
+        Nibble('mode'),
+        Array(5, Byte('unknown')),
+        Byte('displayed_zone')
+    ),
+
+    '3B03' => Struct('sam_zones', @regdef,
+        Byte('active_zones'),
+        Padding(2),
+        Array(8, Byte('fan_mode')),
+        Byte('zones_holding'),
+        Array(8, Byte('heat_setpoint')),
+        Array(8, Byte('cool_setpoint')),
+        Array(8, Byte('humidity_setpoint')),
+        Byte('speed_controlled_fan'),
+        Byte('hold_timer'),
+        Array(8, UBInt16('hold_duration')),
+        Array(8, Field('zone_name', 12))
+    ),
+
+    '3B04' => Struct('sam_vacation', @regdef,
+        Byte('active'),
+        UBInt16('hours'),
+        Byte('min_temp'),
+        Byte('max_temp'),
+        Byte('min_humidity'),
+        Byte('max_humidity'),
+        Byte('fan_mode')
+    ),
+
+#3B05
+#   contains: filterlevel,uvlevel,humidifierpadelvel, reminders for all
+
+    '3B05' => Struct('sam_accessories', @regdef,
+        Padding(3),
+        Byte('filter_consumption'),
+        Byte('uv_consumption'),
+        Byte('humidifier_consumption'),
+
+        Enum(Byte('filter_reminders'), off=>0, on=>1),
+        Enum(Byte('uv_reminders'), off=>0, on=>1),
+        Enum(Byte('humidifier_reminders'), off=>0, on=>1),
+    ),
+
+
+#3B06
+# contains: deadband, dealer name, dealer phone
+    '3B06' => Struct('sam_dealer', @regdef,
+        Pointer(15,CString('dealer_name')),
+        Pointer(35,CString('dealer_phone')),
+    ),
+
+
     # zone 1
     '4002' => Struct('schedule',
         @regdef,
@@ -162,6 +232,19 @@ my $parsers = {
         Byte('min_temp'), Byte('max_temp'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown')),
     ),
 
+    # MISC1
+    '4608' => Struct('insecurity', @regdef,
+        Pointer(7,CString('mac_address')),
+        Pointer(27,CString('ssid')),
+        Pointer(73,CString('password')),
+        Pointer(142,CString('token?')),
+    ),
+
+    '4609' => Struct('server', @regdef,
+        Pointer(3,CString('cloud_host')),
+        Pointer(70,CString('device_ip')),
+    )
+
 };
 
 sub reg_parser {
@@ -169,7 +252,7 @@ sub reg_parser {
     my $reg = shift;
     $reg = uc($reg);
     foreach my $key (keys %$parsers) {
-        return $parsers->{$key} if $reg =~ /$key$/;
+        return $parsers->{$key} if $reg =~ /$key$/i;
     }
 }
 
