@@ -120,7 +120,7 @@ hook before_dispatch => sub {
 
 	my $url = $c->req->url;
 
-	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort|127.0.0.1)/i) { # request from stat or test harness
+	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort|infinitude|127.0.0.1)/i) { # request from stat or test harness
 		my $nk = $url->path->to_string;
 		$nk =~ s/\//-/g;
 		$nk =~ s/^-//;
