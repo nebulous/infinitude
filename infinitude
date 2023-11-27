@@ -223,9 +223,8 @@ any '/api/:zone_id/hold' => sub {
 	$store->set('systems.json', $xml->_as_json());
 	$store->set(changes => 'true');
 
-	$c->render(text=>$xml, format=>'xml');
-
-	#$c->render(json=>$setting);
+	#$c->render(text=>$xml, format=>'xml');
+	$c->render(json=>$setting);
 };
 
 sub api_stat {
