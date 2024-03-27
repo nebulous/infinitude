@@ -132,5 +132,5 @@ least, access to a public API!
 
 ### See Also
 
-- [Infinitude Home Assistant Integration](https://github.com/MizterB/homeassistant-infinitude)
+- [Infinitude Home Assistant Integration](https://github.com/MizterB/homeassistant-infinitude-beyond)
 - [Infinitive project for RS485 control of non-touch thermostats](https://github.com/acd/infinitive)
