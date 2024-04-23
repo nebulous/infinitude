@@ -1,4 +1,5 @@
-FROM debian:latest
+ARG BASE_IMAGE=debian:latest
+FROM ${BASE_IMAGE}
 
 COPY . /infinitude
 WORKDIR /infinitude
