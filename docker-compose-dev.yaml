@@ -10,19 +10,17 @@ services:
       context: .
       dockerfile: Dockerfile
     network_mode: host
-    ports:
-      - "3000:3000"
     volumes:
       - ./:/infinitude/
     environment:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=300
-      - SERIAL_TTY=/dev/ttyUSB0
-      #- SERIAL_SOCKET=192.168.1.47:23
+      #- SERIAL_TTY=/dev/ttyUSB0
+      - SERIAL_SOCKET=192.168.1.23:23
       - MOJO_MODE=development
       - MOJO_LOG_COLOR=1
       - MOJO_LOG_LEVEL=debug
       - SCAN_THERMOSTAT=1
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
+#    devices:
+#      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always

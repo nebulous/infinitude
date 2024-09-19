@@ -17,7 +17,6 @@ use Time::HiRes qw/time/;
 use Try::Tiny;
 use XML::Simple::Minded;
 
-
 my $store = CHI->new(
     driver         => 'File',
     root_dir       => 'state',
@@ -453,14 +452,13 @@ websocket '/serial' => sub {
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = time;
 
-            if ($fstruc->{Function} eq 'reply') {
-                my $payf = $fstruc->{payload};
-                if ($payf) {
+            if ($fstruc->{Function} eq 'reply' and $fstruc->{type}) {
+                if (my $payf = $fstruc->{payload}) {
                     if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
                         $scanrow = $payf->{rows}+1;
                         warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
                     }
-                    $fstruc->{field} = $payf;
+                    $fstruc->{field} = { $fstruc->{type}=>$fstruc->{payload} };
                 }
             }
 
