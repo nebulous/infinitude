@@ -2,6 +2,7 @@ package CarBus::Frame;
 use Moo;
 use Data::ParseBinary;
 use Digest::CRC 'crc16';
+use Try::Tiny;
 
 my %device_classes = (
 	SystemInit => 0x1F,
@@ -107,7 +108,29 @@ sub frame_hex {
 
 sub frame_hash {
     my $self = shift;
-    return $self->parser->parse($self->frame);
+    my $parsed = $self->parser->parse($self->frame);
+    return {} unless $parsed;
+
+    my $register = sprintf("%02x%02x",$parsed->{table}, $parsed->{row});
+    $parsed->{register} = $register;
+    if (my $regparser = $self->reg_parser($register)) {
+        $parsed->{type} = $regparser->{Name};
+        try {
+            $parsed->{payload} = $regparser->parse($parsed->{data});
+        };
+    }
+
+    return $parsed;
+}
+
+sub frame_log {
+    my $self = shift;
+    return join(' ',
+        $self->frame_hash->{SrcClass},
+        $self->frame_hash->{Function},
+        $self->frame_hash->{DstClass},
+        $self->frame_hash->{register}
+    );
 }
 
 my @regdef = (Byte("bus"), Byte("table"), Byte("row"));

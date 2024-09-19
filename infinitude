@@ -68,6 +68,7 @@ sub serial_init {
         require IO::Termios;
         warn "Using $config->{serial_tty} serial interface\n";
         $handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
+        $handle->blocking(0);
     } else {
         warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
         delete $config->{serial_tty};
@@ -79,8 +80,9 @@ sub serial_init {
         $port //= 'telnet';
         warn "Using $host port $port for serial interface\n";
         $handle ||= IO::Socket::IP->new( PeerHost=>$host, PeerPort=>$port);
+        $handle->blocking(0);
     }
-    $carbus = CarBus->new(async=>1, fh=>$handle) if $handle;
+    $carbus = CarBus->new(fh=>$handle) if $handle;
 }
 serial_init();
 
@@ -450,9 +452,9 @@ websocket '/serial' => sub {
 		if (my $frame = shift @inbox) {
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = time;
-            my $reg = sprintf("%02x%02x",$frame->frame_hash->{table}, $frame->frame_hash->{row});
-            if ($fstruc->{Function} eq 'reply' and my $regparse = $frame->reg_parser($reg)) {
-                my $payf = try { $regparse->parse($frame->frame_hash->{data}); };
+
+            if ($fstruc->{Function} eq 'reply') {
+                my $payf = $fstruc->{payload};
                 if ($payf) {
                     if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
                         $scanrow = $payf->{rows}+1;
