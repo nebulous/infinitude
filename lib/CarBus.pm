@@ -3,12 +3,8 @@ use Moo;
 use CarBus::Frame;
 
 has async => (is=>'ro', default=>sub{0});
-has fh => (is=>'rw');
+has fh => (is=>'ro');
 has buffer => (is=>'rw', default=>'');
-has fill_buffer => (is=>'ro', default=>sub{ 
-		my $self = shift; 
-		$self->fh ? $self->fh_fill : sub{};
-	});
 
 use constant MAX_BUFFER => 1024;
 
@@ -40,17 +36,18 @@ sub get_frame {
 		} else {
 			$self->shift_stream(1);
 		}
-		$self->fill_buffer();
+		$self->fh_fill();
 	}
 	return { error=>'timed out or EOF' };
 }
 
 sub fh_fill {
-	my $self = shift;
-	my $buf = '';
-	my $len = $self->fh->sysread($buf, 1024);
-	$self->push_stream($buf);
-	return $len;
+    my $self = shift;
+    return unless $self->fh;
+    my $buf = '';
+    my $len = $self->fh->sysread($buf, 1024);
+    $self->push_stream($buf);
+    return $len;
 }
 
 sub buflen {
