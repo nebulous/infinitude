@@ -67,7 +67,6 @@ sub serial_init {
         require IO::Termios;
         warn "Using $config->{serial_tty} serial interface\n";
         $handle ||= IO::Termios->open($config->{serial_tty},"38400,8,n,1");
-        $handle->blocking(0);
     } else {
         warn "Can't find serial device: $config->{serial_tty}. Serial monitoring disabled.\n" if $config->{serial_tty};
         delete $config->{serial_tty};
@@ -79,9 +78,8 @@ sub serial_init {
         $port //= 'telnet';
         warn "Using $host port $port for serial interface\n";
         $handle ||= IO::Socket::IP->new( PeerHost=>$host, PeerPort=>$port);
-        $handle->blocking(0);
     }
-    $carbus = CarBus->new(fh=>$handle) if $handle;
+    $carbus = CarBus->new($handle) if $handle;
 }
 serial_init();
 
@@ -90,17 +88,11 @@ if ($use_serial) {
     my $last_frame_time = time;
     my $frame_inbox_id = Mojo::IOLoop->recurring(0.0625 => sub {
         my $loop = shift;
-        $loop->on(finish => sub {
-            warn "Frame filler loop finishing";
-        });
-        $loop->on(reset => sub {
-            warn "Frame filler loop resetting";
-        });
+        $loop->on(finish => sub { warn "Frame filler loop FINISH"; });
+        $loop->on(reset => sub { warn "Frame filler loop RESET"; });
         if ((time - $last_frame_time) < 10) {
             return unless $carbus;
-            $carbus->fh_fill() if $carbus->fh;
-            my $frame = $carbus->get_frame;
-            if (not $frame->{error}) {
+            if (my $frame = $carbus->get_frame) {
                 push(@inbox, $frame);
                 $last_frame_time = time;
             }
@@ -121,7 +113,7 @@ hook before_dispatch => sub {
 
 	my $url = $c->req->url;
 
-	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort|infinitude|127.0.0.1)/i) { # request from stat or test harness
+	if ($url->to_abs->host =~ /(bryant|carrier|ioncomfort|infinitude)/i) { # request from stat or test harness
 		my $nk = $url->path->to_string;
 		$nk =~ s/\//-/g;
 		$nk =~ s/^-//;
@@ -451,8 +443,9 @@ websocket '/serial' => sub {
 		if (my $frame = shift @inbox) {
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = time;
-            if ($fstruc->{Function} eq 'reply' and $fstruc->{type}) {
-                if (my $payf = $fstruc->{payload}) {
+            if ($fstruc->{function} eq 'reply') {
+                my $payf = $fstruc->{payload};
+                if ($payf) {
                     if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
                         $scanrow = $payf->{rows}+1;
                         warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
