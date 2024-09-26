@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+
+use lib 'lib';
+use strict;
+use feature 'say';
+use CarBus;
+use Getopt::Long;
+use IO::File;
+use IO::Socket::IP;
+use IO::Termios;
+use JSON;
+
+my $opt={ src=>'FakeSAM', dst=>'Thermostat', cmd=>'read', reg=>'0104', src_bus=>1, dst_bus=>1};
+GetOptions($opt, 'src=s', 'dst=s', 'reg=s', 'cmd=s' );
+$opt->{payload_raw} ||= pack("H*","00".$opt->{reg});
+
+my $reqframe = CarBus::Frame->new($opt);
+print STDERR $reqframe->frame_log."\n";
+
+my $tcp = CarBus->new(IO::Socket::IP->new(PeerHost=>'192.168.1.23', PeerPort=>23)); #tcp
+my $sam = CarBus->new(IO::Termios->open("/dev/cu.usbserial-A7039O5G", "38400,8,n,1")); #serial
+#my $fil = CarBus->new(IO::File->new("<ccn.log"));
+
+my $bridge = CarBus::Bridge->new(buslist=>[$tcp,$sam]);
+my $lastwrite=0;
+my $tries=8;
+while(1) {
+    foreach my $frame ($bridge->drive) {
+        next unless $frame;
+        next unless ( $frame->struct->{dst} eq $reqframe->struct->{src}
+                  and $frame->struct->{src} eq $reqframe->struct->{dst}
+                  and ( $frame->struct->{reg_string} eq $reqframe->struct->{reg_string}
+                     or $frame->struct->{cmd} eq 'exception' )
+        );
+        print STDERR $frame->frame_log."\n";
+        print encode_json($frame->frame_hash);
+        exit;
+    }
+    if (time>$lastwrite) {
+        $bridge->write($reqframe);
+        $lastwrite=time;
+        die 'timeout' unless $tries--;
+    }
+}
