@@ -1,0 +1,21 @@
+<div style="display: none">
+{{ depth = typeof(depth) == 'number' ? depth : 0 }}
+</div>
+<table class="table table-striped table-bordered table-rounded">
+  <thead ng-if="title">
+    <tr>
+      <th class="text-center" colspan="2">{{title}}</th>
+    </tr>
+  </thead>
+  <tbody>
+        <tr ng-repeat="(k,v) in node track by depth+k">
+            <th class="text-right">{{ k }}</th>
+            <td ng-if="typeof(v) == 'string' || typeof(v) == 'number'">
+                {{v}}
+            </td>
+            <td ng-if="typeof(v) == 'object' && depth<=4">
+                <div ng-include="'views/node_tree.html'" ng-init="node=v; depth=depth+1; title='';"></div>
+            </td>
+        </tr>
+  </tbody>
+</table>

@@ -6,11 +6,17 @@ function wsu(s) {
 }
 
 var toHex = function (str) {
-	var hex = '';
-	for(var i=0;i<str.length;i++) {
-		hex += ' '+('0' + str.charCodeAt(i).toString(16).toUpperCase()).substr(-2,2);
-	}
-	return hex;
+    return str.split("")
+              .map(c => c.charCodeAt(0).toString(16).padStart(2, "0"))
+              .join(" ");
+};
+
+var fromHex = function (hexstr) {
+    return hexstr.replace(" ","")
+                 .split(/(\w\w)/g)
+                 .filter(p => !!p)
+                 .map(c => String.fromCharCode(parseInt(c, 16)))
+                 .join("")
 };
 
 angular.module('infinitude')
@@ -42,6 +48,7 @@ angular.module('infinitude')
 	})
 	.filter('strings', function() {
 		return function (str, min) {
+            if (!str) { return "" }
 			min = min || 4;
 			var cnt = 0;
 			var instring = false;
@@ -66,6 +73,9 @@ angular.module('infinitude')
 	.filter('toHex', function() {
 		return toHex;
 	})
+	.filter('fromHex', function() {
+		return fromHex;
+	})
 	.filter('toList', function() {
 		return function(items) {
 			var filtered = [];
@@ -88,6 +98,8 @@ angular.module('infinitude')
 		// False means the data has been copied and is currently the same as "systems"
 		// True means the data has been copied and the user has edited it
 		$scope.systemsEdited = null;
+
+        $scope.typeof = function(variable) { return typeof(variable) };
 
 		$scope.mkTime = function(input) {
 			if (angular.equals({}, input)) { return '00:00'; }
@@ -227,22 +239,26 @@ angular.module('infinitude')
 		var transferTimer;
 		serial.onmessage = function(m) {
 			var frame = angular.fromJson(m.data);
+            if (typeof(frame.cmd) != 'string') { console.log(frame) }
 			$scope.transferColor = '#4F4';
 			$timeout.cancel(transferTimer);
 			$timeout(function() { $scope.transferColor = '#5E5'; }, 2000);
 
 
 			/* jshint ignore:start */
-			var dataView = new jDataView(frame.data);
+			var dataView = new jDataView(frame.payload_raw);
 			if (typeof($scope.carbus) == 'undefined') {
 				$scope.carbus = {};
 			}
 			$scope.history = angular.fromJson(window.localStorage.getItem('tmpdat')) || {};
 
-			if (frame.Function.match(/write|reply/)) {
-				var address = toHex(frame.data.substring(0,3));
-				var id = frame.Function + frame.SrcClass + frame.DstClass + address;
-				frame.Device = frame.Function === 'reply' ? frame.SrcClass : frame.DstClass;
+			if (frame.cmd.match(/write|reply/)) {
+                var address = frame.reg_string;
+                address=address||"";
+                address=address.toUpperCase();
+
+				var id = frame.cmd + frame.src + frame.dst + address;
+				frame.Device = frame.cmd === 'reply' ? frame.src : frame.dst;
                 $scope.devices[frame.Device] = 1;
 
 				var busLog = function(key,value) {
@@ -257,21 +273,21 @@ angular.module('infinitude')
 
 				// Break this out into config once others publish their registers.
 				// Are you reading this? Then you're probably one of those people.
-				if (frame.Function == 'reply' && frame.SrcClass.match(/IndoorUnit/)) {
-					if (address.match(/00 03 06/)) {
+				if (frame.cmd == 'reply' && frame.src.match(/IndoorUnit/)) {
+					if (address.match(/0306/)) {
 						$scope.carbus.blowerRPM = dataView.getInt16(1  +3);
 						busLog('blowerRPM', $scope.carbus.blowerRPM);
 					}
-					if (address.match(/00 03 16/)) {
+					if (address.match(/0316/)) {
 						$scope.carbus.airflowCFM = dataView.getInt16(4  +3);
 						busLog('airflowCFM', $scope.carbus.airflowCFM);
 					}
 				}
-				if (frame.Function == 'reply' && frame.SrcClass.match(/OutdoorUnit/)) {
-					if (address.match(/00 03 02/)) {
+				if (frame.cmd == 'reply' && frame.src.match(/OutdoorUnit/)) {
+					if (address.match(/0302/)) {
 						$scope.carbus.outsideTemp = dataView.getInt16(2  +3)/16;
 					}
-					if (address.match(/00 3E 01/)) {
+					if (address.match(/3E01/)) {
 						$scope.carbus.outsideTemp = dataView.getInt16(0  +3)/16;
 						$scope.carbus.coilTemp = dataView.getInt16(2  +3)/16;
 						busLog('coilTemp', $scope.carbus.coilTem);
@@ -280,13 +296,13 @@ angular.module('infinitude')
 				}
 
 				var lastframe = $scope.state[id] || frame;
-				lastframe = lastframe.data;
+				lastframe = lastframe.payload_raw;
 
 				$scope.state[id] = $scope.state[id] || {};
 				angular.extend($scope.state[id],frame);
 				$scope.state[id].history = $scope.state[id].history || [];
 
-				if (lastframe !== frame.data) { $scope.state[id].history.unshift(lastframe); }
+				if (lastframe !== frame.payload_raw) { $scope.state[id].history.unshift(lastframe); }
 				if ($scope.state[id].history.length>9) { $scope.state[id].history.pop(); }
 
 				window.localStorage.setItem('infinitude-serial-state',angular.toJson($scope.state));

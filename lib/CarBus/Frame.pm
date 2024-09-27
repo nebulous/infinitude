@@ -54,7 +54,17 @@ my $fp = Struct("CarFrame",
   Value("gensum", sub { crc16(substr($_->ctx->{raw},0,-2)) }),
   Value("valid", sub { $_->ctx->{gensum} == $_->ctx->{checksum} }),
   Value("payload", sub { length($_->ctx->{payload_raw})<=3 ? undef
-    : subparser($_->ctx->{reg_string})->parse(substr($_->ctx->{payload_raw},3)) })
+    : subparser($_->ctx->{reg_string})->parse(substr($_->ctx->{payload_raw},3)) }),
+
+  Value("reg_name", sub {
+    my $fh = $_->ctx;
+    my $subp = subparser($fh->{reg_string});
+    my $regname = $fh->{reg_string} // '';
+    $regname = $subp->{Name}."($regname)" if $subp;
+    return $regname;
+  })
+
+
 );
 
 around BUILDARGS => sub {
@@ -74,11 +84,6 @@ around BUILDARGS => sub {
 
 has parser => (is=>'ro', default=> sub { $fp });
 has struct => (is=>'rw');
-sub payload_parser {
-    my $self = shift;
-    my $pp = subparser($self->struct->{reg_string});
-}
-
 
 sub valid { shift->struct->{valid} }
 
@@ -114,14 +119,11 @@ sub frame_hash {
 sub frame_log {
     my $self = shift;
     my $fh = $self->frame_hash;
-    my $subp = subparser($fh->{reg_string});
-    my $regname = $fh->{reg_string} // '';
-    $regname = $subp->{Name}."($regname)" if $subp;
     return join(' ',
         $fh->{src},
         $fh->{cmd},
         $fh->{dst},
-        $regname
+        $fh->{reg_name}
     );
 }
 
@@ -154,7 +156,8 @@ my $parsers = {
         PaddedString('reference', 24, paddir=>'right'),
     ),
 
-    '0202' => Struct('time', Byte('hour'), Byte('minute'), Byte('unknown')),
+    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), 0=>'Sunday', 1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday')),
+
     '0203' => Struct('date', Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
 
 
@@ -175,7 +178,7 @@ my $parsers = {
             Enum(Nibble('mode'), heat=>0, cool=>1, auto=>2, eheat=>3, off=>4)
         ),
         Array(2, Byte('unknown')),
-        Byte('day_of_week'),
+        Enum(Byte('weekday'), 0=>'Sunday', 1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday'),
         UBInt16('minutes_since_midnight'),
         Byte('displayed_zone')
     ),

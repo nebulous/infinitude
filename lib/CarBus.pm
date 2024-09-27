@@ -88,8 +88,8 @@ sub samreq {
     my ($table, $row, $frameopts) = @_;
     $frameopts //= {};
     my $samframe = CarBus::Frame->new(
-        src=>'SAM',
-        dst=>'Thermostat',
+        src=>'FakeSAM', src_bus=>1,
+        dst=>'Thermostat', dst_bus=>1,
         cmd=>'read',
         payload_raw=>pack("C*", 0, $table, $row),
         %$frameopts
@@ -108,6 +108,7 @@ package CarBus::Bridge;
 use Moo;
 
 has buslist => (is=>'ro');
+has routes => (is=>'rw', default=>sub{{}});
 
 sub drive {
     my $self = shift;

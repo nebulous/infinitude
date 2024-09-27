@@ -83,26 +83,6 @@ sub serial_init {
 }
 serial_init();
 
-my @inbox = ();
-if ($use_serial) {
-    my $last_frame_time = time;
-    my $frame_inbox_id = Mojo::IOLoop->recurring(0.0625 => sub {
-        my $loop = shift;
-        $loop->on(finish => sub { warn "Frame filler loop FINISH"; });
-        $loop->on(reset => sub { warn "Frame filler loop RESET"; });
-        if ((time - $last_frame_time) < 10) {
-            return unless $carbus;
-            if (my $frame = $carbus->get_frame) {
-                push(@inbox, $frame);
-                $last_frame_time = time;
-            }
-            shift @inbox if scalar(@inbox)>128;
-        } else {
-            serial_init();
-        }
-    });
-}
-
 app->secrets([$config->{app_secret}]);
 push (@{app->static->paths}, ('development' eq ($ENV{MOJO_MODE}//'')) ? 'public/app' : 'public/dist');
 
@@ -431,26 +411,28 @@ any '/systems/:system_id/:part' => sub {
 my $scantab = 0;
 my $scanrow = 0;
 my $scansec = 0;
+my $lastframe = 0;
 websocket '/serial' => sub {
 	my $c = shift;
 	unless ($use_serial) {
-		$c->app->log->info("Websocket opened, but no streaming source is available");
+		$c->app->log->info("Websocket opened, but no streaming source is configured");
 		return;
 	}
 
-	my $socketloop_id = Mojo::IOLoop->recurring(0.03125 => sub {
+	my $socketloop_id = Mojo::IOLoop->recurring(0.0625 => sub {
         my $loop = shift;
-		if (my $frame = shift @inbox) {
+        serial_init() if (!$carbus or time>($lastframe+10));
+		if (my $frame = $carbus->get_frame) { return if (!$frame or !$frame->struct->{cmd});
 			my $fstruc = $frame->frame_hash;
-			$fstruc->{timestamp} = time;
-            if ($fstruc->{function} eq 'reply') {
+			$fstruc->{timestamp} = $lastframe = time;
+            if ($fstruc->{cmd} eq 'reply') {
                 my $payf = $fstruc->{payload};
                 if ($payf) {
                     if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
                         $scanrow = $payf->{rows}+1;
                         warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
                     }
-                    $fstruc->{field} = { $fstruc->{type}=>$fstruc->{payload} };
+                    $fstruc->{field} = { $fstruc->{reg_name}||'unknown' => $payf };
                 }
             }
 
@@ -469,14 +451,16 @@ websocket '/serial' => sub {
                     $carbus->samreq($scantab, $scanrow);
                 }
             }
+            #warn $frame->frame_log;
 			$c->send({json=>$fstruc});
 		}
 	});
+    $c->app->log->info("Websocket $socketloop_id Established");
 
 	$c->on('finish' => sub {
 		my ($c, $code) = @_;
         Mojo::IOLoop->remove($socketloop_id);
-		$c->app->log->info("Websocket Closed: $code");
+		$c->app->log->info("Websocket $socketloop_id Closed: $code");
 	});
 };
 
