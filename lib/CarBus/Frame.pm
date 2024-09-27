@@ -6,8 +6,7 @@ use Try::Tiny;
 
 my %device_classes = (
 	SystemInit => 0x1F,
-	NIM => 0x80,
-	SAM => 0x92,
+    SAM=>0x92,
 	FakeSAM => 0x93,
 	Broadcast => 0xF1,
 	_default_ => $DefaultPass
@@ -19,6 +18,8 @@ my $classmap = {
     4 => 'IndoorUnit',
     5 => 'OutdoorUnit',
     6 => 'ZoneControl',
+    8 => 'NIM',
+    #9 => 'SAM'
 };
 
 foreach my $pre (keys %$classmap) {
@@ -26,114 +27,106 @@ foreach my $pre (keys %$classmap) {
     my $idx=0;
     while($idx<0xF) {
         my $addr = ($pre<<4) + $idx;
-        $device_classes{$label.($idx ? $idx : '')} = $addr;
+        $device_classes{$label.($idx ? $idx : '')} ||= $addr;
         $idx++;
     }
 }
 
-my $frame_parser = Struct("CarFrame",
-    Enum(Byte("DstClass"), %device_classes),
-    Byte("DstAddress"),
-    Enum(Byte("SrcClass"), %device_classes),
-    Byte("SrcAddress"),
-    Byte("length"),
-    Padding(2),
-    Enum(Byte("Function"),
-        reply => 0x06,
-        read => 0x0B,
-        write => 0x0C,
-        exception => 0x15,
-        _default_ => $DefaultPass
-    ),
-    Field("data", sub { $_->ctx->{length} }),
-    ULInt16("checksum"),
-    Value("bus",   sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 0,1)) : 0 }),
-    Value("table", sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 1,1)) : 0 }),
-    Value("row",   sub { length($_->ctx->{data})>=3 ? ord(substr($_->ctx->{data}, 2,1)) : 0 }),
+my $fp = Struct("CarFrame",
+  Enum(Byte("dst"),%device_classes), Byte("dst_bus"),
+  Enum(Byte("src"),%device_classes), Byte("src_bus"),
+  Byte("length"),
+  Byte('pid'),
+  Byte('ext'),
+  Enum(Byte("cmd"),
+      reply => 0x06,
+      read => 0x0B,
+      write => 0x0C,
+      exception => 0x15,
+      _default_ => $DefaultPass
+  ),
+  Field("payload_raw", sub { $_->ctx->{length} }),
+  ULInt16("checksum"),
+
+  Value("raw", sub { ${$_->stream->{data}}; }),
+  Value("as_hex", sub { unpack("H*",$_->ctx->{raw}) }),
+  Value("reg_string", sub { length($_->ctx->{payload_raw})>=3 ? substr($_->ctx->{as_hex}, 18,4) : undef}),
+  Value("gensum", sub { crc16(substr($_->ctx->{raw},0,-2)) }),
+  Value("valid", sub { $_->ctx->{gensum} == $_->ctx->{checksum} }),
+  Value("payload", sub { length($_->ctx->{payload_raw})<=3 ? undef
+    : subparser($_->ctx->{reg_string})->parse(substr($_->ctx->{payload_raw},3)) }),
+
+  Value("reg_name", sub {
+    my $fh = $_->ctx;
+    my $subp = subparser($fh->{reg_string});
+    my $regname = $fh->{reg_string} // '';
+    $regname = $subp->{Name}."($regname)" if $subp;
+    return $regname;
+  })
+
+
 );
 
 around BUILDARGS => sub {
     my ( $orig, $class, @args ) = @_;
-
-
-    my $defaults = {
-        DstClass => 'Thermostat', DstAddress=>1,
-        SrcClass => 'FakeSAM', SrcAddress=>1,
-        Function => 'read',
-        checksum => 0,
-        length => 0,
-        data => '',
-    };
-
-    if (@args == 1 && !ref $args[0]) {
-        my $parsed_frame = $frame_parser->parse($args[0]);
-        my $check_frame = __PACKAGE__->new($parsed_frame);
-        return {
-            struct => $check_frame->struct,
-            valid  => ($args[0] eq $check_frame->frame) ? 1 : 0
-        };
-    }
-
     (@args) = %{$args[0]}
-      if @args == 1 && ref $args[0];
+      if @args == 1 && ref $args[0] eq 'HASH';
 
-    my $struct = $defaults;
-    my %arghash = @args;
-    foreach my $key (keys %arghash) {
-        $struct->{$key} = delete $arghash{$key} if defined($defaults->{$key});
-    }
+    my $init_frame = chr(0)x10;
+    $init_frame = shift @args if (@args == 1 && !ref $args[0]);
+    $init_frame = pack("H*", $init_frame) if $init_frame =~ /^[0-9A-Fa-f]+$/;
+    my $struct = { valid=>0 };
+    try { $struct = $fp->parse($init_frame); };
+    $struct = {%$struct,@args};
 
-    $arghash{struct} = $struct;
-
-    return $class->$orig(%arghash);
+    return $class->$orig({struct=>$struct});
 };
 
-has parser => (is=>'ro', default=> sub { $frame_parser });
+has parser => (is=>'ro', default=> sub { $fp });
 has struct => (is=>'rw');
-has valid => (is=>'ro', default=>sub{1});
+
+sub valid { shift->struct->{valid} }
 
 sub frame {
     my $self = shift;
-    return undef unless $self->valid;
-    $self->struct->{length} = length($self->struct->{data});
-    my $fstring = substr $self->parser->build($self->struct), 0, -2;
-    $self->struct->{checksum} = crc16($fstring);
-    return $fstring.pack("S",$self->struct->{checksum});
+    return undef unless $self->struct->{valid};
+
+    my $struct = $self->struct;
+    $struct->{length} = length($struct->{payload_raw});
+    $struct = $fp->parse($fp->build($struct));
+
+    if ($struct->{checksum} != $struct->{gensum}) {
+        $struct->{checksum} = $struct->{gensum};
+        $struct = $fp->parse($fp->build($struct));
+    }
+    $self->struct($struct);
+
+    return $self->struct->{raw};
 }
 
 sub frame_hex {
     my $self = shift;
-    return unpack("H*", $self->frame);
+    $self->frame;
+    return $self->struct->{as_hex};
 }
 
 sub frame_hash {
     my $self = shift;
-    my $parsed = $self->parser->parse($self->frame);
-    return {} unless $parsed;
-
-    my $register = sprintf("%02x%02x",$parsed->{table}, $parsed->{row});
-    $parsed->{register} = $register;
-    if (my $regparser = $self->reg_parser($register)) {
-        $parsed->{type} = $regparser->{Name};
-        try {
-            $parsed->{payload} = $regparser->parse($parsed->{data});
-        };
-    }
-
-    return $parsed;
+    $self->frame;
+    return $self->struct;
 }
 
 sub frame_log {
     my $self = shift;
+    my $fh = $self->frame_hash;
     return join(' ',
-        $self->frame_hash->{SrcClass},
-        $self->frame_hash->{Function},
-        $self->frame_hash->{DstClass},
-        $self->frame_hash->{register}
+        $fh->{src},
+        $fh->{cmd},
+        $fh->{dst},
+        $fh->{reg_name}
     );
 }
 
-my @regdef = (Byte("bus"), Byte("table"), Byte("row"));
 my @schedchunk = (
     Byte('min15s'), Enum(Byte('mode'), home=>0, away=>1, sleep=>2, wake=>3),
     Value('enabled', sub { $_->ctx->{min15s} == 0x60 ? 0 : 1 }),
@@ -142,7 +135,6 @@ my @schedchunk = (
 
 my $parsers = {
     '01' => Struct('tabledef',
-        @regdef,
         UBInt16('type'),
         String('name', 8),
         UBInt16('size'),
@@ -156,7 +148,6 @@ my $parsers = {
     ),
 
     '0104' => Struct('device_info',
-        @regdef,
         PaddedString('device', 24, paddir=>'right'),
         PaddedString('location', 24, paddir=>'right'),
         PaddedString('software', 16, paddir=>'right'),
@@ -165,12 +156,13 @@ my $parsers = {
         PaddedString('reference', 24, paddir=>'right'),
     ),
 
-    '0202' => Struct('time', @regdef, Byte('hour'), Byte('minute'), Byte('unknown')),
-    '0203' => Struct('date', @regdef, Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
+    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), 0=>'Sunday', 1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday')),
+
+    '0203' => Struct('date', Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
 
 
     # SAMINFO
-    '3B02' => Struct('sam_state', @regdef,
+    '3B02' => Struct('sam_state',
         Byte('active_zones'),
         Padding(2),
         Array(8, Byte('temperature')),
@@ -181,18 +173,24 @@ my $parsers = {
             Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
             Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
         ),
-
-        Nibble('stage'),
-        Nibble('mode'),
-        Array(5, Byte('unknown')),
+        BitStruct('stagmode',
+            Nibble('stage'),
+            Enum(Nibble('mode'), heat=>0, cool=>1, auto=>2, eheat=>3, off=>4)
+        ),
+        Array(2, Byte('unknown')),
+        Enum(Byte('weekday'), 0=>'Sunday', 1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday'),
+        UBInt16('minutes_since_midnight'),
         Byte('displayed_zone')
     ),
 
-    '3B03' => Struct('sam_zones', @regdef,
+    '3B03' => Struct('sam_zones',
         Byte('active_zones'),
         Padding(2),
-        Array(8, Byte('fan_mode')),
-        Byte('zones_holding'),
+        Array(8, Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0 )),
+        BitStruct('zones_holding',
+            Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
+            Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
+        ),
         Array(8, Byte('heat_setpoint')),
         Array(8, Byte('cool_setpoint')),
         Array(8, Byte('humidity_setpoint')),
@@ -202,7 +200,7 @@ my $parsers = {
         Array(8, Field('zone_name', 12))
     ),
 
-    '3B04' => Struct('sam_vacation', @regdef,
+    '3B04' => Struct('sam_vacation',
         Byte('active'),
         UBInt16('hours'),
         Byte('min_temp'),
@@ -215,7 +213,7 @@ my $parsers = {
 #3B05
 #   contains: filterlevel,uvlevel,humidifierpadelvel, reminders for all
 
-    '3B05' => Struct('sam_accessories', @regdef,
+    '3B05' => Struct('sam_accessories',
         Padding(3),
         Byte('filter_consumption'),
         Byte('uv_consumption'),
@@ -229,20 +227,25 @@ my $parsers = {
 
 #3B06
 # contains: deadband, dealer name, dealer phone
-    '3B06' => Struct('sam_dealer', @regdef,
+    '3B06' => Struct('sam_dealer',
+        Byte('backlight'),
+        Byte('auto_mode'),
+        Padding(1),
+        Byte('deadband'),
+        Byte('cycles_per_hour'),
+        Byte('schedule_periods'),
+        Byte('programs_enabled'),
+        Byte('temp_units'),
         Pointer(15,CString('dealer_name')),
         Pointer(35,CString('dealer_phone')),
     ),
 
-
     # zone 1
     '4002' => Struct('schedule',
-        @regdef,
         Array(7, Array(5, Struct('chunk',@schedchunk)))
     ),
     # zone 1
     '400A' => Struct('comfort_profile',
-        @regdef,
         Struct('home', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
         Struct('away', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
         Struct('sleep', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
@@ -251,32 +254,32 @@ my $parsers = {
     ),
     # zone 1
     '4012' => Struct('vacation_settings',
-        @regdef,
         Byte('min_temp'), Byte('max_temp'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown')),
     ),
 
     # MISC1
-    '4608' => Struct('insecurity', @regdef,
+    '4608' => Struct('insecurity',
         Pointer(7,CString('mac_address')),
         Pointer(27,CString('ssid')),
         Pointer(73,CString('password')),
         Pointer(142,CString('token?')),
     ),
 
-    '4609' => Struct('server', @regdef,
+    '4609' => Struct('server',
         Pointer(3,CString('cloud_host')),
         Pointer(70,CString('device_ip')),
     )
 
 };
 
-sub reg_parser {
-    my $self = shift;
+sub subparser {
     my $reg = shift;
-    $reg = uc($reg);
+    $reg = uc($reg//'');
     foreach my $key (keys %$parsers) {
         return $parsers->{$key} if $reg =~ /$key$/i;
     }
+
+    return Value("unknown",undef);
 }
 
 1;
