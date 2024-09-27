@@ -6,16 +6,18 @@ function wsu(s) {
 }
 
 var toHex = function (str) {
+    if (typeof(str)!='string') { return ""; }
     return str.split("")
-              .map(c => c.charCodeAt(0).toString(16).padStart(2, "0"))
+              .map(function(c) { return c.charCodeAt(0).toString(16).padStart(2, "0") })
               .join(" ");
 };
 
 var fromHex = function (hexstr) {
+    if (typeof(hexstr)!='string') { return ""; }
     return hexstr.replace(" ","")
                  .split(/(\w\w)/g)
-                 .filter(p => !!p)
-                 .map(c => String.fromCharCode(parseInt(c, 16)))
+                 .filter(function(p){ return !!p })
+                 .map(function(c) { return String.fromCharCode(parseInt(c, 16)) })
                  .join("")
 };
 
