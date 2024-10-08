@@ -6,7 +6,7 @@ use Try::Tiny;
 
 my %device_classes = (
 	SystemInit => 0x1F,
-    SAM=>0x92,
+	SAM => 0x92,
 	FakeSAM => 0x93,
 	Broadcast => 0xF1,
 	_default_ => $DefaultPass
@@ -52,9 +52,14 @@ my $fp = Struct("CarFrame",
   Value("as_hex", sub { unpack("H*",$_->ctx->{raw}) }),
   Value("reg_string", sub { length($_->ctx->{payload_raw})>=3 ? substr($_->ctx->{as_hex}, 18,4) : undef}),
   Value("gensum", sub { crc16(substr($_->ctx->{raw},0,-2)) }),
-  Value("valid", sub { $_->ctx->{gensum} == $_->ctx->{checksum} }),
-  Value("payload", sub { length($_->ctx->{payload_raw})<=3 ? undef
-    : subparser($_->ctx->{reg_string})->parse(substr($_->ctx->{payload_raw},3)) }),
+  Value("valid", sub { $_->ctx->{gensum} == $_->ctx->{checksum} ? 1 : 0 }),
+  Value("payload", sub {
+      return undef unless $_->ctx->{valid};
+      return undef if length($_->ctx->{payload_raw})<=3;
+      my $sp = subparser($_->ctx->{reg_string});
+      try { $sp->parse(substr($_->ctx->{payload_raw},3)) } || undef;
+  }),
+  Value("payload_hex", sub { unpack("H*", $_->ctx->{payload_raw}) }),
 
   Value("reg_name", sub {
     my $fh = $_->ctx;
@@ -76,8 +81,10 @@ around BUILDARGS => sub {
     $init_frame = shift @args if (@args == 1 && !ref $args[0]);
     $init_frame = pack("H*", $init_frame) if $init_frame =~ /^[0-9A-Fa-f]+$/;
     my $struct = { valid=>0 };
-    try { $struct = $fp->parse($init_frame); };
-    $struct = {%$struct,@args};
+    try {
+        $struct = $fp->parse($init_frame);
+        $struct = {%$struct,@args};
+    };
 
     return $class->$orig({struct=>$struct});
 };
@@ -101,7 +108,7 @@ sub frame {
     }
     $self->struct($struct);
 
-    return $self->struct->{raw};
+    return $self->struct->{valid} ? $self->struct->{raw} : undef;
 }
 
 sub frame_hex {
@@ -123,7 +130,8 @@ sub frame_log {
         $fh->{src},
         $fh->{cmd},
         $fh->{dst},
-        $fh->{reg_name}
+        $fh->{reg_name},
+        $fh->{valid}
     );
 }
 
@@ -156,7 +164,7 @@ my $parsers = {
         PaddedString('reference', 24, paddir=>'right'),
     ),
 
-    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), 0=>'Sunday', 1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday')),
+    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>6, Saturday=>6)),
 
     '0203' => Struct('date', Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
 
@@ -178,7 +186,7 @@ my $parsers = {
             Enum(Nibble('mode'), heat=>0, cool=>1, auto=>2, eheat=>3, off=>4)
         ),
         Array(2, Byte('unknown')),
-        Enum(Byte('weekday'), 0=>'Sunday', 1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday'),
+        Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>6, Saturday=>6),
         UBInt16('minutes_since_midnight'),
         Byte('displayed_zone')
     ),
@@ -210,9 +218,6 @@ my $parsers = {
         Byte('fan_mode')
     ),
 
-#3B05
-#   contains: filterlevel,uvlevel,humidifierpadelvel, reminders for all
-
     '3B05' => Struct('sam_accessories',
         Padding(3),
         Byte('filter_consumption'),
@@ -225,8 +230,6 @@ my $parsers = {
     ),
 
 
-#3B06
-# contains: deadband, dealer name, dealer phone
     '3B06' => Struct('sam_dealer',
         Byte('backlight'),
         Byte('auto_mode'),

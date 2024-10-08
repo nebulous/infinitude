@@ -8,9 +8,13 @@ has fh => (is=>'ro', isa=>sub{
         defined blessed($_[0]) and $_[0]->isa('IO::Handle');
 });
 has buffer => (is=>'rw', default=>'');
+has name => (is=>'ro', lazy=>1, default => sub {
+    return join('-',ref($_[0]->fh), int(rand()*9999));
+});
 
-use constant MAX_BUFFER => 1024;
 use constant MIN_FRAME => 10;
+use constant MAX_FRAME => 266;
+use constant MAX_BUFFER => 2*MAX_FRAME;
 
 sub BUILDARGS {
   my ( $class, @args ) = @_;
@@ -20,29 +24,32 @@ sub BUILDARGS {
   return $argref;
 };
 
+
 sub get_frame {
     my $self = shift;
+    my $string = shift;
+    $self->push_stream($string) if $string;
 
-    my $max_attempts = $self->buflen>MAX_BUFFER ? $self->buflen : MAX_BUFFER;
     my $attempts = 0;
-    while ($attempts++<$max_attempts) {
-        if ($self->buflen < MIN_FRAME) {
-            $self->fh_fill();
-            next;
-        }
+    $self->fh_fill() unless $string;
+    return unless $self->buflen >= MIN_FRAME;
+
+    while ($attempts++ < $self->buflen) {
         my $data_len = ord(substr($self->buffer,4,1));
         my $frame_len = MIN_FRAME+$data_len;
-        if ($self->buflen >= $frame_len) {
-            my $frame_string = substr($self->buffer,0,$frame_len);
-            my $cbf = CarBus::Frame->new($frame_string);
-            if ($cbf->valid) {
-                $self->shift_stream($frame_len);
-                $self->handlers($cbf);
-                return $cbf;
+        if ($self->buflen >= $frame_len ) {
+            if (my $frame_string = substr($self->buffer,0,$frame_len)) {
+                my $cbf = CarBus::Frame->new($frame_string);
+                if ($cbf->valid) {
+                    $self->shift_stream($frame_len);
+                    $self->handlers($cbf);
+                    $cbf->{busname} = $self->name;
+                    return $cbf;
+                }
             }
             $self->shift_stream(1);
         }
-        $self->fh_fill();
+        $self->fh_fill() unless $string;
     }
     return undef;
 }
@@ -51,8 +58,8 @@ sub fh_fill {
     my $self = shift;
     return unless $self->fh;
     my $buf = '';
-    my $len = $self->fh->sysread($buf, 1024);
-    $self->push_stream($buf);
+    my $len = $self->fh->sysread($buf, MAX_BUFFER-$self->buflen);
+    $self->push_stream($buf) if defined $len;
     return $len;
 }
 
@@ -80,7 +87,7 @@ sub shift_stream {
 sub write {
     my $self = shift;
     my $frame = shift;
-    $self->fh->syswrite($frame->frame);
+    $self->fh->syswrite($frame->struct->{raw});
 }
 
 sub samreq {
@@ -98,17 +105,27 @@ sub samreq {
     return $samframe;
 }
 
+has devices => (is=>'rw',default=>sub{{}});
+has registers => (is=>'rw',default=>sub{{}});
+
 sub handlers {
     my $self = shift;
     my $frame = shift;
+    my $fs = $frame->struct;
+    if (my $src = $fs->{src} and $fs->{cmd} eq 'reply') {
+        $self->devices->{$src}//={} ;
+        $self->devices->{$src}->{$fs->{reg_string}}//={  payload_hex=>$fs->{payload_hex} } if $fs->{reg_string};
+        $self->devices->{$src}->{$fs->{reg_string}}->{paylpad} = $fs->{payload} if $fs->{payload};
+    }
     # mangle frame contents;
 }
+
+
 
 package CarBus::Bridge;
 use Moo;
 
 has buslist => (is=>'ro');
-has routes => (is=>'rw', default=>sub{{}});
 
 sub drive {
     my $self = shift;
