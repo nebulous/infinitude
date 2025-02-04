@@ -1,5 +1,6 @@
 ARG BASE_IMAGE=debian:latest
-FROM ${BASE_IMAGE}
+### Build stage
+FROM ${BASE_IMAGE} AS builder
 
 COPY . /infinitude
 WORKDIR /infinitude
@@ -13,6 +14,8 @@ RUN apt-get update \
 && apt-get clean \
 && rm -rf /var/lib/apt/lists/*
 
+### Runtime stage
+FROM ${BASE_IMAGE}
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
@@ -21,6 +24,9 @@ ENV PASS_REQS="1020"
 ENV MODE="Production"
 ENV SERIAL_TTY=""
 ENV SERIAL_SOCKET=""
+
+COPY --from=builder /infinitude /infinitude
+WORKDIR /infinitude
 
 EXPOSE 3000
 
