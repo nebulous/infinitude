@@ -1,21 +1,16 @@
-ARG BASE_IMAGE=debian:latest
+ARG BASE_IMAGE=alpine:latest
 FROM ${BASE_IMAGE}
 
 COPY . /infinitude
 WORKDIR /infinitude
 
-RUN apt-get update \
-&& apt-get install -y jq locales cpanminus libchi-perl libmojolicious-perl libdatetime-perl libxml-simple-perl libtry-tiny-perl libmoo-perl libjson-perl libjson-maybexs-perl libhash-asobject-perl libdata-parsebinary-perl libdigest-crc-perl libcache-perl libtest-longstring-perl libio-pty-perl libpath-tiny-perl \
-&& cpanm -n IO::Termios \
-&& localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 \
-&& apt-get -y --purge remove cpanminus \
-&& apt autoremove -y \
-&& apt-get clean \
-&& rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache make perl-app-cpanminus perl-mojolicious perl-chi perl-datetime perl-path-tiny perl-json perl-xml-simple perl-moo perl-io-tty
+RUN cpanm -n Data::ParseBinary Digest::CRC Hash::AsObject IO::Termios
+RUN apk --purge del apk-tools make perl-app-cpanminus
 
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 ENV APP_SECRET="Pogotudinal"
 ENV PASS_REQS="1020"
 ENV MODE="Production"
