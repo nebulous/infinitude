@@ -13,8 +13,8 @@ services:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=300
       - MODE=Production
-      - SERIAL_TTY=/dev/ttyUSB0
+#      - SERIAL_TTY=/dev/ttyUSB0
 #      - SERIAL_SOCKET=192.168.1.47:23
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
+#    devices:
+#      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always
