@@ -40,6 +40,11 @@ while(1) {
         p $sam->devices;
         p $net->devices;
     }
+    if (time>$i+3) {
+        $i=time;
+        p $sam->devices;
+        p $net->devices;
+    }
 #exit if time>($start+(60*4));
 }
 
