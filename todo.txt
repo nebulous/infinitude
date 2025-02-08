@@ -1,6 +1,7 @@
 ESPHome rs485 integration which writes to table 0x40 (see https://github.com/nebulous/infinitesp)
-MQTT pub/sub 
+MQTT pub/sub
   HomeAssistant climate.mqtt implementation (likely also via infinitesp)
 Add vacation editor
-Detailed weather display with maps
 Long-term logging
+Config/log sharing
+SAMson
