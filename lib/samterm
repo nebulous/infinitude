@@ -1,0 +1,16 @@
+#!/usr/bin/perl
+use strict;
+use DDP;
+use IO::Termios;
+
+my $ser = IO::Termios->open("/dev/cu.usbserial-41120", "9600,8,n,1"); #serial
+my $crlf = "\r\n";
+
+
+while(my $input = <>) {
+    chomp $input;
+    $input = "S1BLIGHT?" unless $input;
+    $ser->write($input.$crlf);
+    print $ser->getline;
+    sleep 6;
+}

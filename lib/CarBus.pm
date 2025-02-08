@@ -11,6 +11,8 @@ has buffer => (is=>'rw', default=>'');
 has name => (is=>'ro', lazy=>1, default => sub {
     return join('-',ref($_[0]->fh), int(rand()*9999));
 });
+has devices => (is=>'rw',default=>sub{{}});
+has handlers => (is=>'rw', default=>sub{[]});
 
 use constant MIN_FRAME => 10;
 use constant MAX_FRAME => 266;
@@ -42,7 +44,7 @@ sub get_frame {
                 my $cbf = CarBus::Frame->new($frame_string);
                 if ($cbf->valid) {
                     $self->shift_stream($frame_len);
-                    $self->handlers($cbf);
+                    $self->run_handlers($cbf);
                     $cbf->{busname} = $self->name;
                     return $cbf;
                 }
@@ -105,19 +107,30 @@ sub samreq {
     return $samframe;
 }
 
-has devices => (is=>'rw',default=>sub{{}});
-has registers => (is=>'rw',default=>sub{{}});
 
-sub handlers {
+sub device_names {return [keys %{shift->devices}] }
+
+sub run_handlers {
     my $self = shift;
     my $frame = shift;
     my $fs = $frame->struct;
-    if (my $src = $fs->{src} and $fs->{cmd} eq 'reply') {
-        $self->devices->{$src}//={} ;
-        $self->devices->{$src}->{$fs->{reg_string}}//={  payload_hex=>$fs->{payload_hex} } if $fs->{reg_string};
-        $self->devices->{$src}->{$fs->{reg_string}}->{paylpad} = $fs->{payload} if $fs->{payload};
+    $self->devices->{$fs->{src}}//={} ;
+    if ($fs->{payload_hex} ne '00'.($fs->{reg_string}||'')) {
+        $self->devices->{$fs->{src}}->{$fs->{reg_string}}//={  payload_hex=>$fs->{payload_hex} } if $fs->{reg_string};
+        $self->devices->{$fs->{src}}->{$fs->{reg_string}}->{payload} = $fs->{payload} if $fs->{payload};
     }
-    # mangle frame contents;
+
+    if ($fs->{src} eq 'SAM' and $fs->{cmd} eq 'reply' and $fs->{reg_string} eq '0104') {
+        my $infop = CarBus::Frame::subparser($fs->{reg_string});
+        my $data = { %{$fs->{payload}//{}} };
+        $data->{location} = 'github/nebulous';
+        $data->{model} = 'INFINITUDE01';
+        $data->{software} = 'infinitude';
+        $frame->frame({ payload_raw=>pack("H*","000104").$infop->build($data) });
+    }
+    foreach my $handler (@{ $self->handlers }) {
+        $handler->($self, $frame);
+    }
 }
 
 
@@ -127,15 +140,24 @@ use Moo;
 
 has buslist => (is=>'ro');
 
+use DDP;
+my $c = {};
+
 sub drive {
     my $self = shift;
     my @frames = ();
     foreach my $srcbus (@{$self->buslist}) {
         if (my $frame = $srcbus->get_frame()) {
             push(@frames,$frame);
+            next if exists $srcbus->devices->{ $frame->struct->{src} } and exists $srcbus->devices->{ $frame->struct->{dst} };
             foreach my $dstbus (@{$self->buslist}) {
                 next if $srcbus == $dstbus;
-                $dstbus->write($frame);
+                my $write = 0;
+                $write ||= 'broadcast' if $frame->struct->{dst} eq 'Broadcast';
+                $write ||= 'device' if $dstbus->devices->{ $frame->struct->{dst} };
+                $write ||= 'new' unless scalar $dstbus->device_names;
+                #p $frame->struct if $write;
+                $dstbus->write($frame) if $write;
             }
         }
     }

@@ -96,7 +96,12 @@ sub valid { shift->struct->{valid} }
 
 sub frame {
     my $self = shift;
-    return undef unless $self->struct->{valid};
+    my $changes = shift // {};
+    return undef unless $self->struct->{valid} or keys %$changes;
+
+    foreach my $change (keys %$changes) {
+        $self->struct->{$change} = $changes->{$change};
+    }
 
     my $struct = $self->struct;
     $struct->{length} = length($struct->{payload_raw});
