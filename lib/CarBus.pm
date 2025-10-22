@@ -2,10 +2,15 @@ package CarBus;
 use Moo;
 use CarBus::Frame;
 use Scalar::Util qw/blessed/;
+use IO::Select;
 
 has fh => (is=>'ro', isa=>sub{
     die 'fh must be an IO::Handle or subclass thereof' unless
         defined blessed($_[0]) and $_[0]->isa('IO::Handle');
+});
+has iosel => ( is=>'ro', lazy=>1, default=>sub{
+    my $self = shift;
+    return IO::Select->new($self->fh);
 });
 has buffer => (is=>'rw', default=>'');
 has name => (is=>'ro', lazy=>1, default => sub {
@@ -59,6 +64,7 @@ sub get_frame {
 sub fh_fill {
     my $self = shift;
     return unless $self->fh;
+    return unless $self->iosel->can_read(0.05); #100 read checks per second
     my $buf = '';
     my $len = $self->fh->sysread($buf, MAX_BUFFER-$self->buflen);
     $self->push_stream($buf) if defined $len;
