@@ -135,7 +135,6 @@ sub write_register {
 }
 
 # Legacy method - now uses read_register
-# Interrogates Thermostat registers
 sub samreq {
     my $self = shift;
     my ($table, $row, $frameopts) = @_;
