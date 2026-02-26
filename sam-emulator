@@ -1,0 +1,142 @@
+#!/usr/bin/env perl
+use lib 'lib';
+use strict;
+use warnings;
+use feature ':5.10';
+use CarBus;
+use CarBus::SAM;
+use CarBus::Frame;
+use IO::Termios;
+use IO::Socket::IP;
+use Getopt::Long;
+use JSON;
+
+my $config = {
+    mode => 'monitor',
+    serial_tty => '/dev/ttyUSB0',
+    serial_socket => undef,
+    baud => '38400,8,n,1',
+    emulate => 0,
+};
+
+GetOptions($config,
+    'serial_tty=s',
+    'serial_socket=s',
+    'baud=s',
+    'mode=s',
+    'emulate',
+    'help',
+) or usage();
+
+usage() if $config->{help};
+
+sub usage {
+    say "Usage: sam-emulator [options]";
+    say "";
+    say "Options:";
+    say "  --serial_tty <device>     Serial device (default: /dev/ttyUSB0)";
+    say "  --serial_socket <host:port> TCP serial bridge";
+    say "  --baud <rate>             Baud rate (default: 38400,8,n,1)";
+    say "  --mode <mode>             Mode: monitor, emulate, bridge";
+    say "  --emulate                 Enable SAM emulation (respond to queries)";
+    say "  --help                    Show this help";
+    exit;
+}
+
+# Initialize bus connections
+my @buses;
+
+if ($config->{serial_socket}) {
+    my ($host, $port) = split ':', $config->{serial_socket};
+    push @buses, CarBus->new(
+        IO::Socket::IP->new(PeerHost => $host // 'localhost', PeerPort => $port // 23)
+    );
+}
+
+if ($config->{serial_tty} && -e $config->{serial_tty}) {
+    push @buses, CarBus->new(
+        IO::Termios->open($config->{serial_tty}, $config->{baud})
+    );
+}
+
+die "No valid bus connections" unless @buses;
+
+# Create bridge if multiple buses
+my $bridge = @buses > 1 ? CarBus::Bridge->new(buslist => \@buses) : undef;
+
+# Create SAM emulator instance (needs a bus for operations)
+my $sam = CarBus::SAM->new(bus => $buses[0]);
+
+# Set up emulation handlers if enabled
+if ($config->{emulate} || $config->{mode} eq 'emulate') {
+    setup_emulation($sam);
+}
+
+say "SAM Emulator started (mode: $config->{mode})";
+say "Buses: " . scalar(@buses);
+say "Emulation: " . ($config->{emulate} || $config->{mode} eq 'emulate' ? 'enabled' : 'disabled');
+
+# Main loop
+while (1) {
+    my @frames;
+
+    if ($bridge) {
+        @frames = $bridge->drive;
+    } else {
+        if (my $frame = $buses[0]->get_frame()) {
+            push @frames, $frame;
+        }
+    }
+
+    for my $frame (@frames) {
+        say $frame->frame_log;
+
+        # Handle SAM emulation
+        if ($config->{emulate} || $config->{mode} eq 'emulate') {
+            if (my $reply = $sam->handle_frame($frame)) {
+                say "  -> SAM reply";
+                if ($bridge) {
+                    $bridge->write($reply);
+                } else {
+                    $buses[0]->write($reply);
+                }
+            }
+        }
+    }
+
+    # Small delay to prevent busy-waiting
+    select(undef, undef, undef, 0.01);
+}
+
+sub setup_emulation {
+    my $sam = shift;
+
+    # Get parsers for building register data
+    my $state_parser = CarBus::Frame::subparser('3B02');
+
+    # Example: set up handlers for SAM registers
+    $sam->on_read('3B02', sub {
+        # Return cached sam_state or default
+        return $sam->registers->{'3B02'} // $state_parser->build({
+            active_zones => 0x01,
+            temperature => [(70) x 8],
+            humidity => [(50) x 8],
+            oat => 0x46,
+            zones_unoccupied => {
+                z1 => 0, z2 => 0, z3 => 0, z4 => 0,
+                z5 => 0, z6 => 0, z7 => 0, z8 => 0,
+            },
+            stagmode => { stage => 2, mode => 'off' },
+            weekday => 'Monday',
+            minutes_since_midnight => 480,  # 8:00 AM
+            displayed_zone => 0x01,
+        });
+    });
+
+    $sam->on_write('3B03', sub {
+        my $value = shift;
+        # Handle zone configuration write
+        $sam->registers->{'3B03'} = $value;
+        say "  -> Zone config updated";
+    });
+}
