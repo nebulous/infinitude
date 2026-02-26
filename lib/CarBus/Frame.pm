@@ -168,81 +168,6 @@ my $parsers = {
 
     '0203' => Struct('date', Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
 
-
-    # SAMINFO
-    '3B02' => Struct('sam_state',
-        Byte('active_zones'),
-        Padding(2),
-        Array(8, Byte('temperature')),
-        Array(8, Byte('humidity')),
-        Padding(1),
-        Byte('oat'),
-        BitStruct('zones_unoccupied',
-            Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
-            Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
-        ),
-        BitStruct('stagmode',
-            Nibble('stage'),
-            Enum(Nibble('mode'), heat=>0, cool=>1, auto=>2, eheat=>3, off=>4)
-        ),
-        Array(2, Byte('unknown')),
-        Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>6, Saturday=>6),
-        UBInt16('minutes_since_midnight'),
-        Byte('displayed_zone')
-    ),
-
-    '3B03' => Struct('sam_zones',
-        Byte('active_zones'),
-        Padding(2),
-        Array(8, Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0 )),
-        BitStruct('zones_holding',
-            Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
-            Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
-        ),
-        Array(8, Byte('heat_setpoint')),
-        Array(8, Byte('cool_setpoint')),
-        Array(8, Byte('humidity_setpoint')),
-        Byte('speed_controlled_fan'),
-        Byte('hold_timer'),
-        Array(8, UBInt16('hold_duration')),
-        Array(8, Field('zone_name', 12))
-    ),
-
-    '3B04' => Struct('sam_vacation',
-        Byte('active'),
-        UBInt16('hours'),
-        Byte('min_temp'),
-        Byte('max_temp'),
-        Byte('min_humidity'),
-        Byte('max_humidity'),
-        Byte('fan_mode')
-    ),
-
-    '3B05' => Struct('sam_accessories',
-        Padding(3),
-        Byte('filter_consumption'),
-        Byte('uv_consumption'),
-        Byte('humidifier_consumption'),
-
-        Enum(Byte('filter_reminders'), off=>0, on=>1),
-        Enum(Byte('uv_reminders'), off=>0, on=>1),
-        Enum(Byte('humidifier_reminders'), off=>0, on=>1),
-    ),
-
-
-    '3B06' => Struct('sam_dealer',
-        Byte('backlight'),
-        Byte('auto_mode'),
-        Padding(1),
-        Byte('deadband'),
-        Byte('cycles_per_hour'),
-        Byte('schedule_periods'),
-        Byte('programs_enabled'),
-        Byte('temp_units'),
-        Pointer(15,CString('dealer_name')),
-        Pointer(35,CString('dealer_phone')),
-    ),
-
     # zone 1
     '4002' => Struct('schedule',
         Array(7, Array(5, Struct('chunk',@schedchunk)))
@@ -283,6 +208,12 @@ sub subparser {
     }
 
     return Value("unknown",undef);
+}
+
+# Allow device modules to register their parsers
+sub register_parser {
+    my ($class, $reg_pattern, $parser) = @_;
+    $parsers->{$reg_pattern} = $parser;
 }
 
 1;

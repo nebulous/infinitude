@@ -90,19 +90,45 @@ sub write {
     $self->fh->syswrite($frame->struct->{raw});
 }
 
+# Generic read - works for any device
+sub read_register {
+    my $self = shift;
+    my ($dst, $table, $row, $opt) = @_;
+    $opt //= {};
+    my $frame = CarBus::Frame->new(
+        src     => $opt->{src} // 'FakeSAM',
+        src_bus => $opt->{src_bus} // 1,
+        dst     => $dst,
+        dst_bus => $opt->{dst_bus} // 1,
+        cmd     => 'read',
+        payload_raw => pack("C*", 0, $table, $row),
+    );
+    $self->write($frame);
+    return $frame;
+}
+
+# Generic write - works for any device
+sub write_register {
+    my $self = shift;
+    my ($dst, $table, $row, $value, $opt) = @_;
+    $opt //= {};
+    my $frame = CarBus::Frame->new(
+        src     => $opt->{src} // 'FakeSAM',
+        src_bus => $opt->{src_bus} // 1,
+        dst     => $dst,
+        dst_bus => $opt->{dst_bus} // 1,
+        cmd     => 'write',
+        payload_raw => pack("C*", 0, $table, $row) . $value,
+    );
+    $self->write($frame);
+    return $frame;
+}
+
+# Legacy method - now uses read_register
 sub samreq {
     my $self = shift;
     my ($table, $row, $frameopts) = @_;
-    $frameopts //= {};
-    my $samframe = CarBus::Frame->new(
-        src=>'FakeSAM', src_bus=>1,
-        dst=>'Thermostat', dst_bus=>1,
-        cmd=>'read',
-        payload_raw=>pack("C*", 0, $table, $row),
-        %$frameopts
-    );
-    $self->write($samframe);
-    return $samframe;
+    return $self->read_register('Thermostat', $table, $row, $frameopts);
 }
 
 has devices => (is=>'rw',default=>sub{{}});
