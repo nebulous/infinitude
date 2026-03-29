@@ -13,6 +13,23 @@ has store => (is => 'ro', default => sub {
 });
 has handlers => (is => 'ro', default => sub { {} });
 
+# Device identity configuration - customize how the emulator identifies itself
+# Set clone_mode => 1 to copy real SAM's device info for exact byte-for-byte comparison
+has clone_mode => (is => 'ro', default => 0);
+
+# Custom device identity (used when clone_mode is 0)
+# Override these to customize the emulated SAM's identity
+has device_identity => (is => 'ro', default => sub {
+    {
+        device    => 'SYSTEM ACCESS MODULE',
+        location  => '',
+        software  => 'infinitude',
+        model     => 'INFINITUDE01',
+        serial    => '000000000001',
+        reference => 'infinitude-sam-emulator',
+    }
+});
+
 # Register storage - backed by CHI store
 sub registers {
     my $self = shift;
@@ -44,15 +61,8 @@ sub initialize_defaults {
     my $state_parser = CarBus::Frame::subparser('3B02');
     my $zones_parser = CarBus::Frame::subparser('3B03');
 
-    # Register 0104 - Device info
-    $self->set_register('0104', $device_info_parser->build({
-        device    => 'SYSTEM ACCESS MODULE',
-        location  => '',
-        software  => 'infinitude',
-        model     => 'INFINITUDE01',
-        serial    => '000000000001',
-        reference => 'infinitude-sam-emulator',
-    }));
+    # Register 0104 - Device info (uses configured device_identity)
+    $self->set_register('0104', $device_info_parser->build($self->device_identity));
 
     # Register 030D - SAM status
     $self->set_register('030D', $sam_status_parser->build({
