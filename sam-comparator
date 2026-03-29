@@ -17,6 +17,7 @@ my $config = {
     baud => '38400,8,n,1',
     verbose => 0,
     compare_only => 0,  # If set, only log comparisons, don't show all traffic
+    clone => 0,        # If set, emulator mimics real SAM identity for byte-for-byte comparison
 };
 
 GetOptions($config,
@@ -25,6 +26,7 @@ GetOptions($config,
     'baud=s',
     'verbose',
     'compare_only',
+    'clone',
     'help',
 ) or usage();
 
@@ -41,6 +43,7 @@ sub usage {
     say "  --baud <rate>                 Baud rate (default: 38400,8,n,1)";
     say "  --verbose                     Show all traffic, not just comparisons";
     say "  --compare_only                Only show SAM comparison results";
+    say "  --clone                        Emulator mimics real SAM identity for byte-for-byte comparison";
     say "  --help                        Show this help";
     say "";
     say "Architecture:";
@@ -74,6 +77,15 @@ my $bridge = CarBus::Bridge->new(buslist => [$net_bus, $sam_bus]);
 # Create emulated SAM (isolated - not on any bus)
 my $emulated_sam = CarBus::SAM->new(bus => $net_bus);  # bus only used for convenience methods
 $emulated_sam->initialize_defaults();
+
+# Clone mode: capture real SAM's device identity for exact comparison
+my $clone_mode = $config->{clone};
+my $real_device_identity;
+
+if ($clone_mode) {
+    say "[CLONE] Clone mode enabled - will capture real SAM device identity";
+    say "[CLONE] Emulator will mimic real SAM for byte-for-byte comparison";
+}
 
 # Track pending queries and their real SAM responses
 my %pending_queries;  # key = "$src:$reg_string", value = { query_frame, emulated_response, timestamp }
@@ -147,8 +159,30 @@ while (1) {
 
         # Check for SAM responses
         if ($src eq 'SAM' && $cmd eq 'reply') {
-            # Find matching query
             my $reg = $fs->{reg_string};
+
+            # Clone mode: capture real SAM's device identity for 0104
+            if ($clone_mode && $reg eq '0104' && !$real_device_identity) {
+                # Parse the real SAM's device identity
+                my $parser = CarBus::Frame::subparser('0104');
+                my $real_data = $fs->{payload_raw};
+                my $parsed = $parser->parse($real_data);
+
+                if ($parsed) {
+                    $real_device_identity = $parsed;
+                    say "[CLONE] Captured real SAM device identity:";
+                    say "  Device:   " . ($parsed->{device} // 'unknown');
+                    say "  Model:   " . ($parsed->{model} // 'unknown');
+                    say "  Serial:  " . ($parsed->{serial} // 'unknown');
+                    say "  Software: " . ($parsed->{software} // 'unknown');
+
+                    # Update emulator to use real SAM's identity
+                    $emulated_sam->device_identity($parsed);
+                    say "[CLONE] Emulator now mimics real SAM identity";
+                }
+            }
+
+            # Find matching query
             my $query_key_prefix = "Thermostat:$reg:";  # Could be read or write
 
             # Try to find pending query
