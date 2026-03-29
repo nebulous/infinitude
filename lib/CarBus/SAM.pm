@@ -13,6 +13,24 @@ has store => (is => 'ro', default => sub {
 });
 has handlers => (is => 'ro', default => sub { {} });
 
+# Register storage - backed by CHI store
+sub registers {
+    my $self = shift;
+    return $self->store->get('registers') // {};
+}
+
+sub set_register {
+    my ($self, $key, $value) = @_;
+    my $regs = $self->registers;
+    $regs->{$key} = $value;
+    $self->store->set('registers', $regs);
+}
+
+sub get_register {
+    my ($self, $key) = @_;
+    return $self->registers->{$key};
+}
+
 # Real SAM device info (observed from SYSTXCCSAM01)
 # device:    "SYSTEM ACCESS MODULE"
 # software:  "CESR131379-03"
