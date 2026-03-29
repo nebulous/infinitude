@@ -200,7 +200,7 @@ sub _handle_read {
 
     # Try uppercase first (handler key), then lowercase (reg_string style)
     my $handler = $self->handlers->{$reg_key}->{read} // $self->handlers->{lc($reg_key)}->{read};
-    my $data = $handler ? $handler->() : ($self->registers->{$reg_key} // $self->registers->{lc($reg_key)});
+    my $data = $handler ? $handler->() : ($self->get_register($reg_key) // $self->get_register(lc($reg_key)));
 
     return unless defined $data;
 
