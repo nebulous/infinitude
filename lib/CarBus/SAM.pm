@@ -31,6 +31,69 @@ sub get_register {
     return $self->registers->{$key};
 }
 
+# Initialize default register values if store is empty
+sub initialize_defaults {
+    my $self = shift;
+
+    # Skip if registers already exist
+    return if $self->store->get('registers');
+
+    # Get parsers for building register data
+    my $device_info_parser = CarBus::Frame::subparser('0104');
+    my $sam_status_parser = CarBus::Frame::subparser('030D');
+    my $state_parser = CarBus::Frame::subparser('3B02');
+    my $zones_parser = CarBus::Frame::subparser('3B03');
+
+    # Register 0104 - Device info
+    $self->set_register('0104', $device_info_parser->build({
+        device    => 'SYSTEM ACCESS MODULE',
+        location  => '',
+        software  => 'infinitude',
+        model     => 'INFINITUDE01',
+        serial    => '000000000001',
+        reference => 'infinitude-sam-emulator',
+    }));
+
+    # Register 030D - SAM status
+    $self->set_register('030D', $sam_status_parser->build({
+        val1 => 61, val2 => 62, val3 => 63,
+        reserved1 => 0, reserved2 => 0, reserved3 => 0, reserved4 => 0,
+    }));
+
+    # Register 3B02 - System state
+    $self->set_register('3B02', $state_parser->build({
+        active_zones => 0x01,
+        temperature => [(70) x 8],
+        humidity => [(50) x 8],
+        oat => 70,
+        zones_unoccupied => {
+            z1 => 0, z2 => 0, z3 => 0, z4 => 0,
+            z5 => 0, z6 => 0, z7 => 0, z8 => 0,
+        },
+        stagmode => { stage => 0, mode => 'off' },
+        weekday => 'Monday',
+        minutes_since_midnight => 480,
+        displayed_zone => 1,
+    }));
+
+    # Register 3B03 - Zone settings
+    $self->set_register('3B03', $zones_parser->build({
+        active_zones => 0x01,
+        fan_mode => [(0) x 8],  # auto
+        zones_holding => {
+            z1 => 0, z2 => 0, z3 => 0, z4 => 0,
+            z5 => 0, z6 => 0, z7 => 0, z8 => 0,
+        },
+        heat_setpoint => [(68) x 8],
+        cool_setpoint => [(76) x 8],
+        humidity_setpoint => [(50) x 8],
+        speed_controlled_fan => 0,
+        hold_timer => 0,
+        hold_duration => [(0) x 8],
+        zone_name => [map { "Zone $_\0" . ("\0" x (12 - length("Zone $_") - 1)) } 1..8],
+    }));
+}
+
 # Real SAM device info (observed from SYSTXCCSAM01)
 # device:    "SYSTEM ACCESS MODULE"
 # software:  "CESR131379-03"
