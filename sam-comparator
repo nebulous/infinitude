@@ -1,0 +1,219 @@
+#!/usr/bin/env perl
+use lib 'lib';
+use strict;
+use warnings;
+use feature ':5.10';
+use CarBus;
+use CarBus::SAM;
+use CarBus::Frame;
+use IO::Termios;
+use IO::Socket::IP;
+use Getopt::Long;
+use Data::Dumper;
+
+my $config = {
+    network_bridge => '192.168.1.23:23',
+    serial_sam => '/dev/cu.usbserial-A7039O5',
+    baud => '38400,8,n,1',
+    verbose => 0,
+    compare_only => 0,  # If set, only log comparisons, don't show all traffic
+};
+
+GetOptions($config,
+    'network_bridge=s',
+    'serial_sam=s',
+    'baud=s',
+    'verbose',
+    'compare_only',
+    'help',
+) or usage();
+
+usage() if $config->{help};
+
+sub usage {
+    say "Usage: sam-comparator [options]";
+    say "";
+    say "Compares real SAM responses with emulated SAM responses.";
+    say "";
+    say "Options:";
+    say "  --network_bridge <host:port>  TCP bridge to real bus (default: 192.168.1.23:23)";
+    say "  --serial_sam <device>         Serial port with real SAM (default: /dev/cu.usbserial-A7039O5)";
+    say "  --baud <rate>                 Baud rate (default: 38400,8,n,1)";
+    say "  --verbose                     Show all traffic, not just comparisons";
+    say "  --compare_only                Only show SAM comparison results";
+    say "  --help                        Show this help";
+    say "";
+    say "Architecture:";
+    say "  Thermostat <--bus--> Real SAM (serial)";
+    say "                   |";
+    say "                   +--> Emulated SAM (isolated, responses trapped)";
+    exit;
+}
+
+# Connect to network bridge (real bus)
+my ($host, $port) = split ':', $config->{network_bridge};
+my $net_bus = CarBus->new(
+    IO::Socket::IP->new(PeerHost => $host // 'localhost', PeerPort => $port // 23)
+);
+say "Connected to network bridge at $host:$port";
+
+# Connect to real SAM via serial
+my $sam_bus;
+if (-e $config->{serial_sam}) {
+    $sam_bus = CarBus->new(
+        IO::Termios->open($config->{serial_sam}, $config->{baud})
+    );
+    say "Connected to real SAM at $config->{serial_sam}";
+} else {
+    die "Serial SAM device not found: $config->{serial_sam}";
+}
+
+# Create bridge between network and real SAM (emulator is NOT on bridge)
+my $bridge = CarBus::Bridge->new(buslist => [$net_bus, $sam_bus]);
+
+# Create emulated SAM (isolated - not on any bus)
+my $emulated_sam = CarBus::SAM->new(bus => $net_bus);  # bus only used for convenience methods
+$emulated_sam->initialize_defaults();
+
+# Track pending queries and their real SAM responses
+my %pending_queries;  # key = "$src:$reg_string", value = { query_frame, emulated_response, timestamp }
+
+# Statistics
+my %stats = (
+    total_frames => 0,
+    sam_queries => 0,
+    comparisons => 0,
+    matches => 0,
+    mismatches => 0,
+    emulator_only => 0,
+);
+
+say "";
+say "Comparator running. Watching for SAM queries...";
+say "=" x 60;
+
+# Main loop
+while (1) {
+    # Drive the bridge - this forwards frames between network and real SAM
+    my @frames = $bridge->drive;
+
+    for my $frame (@frames) {
+        $stats{total_frames}++;
+        my $fs = $frame->struct;
+        my $src = $fs->{src} // 'unknown';
+        my $dst = $fs->{dst} // 'unknown';
+        my $cmd = $fs->{cmd} // 'unknown';
+        my $reg = $fs->{reg_string} // '????';
+
+        # Log all traffic if verbose
+        if ($config->{verbose} && !$config->{compare_only}) {
+            say sprintf("[%s] %s -> %s: %s %s",
+                $frame->{busname} // 'bus',
+                $src, $dst, $cmd, $fs->{reg_name} // $reg
+            );
+        }
+
+        # Check for SAM queries (read or write to SAM)
+        if (($dst eq 'SAM' || $dst eq 'FakeSAM') && ($cmd eq 'read' || $cmd eq 'write')) {
+            $stats{sam_queries}++;
+
+            # Generate query key for tracking
+            my $query_key = "$src:$reg:$cmd";
+
+            # Pass query to emulated SAM
+            my $emulated_response = $emulated_sam->handle_frame($frame);
+
+            if ($emulated_response) {
+                # Store for comparison when real response arrives
+                $pending_queries{$query_key} = {
+                    query_frame => $frame,
+                    emulated_response => $emulated_response,
+                    timestamp => time,
+                    compared => 0,
+                };
+
+                if (!$config->{compare_only}) {
+                    say sprintf("\n[QUERY] %s -> SAM: %s %s", $src, $cmd, $fs->{reg_name} // $reg);
+                }
+            } else {
+                # Emulator didn't respond (unknown register?)
+                if (!$config->{compare_only}) {
+                    say sprintf("\n[QUERY] %s -> SAM: %s %s (NO EMULATOR RESPONSE)",
+                        $src, $cmd, $fs->{reg_name} // $reg);
+                }
+                $stats{emulator_only}++;
+            }
+        }
+
+        # Check for SAM responses
+        if ($src eq 'SAM' && $cmd eq 'reply') {
+            # Find matching query
+            my $reg = $fs->{reg_string};
+            my $query_key_prefix = "Thermostat:$reg:";  # Could be read or write
+
+            # Try to find pending query
+            for my $key (keys %pending_queries) {
+                next if $pending_queries{$key}{compared};
+                next unless $key =~ /^([^:]+):$reg:/;
+
+                my $pending = $pending_queries{$key};
+                $stats{comparisons}++;
+
+                # Compare responses
+                my $real_data = $fs->{payload_raw} // '';
+                my $emu_data = $pending->{emulated_response}->struct->{payload_raw} // '';
+
+                my $match = $real_data eq $emu_data;
+
+                if ($match) {
+                    $stats{matches}++;
+                    say sprintf("\n[MATCH] %s", $fs->{reg_name} // $reg);
+                } else {
+                    $stats{mismatches}++;
+                    say sprintf("\n[MISMATCH] %s", $fs->{reg_name} // $reg);
+                    say "  Real SAM:    " . unpack("H*", $real_data);
+                    say "  Emulated:    " . unpack("H*", $emu_data);
+
+                    # Show parsed data if available
+                    if ($fs->{payload}) {
+                        $Data::Dumper::Indent = 0;
+                        $Data::Dumper::Terse = 1;
+                        say "  Real parsed: " . Dumper($fs->{payload});
+                    }
+                    my $emu_parsed = $pending->{emulated_response}->struct->{payload};
+                    if ($emu_parsed) {
+                        say "  Emu parsed:  " . Dumper($emu_parsed);
+                    }
+                }
+
+                $pending->{compared} = 1;
+                delete $pending_queries{$key};
+                last;
+            }
+        }
+    }
+
+    # Clean up old pending queries (older than 5 seconds)
+    my $now = time;
+    for my $key (keys %pending_queries) {
+        if ($now - $pending_queries{$key}{timestamp} > 5) {
+            say "\n[TIMEOUT] No real SAM response for: $key" unless $config->{compare_only};
+            delete $pending_queries{$key};
+        }
+    }
+
+    # Small delay to prevent busy-waiting
+    select(undef, undef, undef, 0.01);
+}
+
+# Print stats on exit (unreachable in current loop, but here for completeness)
+END {
+    say "\n" . "=" x 60;
+    say "Comparator Statistics:";
+    say sprintf("  Total frames:    %d", $stats{total_frames});
+    say sprintf("  SAM queries:     %d", $stats{sam_queries});
+    say sprintf("  Comparisons:     %d", $stats{comparisons});
+    say sprintf("  Matches:         %d", $stats{matches});
+    say sprintf("  Mismatches:      %d", $stats{mismatches});
+    say sprintf("  Emulator misses: %d", $stats{emulator_only});
+}
