@@ -71,6 +71,7 @@ sub initialize_defaults {
             z5 => 0, z6 => 0, z7 => 0, z8 => 0,
         },
         stagmode => { stage => 0, mode => 'off' },
+        unknown => [0, 0],
         weekday => 'Monday',
         minutes_since_midnight => 480,
         displayed_zone => 1,
@@ -79,7 +80,7 @@ sub initialize_defaults {
     # Register 3B03 - Zone settings
     $self->set_register('3B03', $zones_parser->build({
         active_zones => 0x01,
-        fan_mode => [(0) x 8],  # auto
+        fan_mode => [('auto') x 8],  # auto
         zones_holding => {
             z1 => 0, z2 => 0, z3 => 0, z4 => 0,
             z5 => 0, z6 => 0, z7 => 0, z8 => 0,
