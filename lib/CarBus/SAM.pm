@@ -227,8 +227,8 @@ sub _handle_write {
     if ($handler) {
         $handler->($value);
     } else {
-        $self->registers->{$reg_key} = $value;
-        $self->registers->{lc($reg_key)} = $value;  # Store both cases for consistency
+        $self->set_register($reg_key, $value);
+        $self->set_register(lc($reg_key), $value);  # Store both cases for consistency
     }
 
     # Send ack reply
