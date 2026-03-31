@@ -1,3 +1,27 @@
+# SAM Comparator Structured Logging Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace all sam-comparator STDOUT output with structured JSONL for machine-parseable all-day logging.
+
+**Architecture:** Add a `log_event()` helper that stamps each event with ISO timestamp and elapsed time, then emits `encode_json`. Replace every `say` call with `log_event()` invocations. Remove `--verbose`/`--compare_only` flags. Single file change to `sam-comparator`.
+
+**Tech Stack:** Perl, JSON module (core), Time::HiRes (already imported), POSIX::strftime (core)
+
+---
+
+### Task 1: Add imports, log helper, and startup event
+
+**Files:**
+- Modify: `sam-comparator` (top of file + startup section)
+
+This task adds the `JSON` and `POSIX` imports, the `log_event()` helper, the `$start_time` variable, and replaces the startup/connection messages with a single `startup` event.
+
+- [ ] **Step 1: Add imports and log_event helper**
+
+Replace lines 1-15 header block with:
+
+```perl
 #!/usr/bin/env perl
 use lib 'lib';
 use strict;
@@ -19,11 +43,18 @@ my $start_time = time();
 
 sub log_event {
     my ($data) = @_;
-    $data->{ts} = strftime("%Y-%m-%dT%H:%M:%S", gmtime) . sprintf(".%03dZ", int(time() * 1000) % 1000);
+    $data->{ts} = strftime("%Y-%m-%dT%H:%M:%S", gmtime) . sprintf(".%03dZ", int(($data->{_ms} // (int(time() * 1000) % 1000))));
     $data->{elapsed} = sprintf("%.3f", time() - $start_time);
+    delete $data->{_ms};
     say encode_json($data);
 }
+```
 
+- [ ] **Step 2: Remove verbose/compare_only from config defaults**
+
+In the `$config` hash (around line 17), remove `verbose` and `compare_only` keys:
+
+```perl
 my $config = {
     network_bridge => '192.168.1.23:23',
     serial_sam => '/dev/cu.usbserial-A7039O5G',
@@ -36,7 +67,13 @@ my $config = {
     ascii_enabled => 1,
     report_interval => 120,
 };
+```
 
+- [ ] **Step 3: Remove verbose/compare_only from GetOptions**
+
+In the `GetOptions` call, remove `'verbose'` and `'compare_only'`:
+
+```perl
 GetOptions($config,
     'network_bridge=s',
     'serial_sam=s',
@@ -50,13 +87,13 @@ GetOptions($config,
     'report_interval=i',
     'help',
 ) or usage();
+```
 
-usage() if $config->{help};
+- [ ] **Step 4: Update usage() text**
 
-#the goal is to be rid of the physical SAM, and the comparator script is intended to observe the physical SAM's behavior and compare its inputs and outputs to our emulator. emulator should be sent all frames that the real
-#sam is sent. the comparator script should also observe, compare and learn from, all frames sent from the SAM and from the emulator until they are comparable. frames sent from the emulator in this mode will not be sent to the bus, just
-#used for comparison.
+Remove the "Display Options" section lines (`--verbose`, `--compare_only`) from the `usage()` subroutine. The "Display Options" section becomes just `--report_interval`, `--clone`, and `--help`:
 
+```perl
 sub usage {
     say "Usage: sam-comparator [options]";
     say "";
@@ -92,7 +129,13 @@ sub usage {
     say "                           +--> Emulated SAM (isolated, learning)";
     exit;
 }
+```
 
+- [ ] **Step 5: Replace connection messages with startup event**
+
+Replace lines 91-180 (connection setup through "Comparator running") with startup-event-emitting code. The key change: remove all the `say` calls for connection messages, and instead emit a single `startup` event after everything is initialized:
+
+```perl
 # --- Connect to ABCD bus ---
 
 my ($host, $port) = split ':', $config->{network_bridge};
@@ -154,46 +197,36 @@ log_event({
     known_registers     => [sort @{$emulated_sam->known_registers()}],
     emulator_defaults_loaded => 1,
 });
+```
 
-# --- State tracking ---
+Remove the `Data::Dumper` import (line 14) since it is no longer needed.
 
-my $clone_mode = $config->{clone};
-my $real_device_identity;
+- [ ] **Step 6: Verify the script parses**
 
-my %pending_queries;
-my %stats = (
-    total_frames => 0,
-    sam_queries => 0,
-    comparisons => 0,
-    matches => 0,
-    mismatches => 0,
-    emulator_only => 0,
-    ascii_commands => 0,
-    ascii_timeouts => 0,
-    ascii_responses => 0,
-    learned_registers => 0,
-);
+Run: `perl -I lib -I ~/perl5/lib/perl5 -c sam-comparator`
+Expected: `sam-comparator syntax OK` (it will fail on missing modules if run without hardware, but syntax check should pass)
 
-my %register_coverage;  # reg => { real_hits, emu_hits, mismatches }
+- [ ] **Step 7: Commit**
 
-# ASCII stimulation state
-my $sam_sync_count = 0;
-my $ASCII_SYNC_THRESHOLD = 10;
-my $ascii_done = 0;              # 1 once BLIGHT ON ACK'd
-my $ascii_post_start = 0;        # timestamp when ASCII cmd was accepted
-my $last_frame_time = time();    # updated every frame
-my $last_idle_time = time();     # updated when no frames in a loop cycle
-my $ascii_pending = 0;           # 1 when we've sent a command and are awaiting response
-my $ascii_send_time = 0;         # when we last sent an ASCII command
-my $ascii_buf = '';              # buffer for ASCII response
-my $ASCII_RESP_TIMEOUT = 8;     # seconds to wait for ASCII response
+```bash
+git add sam-comparator
+git commit -m "Add JSONL log_event helper, startup event, remove verbose/compare_only flags"
+```
 
-# --- Main loop ---
+---
 
-while (1) {
-    my @frames = $bridge->drive;
-    $last_idle_time = time() unless @frames;
+### Task 2: Replace main loop frame logging with JSONL events
 
+**Files:**
+- Modify: `sam-comparator` (main loop, lines ~188-308)
+
+This task replaces all the `say` calls inside the main loop's frame processing with `log_event` calls for `frame`, `comparison`, and `learn` events.
+
+- [ ] **Step 1: Replace frame processing section**
+
+Replace the entire `for my $frame (@frames)` loop body (currently lines 188-308) with:
+
+```perl
     for my $frame (@frames) {
         $stats{total_frames}++;
         $last_frame_time = time();
@@ -330,7 +363,34 @@ while (1) {
             }
         }
     }
+```
 
+- [ ] **Step 2: Verify syntax**
+
+Run: `perl -I lib -I ~/perl5/lib/perl5 -c sam-comparator`
+Expected: `sam-comparator syntax OK`
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add sam-comparator
+git commit -m "Replace main loop frame/comparison logging with JSONL events"
+```
+
+---
+
+### Task 3: Replace ASCII, stats, timeout, and shutdown sections with JSONL
+
+**Files:**
+- Modify: `sam-comparator` (ASCII section, timeout cleanup, periodic report, END block)
+
+This task replaces all remaining `say` calls with JSONL events.
+
+- [ ] **Step 1: Replace ASCII stimulus section**
+
+Replace the ASCII BLIGHT stimulus section (the `if ($ascii_sam && !$ascii_done...` block through the ASCII response check) with:
+
+```perl
     # --- ASCII BLIGHT stimulus (fire-and-forget) ---
     if ($ascii_sam && !$ascii_done && !$ascii_pending
         && $sam_sync_count >= $ASCII_SYNC_THRESHOLD
@@ -377,18 +437,18 @@ while (1) {
                 $ascii_post_start = time();
                 $stats{ascii_responses}++;
                 log_event({
-                    event      => 'ascii',
-                    phase      => 'response',
-                    attempt    => $attempt,
-                    response   => 'ACK',
-                    latency_ms => int((time() - $ascii_send_time) * 1000),
+                    event       => 'ascii',
+                    phase       => 'response',
+                    attempt     => $attempt,
+                    response    => 'ACK',
+                    latency_ms  => int((time() - $ascii_send_time) * 1000),
                 });
             } elsif ($ascii_buf ne '') {
                 log_event({
-                    event      => 'ascii',
-                    phase      => 'response',
-                    attempt    => $attempt,
-                    response   => $ascii_buf,
+                    event    => 'ascii',
+                    phase    => 'response',
+                    attempt  => $attempt,
+                    response => $ascii_buf,
                     latency_ms => int((time() - $ascii_send_time) * 1000),
                 });
             }
@@ -402,7 +462,17 @@ while (1) {
             });
         }
     }
+```
 
+- [ ] **Step 2: Remove post-ASCII logging section**
+
+Delete the entire post-ASCII traffic logging block (the `if ($ascii_done && $ascii_post_start...` section). The frame event already captures every frame with timestamps, so post-ASCII frames can be filtered by elapsed time in post-processing.
+
+- [ ] **Step 3: Replace timeout cleanup**
+
+Replace the timeout cleanup section with a silent version (no log output for timeouts — they're implicit in comparisons that never appear):
+
+```perl
     # --- Timeout cleanup ---
     my $now = time;
     for my $key (keys %pending_queries) {
@@ -410,7 +480,13 @@ while (1) {
             delete $pending_queries{$key};
         }
     }
+```
 
+- [ ] **Step 4: Replace periodic coverage report with stats event**
+
+Replace the periodic report section with:
+
+```perl
     # --- Periodic stats event ---
     state $last_report_time = 0;
     if (time - $last_report_time >= $config->{report_interval}) {
@@ -442,10 +518,13 @@ while (1) {
         });
         $last_report_time = time;
     }
+```
 
-    select(undef, undef, undef, 0.01);
-}
+- [ ] **Step 5: Replace END block with shutdown event**
 
+Replace the entire END block with:
+
+```perl
 END {
     return unless $emulated_sam && %stats;
     my %coverage_out;
@@ -470,3 +549,138 @@ END {
         known_registers    => [sort @{$emulated_sam->known_registers()}],
     });
 }
+```
+
+- [ ] **Step 6: Verify syntax**
+
+Run: `perl -I lib -I ~/perl5/lib/perl5 -c sam-comparator`
+Expected: `sam-comparator syntax OK`
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add sam-comparator
+git commit -m "Replace ASCII, stats, and shutdown output with JSONL events"
+```
+
+---
+
+### Task 4: Add JSONL smoke test
+
+**Files:**
+- Create: `t/sam-comparator-jsonl.t`
+
+This test validates that the JSONL output is valid JSON and contains expected event types, without needing real hardware.
+
+- [ ] **Step 1: Write the test**
+
+```perl
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use feature ':5.10';
+use Test::More;
+use JSON;
+
+# Test that log_event produces valid JSONL
+# We parse the output of a minimal script that uses the log_event pattern
+
+my $perl = $^X;
+my $inc = join(' ', map { "-I $_" } @INC);
+
+# Test 1: Basic JSON validity - run the script's syntax check
+my $syntax_ok = system("$perl -I lib -c sam-comparator 2>/dev/null") == 0;
+ok($syntax_ok, 'sam-comparator syntax check passes');
+
+# Test 2: Verify JSON module is importable
+require_ok('JSON');
+can_ok('JSON', 'encode_json');
+
+# Test 3: Verify log_event output format matches spec
+my $test_script = <<'ENDSCRIPT';
+use strict;
+use warnings;
+use feature ':5.10';
+use JSON;
+use POSIX qw(strftime);
+use Time::HiRes qw(time);
+
+my $start_time = time();
+
+sub log_event {
+    my ($data) = @_;
+    $data->{ts} = strftime("%Y-%m-%dT%H:%M:%S", gmtime) . sprintf(".%03dZ", int(($data->{_ms} // (int(time() * 1000) % 1000))));
+    $data->{elapsed} = sprintf("%.3f", time() - $start_time);
+    delete $data->{_ms};
+    say encode_json($data);
+}
+
+log_event({ event => 'startup', known_registers => ['0104', '3B02'] });
+log_event({ event => 'frame', src => 'Thermostat', dst => 'SAM', cmd => 'read', reg => '3B02' });
+log_event({ event => 'comparison', reg => '3B02', verdict => 'match', real_hex => 'aabb', emu_hex => 'aabb' });
+log_event({ event => 'learn', reg => '3B05', bytes => 42 });
+log_event({ event => 'ascii', phase => 'send', attempt => 1 });
+log_event({ event => 'stats', total_frames => 100 });
+log_event({ event => 'shutdown', total_frames => 1000 });
+ENDSCRIPT
+
+my $output = `$perl -e '$test_script' 2>/dev/null`;
+my @lines = grep { $_ ne '' } split /\n/, $output;
+is(scalar @lines, 7, 'log_event produces 7 JSONL lines');
+
+my @expected_events = qw(startup frame comparison learn ascii stats shutdown);
+for my $i (0..$#expected_events) {
+    my $obj = decode_json($lines[$i]);
+    is($obj->{event}, $expected_events[$i], "line $i is $expected_events[$i] event");
+    like($obj->{ts}, qr/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "line $i has ISO timestamp");
+    like($obj->{elapsed}, qr/^\d+\.\d{3}$/, "line $i has elapsed seconds");
+}
+
+# Test 4: Verify frame event has all required fields
+my $frame_obj = decode_json($lines[1]);
+is($frame_obj->{src}, 'Thermostat', 'frame event has src');
+is($frame_obj->{dst}, 'SAM', 'frame event has dst');
+is($frame_obj->{cmd}, 'read', 'frame event has cmd');
+is($frame_obj->{reg}, '3B02', 'frame event has reg');
+
+# Test 5: Verify comparison event has verdict and hex data
+my $cmp_obj = decode_json($lines[2]);
+is($cmp_obj->{verdict}, 'match', 'comparison has verdict');
+is($cmp_obj->{real_hex}, 'aabb', 'comparison has real_hex');
+is($cmp_obj->{emu_hex}, 'aabb', 'comparison has emu_hex');
+
+done_testing;
+```
+
+- [ ] **Step 2: Run the test**
+
+Run: `perl -I lib -I ~/perl5/lib/perl5 t/sam-comparator-jsonl.t`
+Expected: All tests pass
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add t/sam-comparator-jsonl.t
+git commit -m "Add JSONL smoke test for sam-comparator log output"
+```
+
+---
+
+## Self-Review Checklist
+
+**Spec coverage:**
+- startup event: Task 1 Step 5
+- frame event (every bus frame): Task 2 Step 1
+- comparison event (match/mismatch/gap): Task 2 Step 1
+- learn event: Task 2 Step 1
+- ascii event (send/response/timeout): Task 3 Step 1
+- stats event (periodic): Task 3 Step 4
+- shutdown event (END block): Task 3 Step 5
+- ISO timestamps: Task 1 Step 1 (log_event helper)
+- elapsed time: Task 1 Step 1 (log_event helper)
+- Remove --verbose/--compare_only: Task 1 Steps 2-4
+- Remove Data::Dumper import: Task 1 Step 5
+
+**Placeholder scan:** No TBDs, no TODOs, no "implement later", all code shown inline.
+
+**Type consistency:** All event types use `reg` (not `register`), `reg_name`, `verdict` consistently across tasks. `log_event` signature is `($hashref)` throughout.
