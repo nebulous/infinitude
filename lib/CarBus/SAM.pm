@@ -16,10 +16,12 @@ has handlers => (is => 'ro', default => sub { {} });
 # Device identity configuration - customize how the emulator identifies itself
 # Set clone_mode => 1 to copy real SAM's device info for exact byte-for-byte comparison
 has clone_mode => (is => 'ro', default => 0);
+has learn_mode => (is => 'ro', default => 0);
+has activity_log => (is => 'rw', default => sub { [] });
 
 # Custom device identity (used when clone_mode is 0)
 # Override these to customize the emulated SAM's identity
-has device_identity => (is => 'ro', default => sub {
+has device_identity => (is => 'rw', default => sub {
     {
         device    => 'SYSTEM ACCESS MODULE',
         location  => '',
@@ -29,6 +31,16 @@ has device_identity => (is => 'ro', default => sub {
         reference => 'infinitude-sam-emulator',
     }
 });
+
+# Update device identity (used by clone mode)
+sub set_device_identity {
+    my ($self, $identity) = @_;
+    $self->device_identity($identity);
+
+    # Rebuild register 0104 with new identity
+    my $device_info_parser = CarBus::Frame::subparser('0104');
+    $self->set_register('0104', $device_info_parser->build($identity));
+}
 
 # Register storage - backed by CHI store
 sub registers {
@@ -48,6 +60,24 @@ sub get_register {
     return $self->registers->{$key};
 }
 
+# Learn a register value from observed real SAM traffic
+sub learn_register {
+    my ($self, $reg_key, $raw_data) = @_;
+    $reg_key = lc($reg_key);
+    my $existing = $self->get_register($reg_key);
+    if (!defined $existing) {
+        $self->set_register($reg_key, $raw_data);
+        return 1;  # Learned new register
+    }
+    return 0;  # Already known
+}
+
+# Return list of registers the emulator knows about
+sub known_registers {
+    my ($self) = @_;
+    return [keys %{$self->registers}];
+}
+
 # Initialize default register values if store is empty
 sub initialize_defaults {
     my $self = shift;
@@ -65,13 +95,13 @@ sub initialize_defaults {
     $self->set_register('0104', $device_info_parser->build($self->device_identity));
 
     # Register 030D - SAM status
-    $self->set_register('030D', $sam_status_parser->build({
+    $self->set_register('030d', $sam_status_parser->build({
         val1 => 61, val2 => 62, val3 => 63,
         reserved1 => 0, reserved2 => 0, reserved3 => 0, reserved4 => 0,
     }));
 
     # Register 3B02 - System state
-    $self->set_register('3B02', $state_parser->build({
+    $self->set_register('3b02', $state_parser->build({
         active_zones => 0x01,
         temperature => [(70) x 8],
         humidity => [(50) x 8],
@@ -88,7 +118,7 @@ sub initialize_defaults {
     }));
 
     # Register 3B03 - Zone settings
-    $self->set_register('3B03', $zones_parser->build({
+    $self->set_register('3b03', $zones_parser->build({
         active_zones => 0x01,
         fan_mode => [('auto') x 8],  # auto
         zones_holding => {
@@ -103,6 +133,48 @@ sub initialize_defaults {
         hold_duration => [(0) x 8],
         zone_name => [map { "Zone $_\0" . ("\0" x (12 - length("Zone $_") - 1)) } 1..8],
     }));
+
+    # Register 3B04 - Vacation settings (default: vacation off)
+    my $vacation_parser = CarBus::Frame::subparser('3B04');
+    $self->set_register('3b04', $vacation_parser->build({
+        active => 0,
+        hours => 0,
+        min_temp => 60,
+        max_temp => 85,
+        min_humidity => 0,
+        max_humidity => 100,
+        fan_mode => 'auto',
+    }));
+
+    # Register 3B05 - Accessory life and reminders (default: all new/reset)
+    my $accessories_parser = CarBus::Frame::subparser('3B05');
+    $self->set_register('3b05', $accessories_parser->build({
+        filter_consumption => 0,
+        uv_consumption => 0,
+        humidifier_consumption => 0,
+        ventilator_consumption => 0,
+        filter_reminders => 'off',
+        uv_reminders => 'off',
+        humidifier_reminders => 'off',
+        ventilator_reminders => 'off',
+    }));
+
+    # Register 3B06 - Dealer info and configuration
+    my $dealer_parser = CarBus::Frame::subparser('3B06');
+    $self->set_register('3b06', $dealer_parser->build({
+        backlight => 8,
+        auto_mode => 1,
+        deadband => 3,
+        cycles_per_hour => 4,
+        schedule_periods => 4,
+        programs_enabled => 1,
+        temp_units => ord('F'),
+        dealer_name => '',
+        dealer_phone => '',
+    }));
+
+    # Register 3B0E - Activity flag
+    $self->set_register('3b0e', pack("C", 0));
 }
 
 # Real SAM device info (observed from SYSTXCCSAM01)
@@ -121,17 +193,34 @@ sub initialize_defaults {
 # 0x02xx - Time/date registers (0202=time, 0203=date)
 # 0x03xx - Status registers (030D appears in both SAM and thermostat)
 # 0x30xx - Unknown thermostat registers (3003, 3005, 3104)
-# 0x3Cxx - Unknown thermostat registers (3c0c, 3c0d, 3c14) - mostly return exceptions
-# 0x04xx - Sync/status registers (0420 appears after setpoint changes)
+# 0x3Cxx - Unknown registers SAM polls (3c0c, 3c0d, 3c14) — always return exception 0x04 from thermostat.
+#   These registers are NOT served by any device. They may be SAM-internal registers
+#   that a real SAM would answer to its own reads. Our emulator reads them but
+#   gets no data back. SAM queries these in bursts AFTER ASCII commands, likely
+#   to verify change propagation. See timed-override capture (2026-04-01):
+#   3C14 queried 228 times, 3C0C 159 times, 3C0D 151 times during a 3-hour run.
+#   The 54,076 exceptions in a 10.5hr passive capture are the thermostat
+#   saying "I don't serve this register." NOT a failure.
+# 0x04xx - Sync/status registers (0420 polled routinely by SAM but never observed during
+#   override/setpoint commands — likely routine background polling, not setpoint-linked)
 #
-# Note: The SAM appears to cache thermostat data in its own 3Bxx registers
-# rather than accessing thermostat registers directly.
+# Change notification flow (ASCII set commands):
+#   ASCII cmd → SAM → ACK on ASCII port
+#                → SAM updates internal register (3B06, 3B03, etc)
+#                → SAM notifies Thermostat via ABCD bus (writes 3B03 to thermostat)
+#                → Thermostat writes 3B0E (activity flag) back to SAM
+#                → Thermostat reads 0104 + 030D
+#   Config changes (BLIGHT): 3 × 3B0E, ~3s latency, ~4s total activity
+#   Zone commands (HTSP, FAN): ~11 × 3B0E, 0.7-12s latency, ~17s total activity
+#
+# Direct CarBus writes to SAM registers do NOT trigger this notification flow.
+# The SAM caches the value but does not notify the thermostat.
 
 # Register SAM parsers with Frame.pm on module load
 
 # 0104 - Device info register (read-only, 120 bytes)
 # Standard device identification: device name, software version, model, serial
-# No parser registered - handled specially by spoof_device_info if needed
+# Built from device_identity attribute in initialize_defaults()
 
 # 030D - SAM status register (read-only, 7 bytes)
 # Observed values: 61, 62, 63, 0, 0, 0, 0 (ASCII "=", ">", "?")
@@ -239,6 +328,29 @@ CarBus::Frame->add_parser('3B06', Struct('sam_dealer',
     Pointer(35, CString('dealer_phone')),# Max 18 chars (Touch: set returns NAK)
 ));
 
+# 3B0E - Thermostat activity indicator (write-only from thermostat)
+# Thermostat writes 0x01 to this register after the SAM notifies it of a change
+# via the ABCD bus (e.g., after an ASCII set command like BLIGHT!ON or HTSP!66).
+# This is the thermostat's acknowledgment that it processed the SAM's notification.
+# NOT triggered by direct CarBus writes to SAM registers — only by ASCII-initiated changes.
+#
+# Intensity varies by change type (tested 2026-03-30):
+#   System commands (BLIGHT): 3 × 3B0E in single burst, first at +3.3s
+#   Zone commands (HTSP, FAN): ~11 × 3B0E in spread bursts of 3
+#   Queued/overlapping: 20-50 compressed 3B0E writes
+#   Each burst is exactly 3 writes (triplication for reliability)
+CarBus::Frame->add_parser('3B0E', Struct('sam_activity',
+    Byte('flag'),  # Observed: 0x01
+));
+
+# 0420 - Sync/status register (20 bytes, mostly zeros)
+# NEVER observed as a SAM register in 8-command protocol test (2026-03-30).
+# This is likely a THERMOSTAT register that the SAM polls, not a SAM register.
+# Parser kept for frame decoding of thermostat-originated traffic.
+CarBus::Frame->add_parser('0420', Struct('sam_sync',
+    Array(20, Byte('data')),  # All zeros observed
+));
+
 # Set up callback handlers for emulation
 sub on_read {
     my ($self, $reg, $handler) = @_;
@@ -255,7 +367,7 @@ sub handle_frame {
     my ($self, $frame) = @_;
     my $fs = $frame->struct;
 
-    return unless $fs->{dst} eq 'SAM' || $fs->{dst} eq 'FakeSAM';
+    return unless defined $fs->{dst} && ($fs->{dst} eq 'SAM' || $fs->{dst} eq 'FakeSAM');
 
     if ($fs->{cmd} eq 'read') {
         return $self->_handle_read($frame);
@@ -270,15 +382,14 @@ sub _handle_read {
     my ($self, $frame) = @_;
     my $fs = $frame->struct;
     my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    my $reg_key = sprintf("%02X%02X", $table, $row);
+    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
 
-    # Try uppercase first (handler key), then lowercase (reg_string style)
-    my $handler = $self->handlers->{$reg_key}->{read} // $self->handlers->{lc($reg_key)}->{read};
-    my $data = $handler ? $handler->() : ($self->get_register($reg_key) // $self->get_register(lc($reg_key)));
+    my $handler = $self->handlers->{$reg_key}->{read};
+    my $data = $handler ? $handler->() : $self->get_register($reg_key);
 
     return unless defined $data;
 
-    # Build reply frame
+    # Build reply frame - prepend register address prefix
     return CarBus::Frame->new(
         src     => 'FakeSAM',
         src_bus => $fs->{dst_bus},
@@ -294,15 +405,13 @@ sub _handle_write {
     my $fs = $frame->struct;
     my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
     my $value = substr($fs->{payload_raw}, 3);
-    my $reg_key = sprintf("%02X%02X", $table, $row);
+    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
 
-    # Try uppercase first (handler key), then lowercase (reg_string style)
-    my $handler = $self->handlers->{$reg_key}->{write} // $self->handlers->{lc($reg_key)}->{write};
+    my $handler = $self->handlers->{$reg_key}->{write};
     if ($handler) {
         $handler->($value);
     } else {
         $self->set_register($reg_key, $value);
-        $self->set_register(lc($reg_key), $value);  # Store both cases for consistency
     }
 
     # Send ack reply
@@ -328,23 +437,30 @@ sub write_thermostat {
     return $self->bus->write_register('Thermostat', $table, $row, $value);
 }
 
-# Handler to spoof SAM device_info responses (register 0104)
-# Usage: push @{$bus->handlers}, \&CarBus::SAM::spoof_device_info;
-# Intercepts SAM replies and rewrites device info to identify as infinitude
-sub spoof_device_info {
-    my ($bus, $frame) = @_;
-    my $fs = $frame->struct;
+# Notify thermostat of a register change (emulates SAM's post-ASCII bus notification)
+#
+# After the real SAM accepts an ASCII command, it notifies the thermostat via
+# the ABCD bus. The thermostat responds by writing 3B0E (activity flag) back.
+# This method triggers the same notification flow from the emulator.
+sub notify_change {
+    my ($self, $reg_key) = @_;
 
-    return unless $fs->{src} eq 'SAM';
-    return unless $fs->{cmd} eq 'reply';
-    return unless $fs->{reg_string} eq '0104';
+    my $data = $self->get_register($reg_key);
+    return unless defined $data;
 
-    my $infop = CarBus::Frame::subparser($fs->{reg_string});
-    my $data = { %{$fs->{payload}//{}} };
-    $data->{location} = 'github/nebulous';
-    $data->{model} = 'INFINITUDE01';
-    $data->{software} = 'infinitude';
-    $frame->frame({ payload_raw => pack("H*", "000104") . $infop->build($data) });
+    # Parse register key into table/row bytes
+    my ($table, $row) = map { hex } $reg_key =~ /([0-9A-Fa-f]{2})/g;
+    return unless defined $table && defined $row;
+
+    # Write the register value to the thermostat via bus
+    $self->write_thermostat($table, $row, $data);
+
+    # Log the notification
+    push @{$self->activity_log}, {
+        time     => time(),
+        action   => 'notify_change',
+        register => $reg_key,
+    };
 }
 
 1;

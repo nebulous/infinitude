@@ -5,7 +5,9 @@ use Digest::CRC 'crc16';
 use Try::Tiny;
 
 my %device_classes = (
-	SystemInit => 0x1F,
+	SystemInit => 0x1F,    # Thermostat re-addressed from 0x20 during bus discovery — perhaps
+	                       # to avoid reflected messages, prevent loops, or detect other
+	                       # thermostats already occupying 0x20/0x21/…
 	SAM => 0x92,
 	FakeSAM => 0x93,
 	Broadcast => 0xF1,
@@ -68,8 +70,6 @@ my $fp = Struct("CarFrame",
     $regname = $subp->{Name}."($regname)" if $subp;
     return $regname;
   })
-
-
 );
 
 around BUILDARGS => sub {
@@ -89,7 +89,6 @@ around BUILDARGS => sub {
     return $class->$orig({struct=>$struct});
 };
 
-has parser => (is=>'ro', default=> sub { $fp });
 has struct => (is=>'rw');
 
 sub valid { shift->struct->{valid} }
@@ -146,7 +145,7 @@ my @schedchunk = (
     Value("time", sub { sprintf("%02d:%02d", int($_->ctx->{min15s}/4), 15*int($_->ctx->{min15s}%4)) }),
     );
 
-my $parsers = {
+our $parsers = {
     '01' => Struct('tabledef',
         UBInt16('type'),
         String('name', 8),
@@ -169,7 +168,7 @@ my $parsers = {
         PaddedString('reference', 24, paddir=>'right'),
     ),
 
-    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>6, Saturday=>6)),
+    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>5, Saturday=>6)),
 
     '0203' => Struct('date', Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
 
@@ -215,8 +214,8 @@ sub subparser {
     return Value("unknown",undef);
 }
 
-# Allow device modules to register their parsers
-sub register_parser {
+# Allow device modules to add their parsers
+sub add_parser {
     my ($class, $reg_pattern, $parser) = @_;
     $parsers->{$reg_pattern} = $parser;
 }
