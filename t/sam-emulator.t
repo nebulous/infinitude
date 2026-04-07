@@ -136,4 +136,38 @@ subtest 'activity_log tracking' => sub {
     is($sam->activity_log->[1]{register}, '3b03', 'second notification is 3b03');
 };
 
+# Test 11: emulated_src attribute
+subtest 'emulated_src defaults to FakeSAM' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $mock_bus = MockBusWithTracking->new;
+    my $sam = CarBus::SAM->new(
+        bus   => $mock_bus,
+        store => CHI->new(driver => 'File', root_dir => $td),
+    );
+    is($sam->emulated_src, 'FakeSAM', 'default emulated_src is FakeSAM');
+};
+
+subtest 'emulated_src configurable for real emulation' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $mock_bus = MockBusWithTracking->new;
+    my $sam = CarBus::SAM->new(
+        bus          => $mock_bus,
+        store        => CHI->new(driver => 'File', root_dir => $td),
+        emulated_src => 'SAM',
+    );
+    is($sam->emulated_src, 'SAM', 'emulated_src set to SAM');
+    $sam->initialize_defaults();
+
+    # Read reply should use SAM as source
+    my $read_frame = CarBus::Frame->new(
+        src => 'Thermostat', src_bus => 1,
+        dst => 'SAM', dst_bus => 1,
+        cmd => 'read',
+        payload_raw => "\x00\x01\x04",
+    );
+    my $reply = $sam->handle_frame($read_frame);
+    $reply->frame;
+    is($reply->struct->{src}, 'SAM', 'reply src is SAM when emulated_src is SAM');
+};
+
 done_testing();
