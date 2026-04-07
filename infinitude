@@ -248,6 +248,13 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 			$store->set('systems.xml',  $xml.'');
 			$store->set('systems.json', $xml->_as_json());
 			$store->set(changes => 'true');
+			# Route setpoint changes through RS485 if SAM emulation is active
+			if ($sam and (defined $c->req->param("htsp") or defined $c->req->param("clsp"))) {
+			    my $heat = $c->req->param("htsp") // $activity->htsp->[0];
+			    my $cool = $c->req->param("clsp") // $activity->clsp->[0];
+			    eval { $sam->set_zone_setpoint($idx + 1, $heat + 0, $cool + 0) };
+			    # If RS485 fails, we already updated XML cache above (fallback)
+			}
 			last;
 		}
 	}
