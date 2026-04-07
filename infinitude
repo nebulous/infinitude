@@ -54,16 +54,10 @@ $config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
 $config->{app_secret}    = $ENV{APP_SECRET}    || $config->{app_secret};
 $config->{pass_reqs}     = $ENV{PASS_REQS}     || $config->{pass_reqs};
 $config->{emulate_sam}   = $ENV{EMULATE_SAM}   || $config->{emulate_sam};
-$config->{mqtt_broker}   = $ENV{MQTT_BROKER}   || $config->{mqtt_broker};
-$config->{mqtt_user}     = $ENV{MQTT_USER}     || $config->{mqtt_user};
-$config->{mqtt_pass}     = $ENV{MQTT_PASS}     || $config->{mqtt_pass};
-$config->{mqtt_prefix}   = $ENV{MQTT_PREFIX}   || $config->{mqtt_prefix};
-$config->{mqtt_topic}    = $ENV{MQTT_TOPIC}    || $config->{mqtt_topic};
 
 my $handle;
 my $carbus;
 my $sam;
-my $inf;
 my $init_attempt;
 my @ws_clients;
 my $busloop_id;
@@ -107,10 +101,8 @@ sub serial_init {
         require CarBus::SAM;
         $sam = CarBus::SAM->new(bus => $carbus, emulated_src => 'SAM');
         $sam->initialize_defaults();
-        $inf->{sam} = $sam if $inf;    # keep Infinitude module in sync after reconnect
         warn "SAM emulation enabled\n";
     }
-    bus_loop_start() if $carbus;
 }
 
 sub bus_loop_start {
@@ -625,10 +617,49 @@ any '/systems/:system_id/:part' => sub {
 };
 
 websocket '/serial' => sub {
-		my $c = shift;
-		unless ($use_serial) {
-			$c->app->log->info("Websocket opened, but no streaming source is configured");
-			return;
+	my $c = shift;
+	unless ($use_serial) {
+		$c->app->log->info("Websocket opened, but no streaming source is configured");
+		return;
+	}
+
+	my $socketloop_id = Mojo::IOLoop->recurring(0.0625 => sub {
+        my $loop = shift;
+        serial_init() if (!$carbus or time>($lastframe+10));
+		if (my $frame = $carbus->get_frame) { return if (!$frame or !$frame->struct->{cmd});
+			if ($sam and my $reply = $sam->handle_frame($frame)) {
+			    $carbus->write($reply);
+			}
+			my $fstruc = $frame->frame_hash;
+			$fstruc->{timestamp} = $lastframe = time;
+            if ($fstruc->{cmd} eq 'reply') {
+                my $payf = $fstruc->{payload};
+                if ($payf) {
+                    if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
+                        $scanrow = $payf->{rows}+1;
+                        warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
+                    }
+                    $fstruc->{field} = { $fstruc->{reg_name}||'unknown' => $payf };
+                }
+            }
+
+            if ($ENV{SCAN_THERMOSTAT}) {
+                if (time>=$scansec+3) {
+                    $scansec = time;
+                    if ($scanrow > 0) {
+                        $scanrow--;
+                    }
+                    if ($scanrow == 0) {
+                        $scantab+=1;
+                        $scanrow=1;
+                        $scantab=0x01 if $scantab>0x51;
+                    }
+                    $c->log->debug(sprintf("scanning table %02x row %02x", $scantab, $scanrow));
+                    $carbus->samreq($scantab, $scanrow);
+                }
+            }
+            #warn $frame->frame_log;
+			$c->send({json=>$fstruc});
 		}
 
 		push @ws_clients, $c;
