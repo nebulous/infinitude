@@ -12,6 +12,7 @@ has store => (is => 'ro', default => sub {
     CHI->new(driver => 'File', root_dir => 'state/sam-emulator', depth => 0)
 });
 has handlers => (is => 'ro', default => sub { {} });
+has emulated_src => (is => 'ro', default => 'FakeSAM');
 
 # Device identity configuration - customize how the emulator identifies itself
 # Set clone_mode => 1 to copy real SAM's device info for exact byte-for-byte comparison
@@ -391,7 +392,7 @@ sub _handle_read {
 
     # Build reply frame - prepend register address prefix
     return CarBus::Frame->new(
-        src     => 'FakeSAM',
+        src     => $self->emulated_src,
         src_bus => $fs->{dst_bus},
         dst     => $fs->{src},
         dst_bus => $fs->{src_bus},
@@ -416,7 +417,7 @@ sub _handle_write {
 
     # Send ack reply
     return CarBus::Frame->new(
-        src     => 'FakeSAM',
+        src     => $self->emulated_src,
         src_bus => $fs->{dst_bus},
         dst     => $fs->{src},
         dst_bus => $fs->{src_bus},
@@ -428,13 +429,13 @@ sub _handle_write {
 # Convenience: read from thermostat
 sub read_thermostat {
     my ($self, $table, $row) = @_;
-    return $self->bus->read_register('Thermostat', $table, $row);
+    return $self->bus->read_register('Thermostat', $table, $row, {src => $self->emulated_src});
 }
 
 # Convenience: write to thermostat
 sub write_thermostat {
     my ($self, $table, $row, $value) = @_;
-    return $self->bus->write_register('Thermostat', $table, $row, $value);
+    return $self->bus->write_register('Thermostat', $table, $row, $value, {src => $self->emulated_src});
 }
 
 # Notify thermostat of a register change (emulates SAM's post-ASCII bus notification)
