@@ -51,9 +51,11 @@ $config->{serial_tty}    = $ENV{SERIAL_TTY}    || $config->{serial_tty};
 $config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
 $config->{app_secret}    = $ENV{APP_SECRET}    || $config->{app_secret};
 $config->{pass_reqs}     = $ENV{PASS_REQS}     || $config->{pass_reqs};
+$config->{emulate_sam}   = $ENV{EMULATE_SAM}   || $config->{emulate_sam};
 
 my $handle;
 my $carbus;
+my $sam;
 my $init_attempt;
 my $use_serial = ( (defined($config->{serial_tty})    and $config->{serial_tty})
                 or (defined($config->{serial_socket}) and $config->{serial_socket}) );
@@ -80,6 +82,12 @@ sub serial_init {
         $handle ||= IO::Socket::IP->new( PeerHost=>$host, PeerPort=>$port);
     }
     $carbus = CarBus->new($handle) if $handle;
+    if ($handle and $config->{emulate_sam}) {
+        require CarBus::SAM;
+        $sam = CarBus::SAM->new(bus => $carbus, emulated_src => 'SAM');
+        $sam->initialize_defaults();
+        warn "SAM emulation enabled\n";
+    }
 }
 serial_init();
 
@@ -423,6 +431,9 @@ websocket '/serial' => sub {
         my $loop = shift;
         serial_init() if (!$carbus or time>($lastframe+10));
 		if (my $frame = $carbus->get_frame) { return if (!$frame or !$frame->struct->{cmd});
+			if ($sam and my $reply = $sam->handle_frame($frame)) {
+			    $carbus->write($reply);
+			}
 			my $fstruc = $frame->frame_hash;
 			$fstruc->{timestamp} = $lastframe = time;
             if ($fstruc->{cmd} eq 'reply') {
