@@ -35,7 +35,7 @@ This pattern generalizes: future device modules (e.g. `CarBus::IndoorUnit`) woul
 | Layer | Methods | Purpose |
 |-------|---------|---------|
 | **State** | `get_register`, `set_register`, `initialize_defaults` | CHI-backed register storage |
-| **Bus** | `handle_frame`, `_handle_read`, `_handle_write`, `_exception_reply`, `write_thermostat`, `notify_change` | Frame processing and bus I/O |
+| **Bus** | `handle_frame`, `_handle_read`, `_handle_write`, `write_thermostat`, `notify_change` | Frame processing and bus I/O |
 | **Domain** (new) | `set_zone_setpoint`, `get_zone_setpoint`, ... | High-level control operations for external callers |
 
 Domain methods compose state and bus methods. The infinitude app only calls domain methods.
@@ -92,57 +92,6 @@ sub set_zone_setpoint {
     # rebuild the register, store it, write to thermostat, notify
 }
 ```
-
-### Exception Handling
-
-When a device on the bus reads a register the emulator doesn't serve, the emulator must send an exception reply (not silently drop the frame). Observed in real traffic: `cmd=exception`, payload byte `0x04`.
-
-Fix `_handle_read` in `CarBus::SAM`:
-
-```perl
-sub _handle_read {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
-
-    my $handler = $self->handlers->{$reg_key}->{read};
-    my $data = $handler ? $handler->() : $self->get_register($reg_key);
-
-    if (defined $data) {
-        # Known register - reply with data
-        return CarBus::Frame->new(
-            src     => 'FakeSAM',
-            src_bus => $fs->{dst_bus},
-            dst     => $fs->{src},
-            dst_bus => $fs->{src_bus},
-            cmd     => 'reply',
-            payload_raw => pack("C*", 0, $table, $row) . $data,
-        );
-    }
-
-    # Unknown register - send exception reply
-    return $self->_exception_reply($frame, 0x04);
-}
-
-sub _exception_reply {
-    my ($self, $frame, $code) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    return CarBus::Frame->new(
-        src     => 'FakeSAM',
-        src_bus => $fs->{dst_bus},
-        dst     => $fs->{src},
-        dst_bus => $fs->{src_bus},
-        cmd     => 'exception',
-        payload_raw => pack("C*", 0, $table, $row, $code),
-    );
-}
-```
-
-### Source Address
-
-`CarBus::SAM` has a configurable `emulated_src` attribute (default: `'FakeSAM'`). All reply frames and bus writes use this as the source address. When infinitude creates the SAM instance for real emulation, it passes `emulated_src => 'SAM'` (0x92). Existing tools (sam-comparator, etc.) keep the default FakeSAM (0x93) address for making arbitrary queries without being mistaken for the real SAM.
 
 ### Files Changed
 
