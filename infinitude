@@ -401,11 +401,24 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
 	my $zone = $xml->system->config->zones->zone->[$zone_id - 1];
 	my $setting = {};
-	for my $activity (@{$zone->activities->activity}) {
-	    if ($activity->id eq $activity_id) {
-	        $setting = decode_json($activity->_as_json);
-	        last;
-	    }
+	foreach my $activity (@{$zone->activities->activity}) {
+		if ($activity->id eq $c->stash('activity_id')) {
+			foreach my $set (qw/clsp htsp fan/) {
+				$activity->$set([$c->req->param($set)]) if $c->req->param($set);
+			}
+			$setting = decode_json($activity->_as_json);
+			$store->set('systems.xml',  $xml.'');
+			$store->set('systems.json', $xml->_as_json());
+			$store->set(changes => 'true');
+			# Route setpoint changes through RS485 if SAM emulation is active
+			if ($sam and (defined $c->req->param("htsp") or defined $c->req->param("clsp"))) {
+			    my $heat = $c->req->param("htsp") // $activity->htsp->[0];
+			    my $cool = $c->req->param("clsp") // $activity->clsp->[0];
+			    eval { $sam->set_zone_setpoint($idx + 1, $heat + 0, $cool + 0) };
+			    # If RS485 fails, we already updated XML cache above (fallback)
+			}
+			last;
+		}
 	}
 	$c->render(json=>$setting);
 };
