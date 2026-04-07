@@ -39,7 +39,13 @@ infinitude          # Main application entry point (Perl Mojolicious app)
 lib/
   CarBus.pm         # RS485 bus protocol handler
   CarBus/Frame.pm   # Frame parsing and validation
+  CarBus/SAM.pm     # SAM emulation and register definitions
+  CarBus/SAM/ASCII.pm # SAM ASCII serial protocol interface
+  samterm           # Interactive SAM ASCII terminal
+  cbt.pl            # CarBus test/bridge script
   XML/Simple/Minded.pm  # Custom XML parser
+docs/
+  SAM-ASCII-Protocol.md # SAM RS-232 ASCII protocol specification
 public/
   app/              # AngularJS frontend source
   dist/             # Built frontend assets
@@ -109,9 +115,11 @@ Configuration is stored in `infinitude.json` and can be overridden via environme
 | `SERIAL_SOCKET` | TCP/RS485 bridge (e.g., `192.168.1.42:23`) |
 | `LOGLEVEL` | Minimum log severity |
 | `SCAN_THERMOSTAT` | Enable continuous thermostat table scanning |
+| `EMULATE_SAM` | Enable SAM emulation on RS485 bus (1 = enabled) |
 
 ## Code Conventions
 
+- **Perl Library Path:** All Perl commands must include `-I ~/perl5/lib/perl5 -I lib` to find local modules
 - **Boilerplate:** All Perl files use `use strict`, `use warnings`, `use feature ':5.10'`
 - **OOP:** Use Moo for object-oriented programming
 - **Error Handling:** Use Try::Tiny for exceptions
@@ -156,6 +164,13 @@ The application provides a RESTish API that intercepts requests normally destine
 - HTTP only (no HTTPS) - run on trusted networks only
 - Cookie signing via APP_SECRET
 - Traffic between thermostat and Infinitude is unencrypted
+
+### SAM (System Access Module)
+- SAM has two serial interfaces:
+  - **ABCD bus side** (38400 baud, binary CarBus protocol) - connects to thermostat network
+  - **RS-232 side** (9600 baud, ASCII protocol) - for home automation integration
+- ASCII protocol documented in `docs/SAM-ASCII-Protocol.md`
+- Use `lib/samterm` for interactive SAM ASCII terminal
 
 ## Related Projects
 
