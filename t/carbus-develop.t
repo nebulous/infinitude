@@ -223,15 +223,21 @@ subtest 'SAM handle_frame read/write' => sub {
     is($reply->struct->{reg_string}, '0104', 'reply reg_string is 0104');
     is($reply->struct->{payload}{model}, 'INFINITUDE01', 'reply payload has device_identity model');
 
-    # --- Read: query unknown register returns undef
+    # --- Read: query unknown register returns exception
     my $unknown_read = CarBus::Frame->new(
         src => 'Thermostat', src_bus => 1,
         dst => 'SAM', dst_bus => 1,
         cmd => 'read',
         payload_raw => "\x00\xFF\xFF",
     );
-    my $no_reply = $sam->handle_frame($unknown_read);
-    is($no_reply, undef, 'handle_frame returns undef for unknown register read');
+    my $exc_reply = $sam->handle_frame($unknown_read);
+    ok($exc_reply, 'handle_frame returns exception reply for unknown register read');
+    $exc_reply->frame;
+    is($exc_reply->struct->{cmd}, 'exception', 'exception reply cmd is exception');
+    is($exc_reply->struct->{src}, 'FakeSAM', 'exception reply src is emulated_src');
+    is($exc_reply->struct->{dst}, 'Thermostat', 'exception reply dst is requestor');
+    is($exc_reply->struct->{reg_string}, 'ffff', 'exception reply reg_string matches request');
+    is(unpack("C", substr($exc_reply->struct->{payload_raw}, 3, 1)), 0x04, 'exception code is 0x04');
 
     # --- Write: write to 3B06
     my $new_dealer = CarBus::Frame::subparser('3B06')->build({
