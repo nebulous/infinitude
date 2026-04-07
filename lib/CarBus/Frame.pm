@@ -240,8 +240,8 @@ sub subparser {
     return Value("unknown",undef);
 }
 
-# Allow device modules to register their parsers
-sub register_parser {
+# Allow device modules to add their parsers
+sub add_parser {
     my ($class, $reg_pattern, $parser) = @_;
     $parsers->{$reg_pattern} = $parser;
 }
