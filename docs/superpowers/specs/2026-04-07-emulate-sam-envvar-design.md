@@ -140,6 +140,10 @@ sub _exception_reply {
 }
 ```
 
+### Source Address
+
+`CarBus::SAM` has a configurable `emulated_src` attribute (default: `'FakeSAM'`). All reply frames and bus writes use this as the source address. When infinitude creates the SAM instance for real emulation, it passes `emulated_src => 'SAM'` (0x92). Existing tools (sam-comparator, etc.) keep the default FakeSAM (0x93) address for making arbitrary queries without being mistaken for the real SAM.
+
 ### Files Changed
 
 | File | Change |
