@@ -170,4 +170,40 @@ subtest 'emulated_src configurable for real emulation' => sub {
     is($reply->struct->{src}, 'SAM', 'reply src is SAM when emulated_src is SAM');
 };
 
+# Test 13: set_zone_setpoint domain method
+subtest 'set_zone_setpoint' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $mock_bus = MockBusWithTracking->new;
+    my $sam = CarBus::SAM->new(
+        bus    => $mock_bus,
+        store  => CHI->new(driver => 'File', root_dir => $td),
+    );
+    $sam->initialize_defaults();
+
+    # Get current zone 1 setpoints from initialized data
+    my $zones_parser = CarBus::Frame::subparser('3B03');
+    my $old_data = $sam->get_register('3b03');
+    my $old_parsed = $zones_parser->parse($old_data);
+    is($old_parsed->{heat_setpoint}[0], 68, 'initial heat setpoint is 68');
+    is($old_parsed->{cool_setpoint}[0], 76, 'initial cool setpoint is 76');
+
+    # Set new setpoints for zone 1
+    $sam->set_zone_setpoint(1, 70, 74);
+
+    # Verify internal state updated
+    my $new_data = $sam->get_register('3b03');
+    my $new_parsed = $zones_parser->parse($new_data);
+    is($new_parsed->{heat_setpoint}[0], 70, 'heat setpoint updated to 70');
+    is($new_parsed->{cool_setpoint}[0], 74, 'cool setpoint updated to 74');
+
+    # Other zones unchanged
+    is($new_parsed->{heat_setpoint}[1], 68, 'zone 2 heat setpoint unchanged');
+
+    # Verify bus write happened
+    is(scalar(@{$mock_bus->writes}), 1, 'one bus write issued');
+    is($mock_bus->writes->[0]{dst}, 'Thermostat', 'write to Thermostat');
+    is($mock_bus->writes->[0]{table}, 0x3B, 'table is 3B');
+    is($mock_bus->writes->[0]{row}, 0x03, 'row is 03');
+};
+
 done_testing();

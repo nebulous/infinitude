@@ -453,6 +453,31 @@ sub write_thermostat {
     return $self->bus->write_register('Thermostat', $table, $row, $value, {src => $self->emulated_src});
 }
 
+# Domain method: set heat and cool setpoints for a zone
+sub set_zone_setpoint {
+    my ($self, $zone, $heat_sp, $cool_sp) = @_;
+
+    my $reg_key = '3b03';
+    my $parser = CarBus::Frame::subparser('3B03');
+    my $data = $self->get_register($reg_key);
+    return unless defined $data;
+
+    my $parsed = $parser->parse($data);
+
+    # Zone indices are 1-based in the API, 0-based in the array
+    my $idx = $zone - 1;
+    $parsed->{heat_setpoint}[$idx] = $heat_sp if defined $heat_sp;
+    $parsed->{cool_setpoint}[$idx] = $cool_sp if defined $cool_sp;
+
+    my $new_data = $parser->build($parsed);
+    $self->set_register($reg_key, $new_data);
+
+    # Notify thermostat of the change (handles bus write internally)
+    $self->notify_change($reg_key);
+
+    return 1;
+}
+
 # Notify thermostat of a register change (emulates SAM's post-ASCII bus notification)
 #
 # After the real SAM accepts an ASCII command, it notifies the thermostat via
