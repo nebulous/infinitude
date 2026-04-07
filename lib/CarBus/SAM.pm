@@ -388,17 +388,18 @@ sub _handle_read {
     my $handler = $self->handlers->{$reg_key}->{read};
     my $data = $handler ? $handler->() : $self->get_register($reg_key);
 
-    return unless defined $data;
+    if (defined $data) {
+        return CarBus::Frame->new(
+            src     => $self->emulated_src,
+            src_bus => $fs->{dst_bus},
+            dst     => $fs->{src},
+            dst_bus => $fs->{src_bus},
+            cmd     => 'reply',
+            payload_raw => pack("C*", 0, $table, $row) . $data,
+        );
+    }
 
-    # Build reply frame - prepend register address prefix
-    return CarBus::Frame->new(
-        src     => $self->emulated_src,
-        src_bus => $fs->{dst_bus},
-        dst     => $fs->{src},
-        dst_bus => $fs->{src_bus},
-        cmd     => 'reply',
-        payload_raw => pack("C*", 0, $table, $row) . $data,
-    );
+    return $self->_exception_reply($frame, 0x04);
 }
 
 sub _handle_write {
@@ -423,6 +424,20 @@ sub _handle_write {
         dst_bus => $fs->{src_bus},
         cmd     => 'reply',
         payload_raw => $fs->{payload_raw},
+    );
+}
+
+sub _exception_reply {
+    my ($self, $frame, $code) = @_;
+    my $fs = $frame->struct;
+    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
+    return CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => $fs->{dst_bus},
+        dst     => $fs->{src},
+        dst_bus => $fs->{src_bus},
+        cmd     => 'exception',
+        payload_raw => pack("C*", 0, $table, $row, $code),
     );
 }
 
