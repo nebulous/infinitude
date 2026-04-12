@@ -73,6 +73,10 @@ subtest 'notify_change sends bus write' => sub {
         package MockBusWithTracking;
         use Moo;
         has writes => (is => 'rw', default => sub { [] });
+        sub write {
+            my ($self, $frame) = @_;
+            push @{$self->writes}, $frame;
+        }
         sub write_register {
             my ($self, $dst, $table, $row, $value, $opt) = @_;
             push @{$self->writes}, {
@@ -201,9 +205,10 @@ subtest 'set_zone_setpoint' => sub {
 
     # Verify bus write happened
     is(scalar(@{$mock_bus->writes}), 1, 'one bus write issued');
-    is($mock_bus->writes->[0]{dst}, 'Thermostat', 'write to Thermostat');
-    is($mock_bus->writes->[0]{table}, 0x3B, 'table is 3B');
-    is($mock_bus->writes->[0]{row}, 0x03, 'row is 03');
+    my $write_frame = $mock_bus->writes->[0];
+    $write_frame->frame;  # finalize
+    is($write_frame->struct->{dst}, 'Thermostat', 'write to Thermostat');
+    is($write_frame->struct->{reg_string}, '3b03', 'register is 3b03');
 };
 
 done_testing();
