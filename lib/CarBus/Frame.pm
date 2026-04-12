@@ -154,7 +154,7 @@ our $parsers = {
         Array(sub { $_->ctx->{rows} },
             Struct("rowdef",
                 Byte("size"),
-                Enum(Byte("flags"), 'read'=>1, 'write'=>2,'read/write'=>3, _default_ => $DefaultPass)
+                Enum(Byte("access"), 'read'=>1, 'write'=>2,'read/write'=>3, _default_ => $DefaultPass)
             )
         )
     ),

@@ -57,6 +57,19 @@ my $handle;
 my $carbus;
 my $sam;
 my $init_attempt;
+my @ws_clients;
+my $busloop_id;
+my $scantab = 0;
+my $scanrow = 0;
+my $scansec = 0;
+my $lastframe = 0;
+my @sam_poll_regs = (
+    [0x01, 0x04], # Device info - clears thermostat's SAM comm fault flag
+    [0x30, 0x03], # Thermostat register
+    [0x30, 0x05], # Thermostat register
+);
+my $sam_poll_idx = 0;
+my $sam_poll_sec = 0;
 my $use_serial = ( (defined($config->{serial_tty})    and $config->{serial_tty})
                 or (defined($config->{serial_socket}) and $config->{serial_socket}) );
 
@@ -88,7 +101,62 @@ sub serial_init {
         $sam->initialize_defaults();
         warn "SAM emulation enabled\n";
     }
+    bus_loop_start() if $carbus;
 }
+
+sub bus_loop_start {
+    return if $busloop_id;
+    $busloop_id = Mojo::IOLoop->recurring(0.0625 => sub {
+        serial_init() if (!$carbus or time>($lastframe+10));
+        # Active SAM polling - emulate real SAM querying thermostat registers
+        if ($sam and $carbus and time >= $sam_poll_sec + 3) {
+            $sam_poll_sec = time;
+            my $reg = $sam_poll_regs[$sam_poll_idx];
+            my $poll_frame = $sam->read_thermostat($reg->[0], $reg->[1]);
+            $sam_poll_idx = ($sam_poll_idx + 1) % scalar(@sam_poll_regs);
+        }
+        if (my $frame = $carbus->get_frame) {
+            return if (!$frame or !$frame->struct->{cmd});
+            if ($sam and my $reply = $sam->handle_frame($frame)) {
+                $carbus->write($reply);
+                my $rstruc = $reply->frame_hash;
+                $rstruc->{timestamp} = time;
+                $rstruc->{emulated} = 1;
+                $_->send({json => $rstruc}) for @ws_clients;
+            }
+            my $fstruc = $frame->frame_hash;
+            $fstruc->{timestamp} = $lastframe = time;
+            if ($fstruc->{cmd} eq 'reply') {
+                my $payf = $fstruc->{payload};
+                if ($payf) {
+                    if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
+                        $scanrow = $payf->{rows}+1;
+                    }
+                    $fstruc->{field} = { $fstruc->{reg_name}||'unknown' => $payf };
+                }
+            }
+
+            if ($ENV{SCAN_THERMOSTAT}) {
+                if (time>=$scansec+3) {
+                    $scansec = time;
+                    if ($scanrow > 0) {
+                        $scanrow--;
+                    }
+                    if ($scanrow == 0) {
+                        $scantab+=1;
+                        $scanrow=1;
+                        $scantab=0x01 if $scantab>0x51;
+                    }
+                    app->log->debug(sprintf("scanning table %02x row %02x", $scantab, $scanrow));
+                    $carbus->samreq($scantab, $scanrow);
+                }
+            }
+            $_->send({json => $fstruc}) for @ws_clients;
+        }
+    });
+    warn "Bus loop started: $busloop_id\n";
+}
+
 serial_init();
 
 app->secrets([$config->{app_secret}]);
@@ -248,12 +316,18 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 			$store->set('systems.xml',  $xml.'');
 			$store->set('systems.json', $xml->_as_json());
 			$store->set(changes => 'true');
-			# Route setpoint changes through RS485 if SAM emulation is active
-			if ($sam and (defined $c->req->param("htsp") or defined $c->req->param("clsp"))) {
-			    my $heat = $c->req->param("htsp") // $activity->htsp->[0];
-			    my $cool = $c->req->param("clsp") // $activity->clsp->[0];
-			    eval { $sam->set_zone_setpoint($idx + 1, $heat + 0, $cool + 0) };
-			    # If RS485 fails, we already updated XML cache above (fallback)
+			# Route changes through RS485 if SAM emulation is active
+			if ($sam and (defined $c->req->param("htsp") or defined $c->req->param("clsp") or defined $c->req->param("fan"))) {
+			    my $heat = $c->req->param("htsp");
+			    my $cool = $c->req->param("clsp");
+			    my $fan = $c->req->param("fan");
+			    $heat += 0 if defined $heat;
+			    $cool += 0 if defined $cool;
+			    
+			    try { $sam->set_zone_setpoint($idx + 1, $heat, $cool) if defined $heat or defined $cool }
+			    catch { warn "RS485 setpoint write failed: $_" };
+			    try { $sam->set_zone_fan($idx + 1, $fan) if defined $fan }
+			    catch { warn "RS485 fan write failed: $_" };
 			}
 			last;
 		}
@@ -274,6 +348,56 @@ post '/api/samreq' => sub {
     my $frame = $carbus->samreq(hex($tab),hex($row));
     $c->log->debug("Making Virtual SAM request: register $reg table $tab and row $row\n".$frame->frame_hex);
     $c->render( json=>{ frame_hex=>$frame->frame_hex });
+};
+
+# Set system mode via RS485 (heat/cool/auto/off)
+post '/api/mode' => sub {
+    my $c = shift;
+    my $mode = $c->req->param('mode');
+    unless ($mode && $mode =~ /^(heat|cool|auto|off)$/i) {
+        return $c->render(json => { error => 'mode must be heat, cool, auto, or off' }, status => 400);
+    }
+    # Update XML cache
+    my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+    $xml->system->config->mode([$mode]);
+    $store->set('systems.xml', $xml . '');
+    $store->set('systems.json', $xml->_as_json());
+    $store->set(changes => 'true');
+    # Write to thermostat via RS485
+    if ($sam) {
+        try { $sam->set_system_mode($mode) }
+        catch { warn "RS485 mode write failed: $_" };
+    }
+    $c->render(json => { mode => $mode });
+};
+
+# Set zone hold timer via RS485 (minutes, 0 to cancel)
+post '/api/hold' => sub {
+    my $c = shift;
+    my $zone = $c->req->param('zone') // 1;
+    my $duration = $c->req->param('duration');
+    unless (defined $duration && $duration =~ /^\d+$/) {
+        return $c->render(json => { error => 'duration required (minutes, 0 to cancel)' }, status => 400);
+    }
+    if ($sam) {
+        try { $sam->set_zone_hold($zone + 0, $duration + 0) }
+        catch { warn "RS485 hold write failed: $_" };
+    }
+    $c->render(json => { zone => $zone, duration => $duration + 0 });
+};
+
+# Set backlight level via RS485
+post '/api/backlight' => sub {
+    my $c = shift;
+    my $level = $c->req->param('level');
+    unless (defined $level) {
+        return $c->render(json => { error => 'level required (on/off/2-8)' }, status => 400);
+    }
+    if ($sam) {
+        try { $sam->set_backlight($level) }
+        catch { warn "RS485 backlight write failed: $_" };
+    }
+    $c->render(json => { backlight => $level });
 };
 
 
@@ -423,64 +547,22 @@ any '/systems/:system_id/:part' => sub {
 	$c->render(text=>'', format=>'txt');
 };
 
-my $scantab = 0;
-my $scanrow = 0;
-my $scansec = 0;
-my $lastframe = 0;
 websocket '/serial' => sub {
-	my $c = shift;
-	unless ($use_serial) {
-		$c->app->log->info("Websocket opened, but no streaming source is configured");
-		return;
-	}
-
-	my $socketloop_id = Mojo::IOLoop->recurring(0.0625 => sub {
-        my $loop = shift;
-        serial_init() if (!$carbus or time>($lastframe+10));
-		if (my $frame = $carbus->get_frame) { return if (!$frame or !$frame->struct->{cmd});
-			if ($sam and my $reply = $sam->handle_frame($frame)) {
-			    $carbus->write($reply);
-			}
-			my $fstruc = $frame->frame_hash;
-			$fstruc->{timestamp} = $lastframe = time;
-            if ($fstruc->{cmd} eq 'reply') {
-                my $payf = $fstruc->{payload};
-                if ($payf) {
-                    if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
-                        $scanrow = $payf->{rows}+1;
-                        warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
-                    }
-                    $fstruc->{field} = { $fstruc->{reg_name}||'unknown' => $payf };
-                }
-            }
-
-            if ($ENV{SCAN_THERMOSTAT}) {
-                if (time>=$scansec+3) {
-                    $scansec = time;
-                    if ($scanrow > 0) {
-                        $scanrow--;
-                    }
-                    if ($scanrow == 0) {
-                        $scantab+=1;
-                        $scanrow=1;
-                        $scantab=0x01 if $scantab>0x51;
-                    }
-                    $c->log->debug(sprintf("scanning table %02x row %02x", $scantab, $scanrow));
-                    $carbus->samreq($scantab, $scanrow);
-                }
-            }
-            #warn $frame->frame_log;
-			$c->send({json=>$fstruc});
+		my $c = shift;
+		unless ($use_serial) {
+			$c->app->log->info("Websocket opened, but no streaming source is configured");
+			return;
 		}
-	});
-    $c->app->log->info("Websocket $socketloop_id Established");
 
-	$c->on('finish' => sub {
-		my ($c, $code) = @_;
-        Mojo::IOLoop->remove($socketloop_id);
-		$c->app->log->info("Websocket $socketloop_id Closed: $code");
-	});
-};
+		push @ws_clients, $c;
+		$c->app->log->info("Websocket client connected (" . scalar(@ws_clients) . " active)");
+
+		$c->on('finish' => sub {
+			my ($c, $code) = @_;
+			@ws_clients = grep { $_ != $c } @ws_clients;
+			$c->app->log->info("Websocket client disconnected: $code (" . scalar(@ws_clients) . " active)");
+		});
+	};
 
 any '/*catchall' => sub {
 	my $c = shift;

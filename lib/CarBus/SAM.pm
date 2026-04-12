@@ -6,6 +6,7 @@ use Moo;
 use Data::ParseBinary;
 use CarBus::Frame;
 use CHI;
+use Time::HiRes qw(time);
 
 has bus => (is => 'ro', required => 1);
 has store => (is => 'ro', default => sub {
@@ -25,11 +26,10 @@ has activity_log => (is => 'rw', default => sub { [] });
 has device_identity => (is => 'rw', default => sub {
     {
         device    => 'SYSTEM ACCESS MODULE',
-        location  => '',
         software  => 'infinitude',
         model     => 'INFINITUDE01',
         serial    => '000000000001',
-        reference => 'infinitude-sam-emulator',
+        reference => 'sam-emulator',
     }
 });
 
@@ -121,7 +121,13 @@ sub initialize_defaults {
     # Register 3B03 - Zone settings
     $self->set_register('3b03', $zones_parser->build({
         active_zones => 0x01,
-        fan_mode => [('auto') x 8],  # auto
+        reserved => 0,
+        change_flags => {
+            override_timer => 0, unknown_bit6 => 0, unknown_bit5 => 0,
+            system_mode => 0, cool_setpoint => 0, heat_setpoint => 0,
+            hold => 0, fan_mode => 0,
+        },
+        fan_mode => [('auto') x 8],
         zones_holding => {
             z1 => 0, z2 => 0, z3 => 0, z4 => 0,
             z5 => 0, z6 => 0, z7 => 0, z8 => 0,
@@ -130,7 +136,7 @@ sub initialize_defaults {
         cool_setpoint => [(76) x 8],
         humidity_setpoint => [(50) x 8],
         speed_controlled_fan => 0,
-        hold_timer => 0,
+        unknown => 0,
         hold_duration => [(0) x 8],
         zone_name => [map { "Zone $_\0" . ("\0" x (12 - length("Zone $_") - 1)) } 1..8],
     }));
@@ -165,15 +171,17 @@ sub initialize_defaults {
     $self->set_register('3b06', $dealer_parser->build({
         backlight => 8,
         auto_mode => 1,
+        unknown1 => 0,
         deadband => 3,
         cycles_per_hour => 4,
         schedule_periods => 4,
         programs_enabled => 1,
         temp_units => ord('F'),
-        dealer_name => '',
-        dealer_phone => '',
+        unknown2 => 0xFF,
+        unknown_padding => [1, 0, 0],
+        dealer_name => "infinitude\0\0\0\0\0\0\0\0\0\0",
+        dealer_phone => "\0" x 20,
     }));
-
     # Register 3B0E - Activity flag
     $self->set_register('3b0e', pack("C", 0));
 }
@@ -194,14 +202,13 @@ sub initialize_defaults {
 # 0x02xx - Time/date registers (0202=time, 0203=date)
 # 0x03xx - Status registers (030D appears in both SAM and thermostat)
 # 0x30xx - Unknown thermostat registers (3003, 3005, 3104)
-# 0x3Cxx - Unknown registers SAM polls (3c0c, 3c0d, 3c14) — always return exception 0x04 from thermostat.
-#   These registers are NOT served by any device. They may be SAM-internal registers
-#   that a real SAM would answer to its own reads. Our emulator reads them but
-#   gets no data back. SAM queries these in bursts AFTER ASCII commands, likely
-#   to verify change propagation. See timed-override capture (2026-04-01):
-#   3C14 queried 228 times, 3C0C 159 times, 3C0D 151 times during a 3-hour run.
-#   The 54,076 exceptions in a 10.5hr passive capture are the thermostat
-#   saying "I don't serve this register." NOT a failure.
+# 0x3Cxx - Registers the real SAM polls but no device serves (3c0c, 3c0d, 3c14).
+#   Observed from physical SAM: 54,076 exception responses in 10.5hr passive capture,
+#   3C14 queried 228 times, 3C0C 159 times, 3C0D 151 times during 3-hour run.
+#   Always returns exception 0x04 from thermostat. Likely SAM-internal registers
+#   that a real SAM would answer to its own reads. Not reimplemented in the emulator
+#   — confirmed (2026-04-10) that omitting these polls has no effect on setpoint
+#   writes or thermostat behavior.
 # 0x04xx - Sync/status registers (0420 polled routinely by SAM but never observed during
 #   override/setpoint commands — likely routine background polling, not setpoint-linked)
 #
@@ -215,7 +222,7 @@ sub initialize_defaults {
 #   Zone commands (HTSP, FAN): ~11 × 3B0E, 0.7-12s latency, ~17s total activity
 #
 # Direct CarBus writes to SAM registers do NOT trigger this notification flow.
-# The SAM caches the value but does not notify the thermostat.
+# The SAM may store the value but does not notify the thermostat.
 
 # Register SAM parsers with Frame.pm on module load
 
@@ -261,22 +268,42 @@ CarBus::Frame->add_parser('3B02', Struct('sam_state',
 ));
 
 # 3B03 - Zone settings register (read-write)
-# Contains per-zone setpoints, fan modes, hold status, and names
-# Note: zone_name is 11 chars + NUL = 12 bytes
+# Contains per-zone setpoints, fan modes, hold status, and names.
+# Same 150-byte layout for both read and write.
+#
+# Bytes 0-2 header (same meaning in both directions):
+#   byte 0: active_zones bitmask (read: which zones are active; write: which zones to apply)
+#   byte 1: reserved (always 0x00 observed)
+#   byte 2: change_flags bitmask (read: 0x00 = no pending changes;
+#           write: which fields changed — 0x01=fan, 0x02=hold, 0x04=heat,
+#           0x08=cool, 0x10=mode)
+#
+# Zone name is 11 chars + NUL = 12 bytes per zone (96 bytes total).
 # Touch: AUTO fan means continuous fan OFF; HOLD is "hold permanent"
+# Total: 3 + 8 + 1 + 8 + 8 + 8 + 1 + 1 + 16 + 96 = 150 bytes
 CarBus::Frame->add_parser('3B03', Struct('sam_zones',
     Byte('active_zones'),
-    Padding(2),
-    Array(8, Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0 )),
+    Byte('reserved'),
+    BitStruct('change_flags',
+        Flag('override_timer'),     # 0x80 hold_duration timer set/cancel
+        Flag('unknown_bit6'),       # 0x40
+        Flag('unknown_bit5'),       # 0x20
+        Flag('system_mode'),        # 0x10 mode change (write target: 3B02)
+        Flag('cool_setpoint'),      # 0x08 cool_setpoint[8]
+        Flag('heat_setpoint'),      # 0x04 heat_setpoint[8]
+        Flag('hold'),               # 0x02 zones_holding + hold_duration
+        Flag('fan_mode'),           # 0x01 fan_mode[8]
+    ),
+    Array(8, Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0)),
     BitStruct('zones_holding',           # Touch: "hold permanent" status
         Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
         Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
     ),
-    Array(8, Byte('heat_setpoint')),     # Heat setpoint per zone
-    Array(8, Byte('cool_setpoint')),     # Cool setpoint per zone
+    Array(8, Byte('heat_setpoint')),     # Heat setpoint per zone (degrees F)
+    Array(8, Byte('cool_setpoint')),     # Cool setpoint per zone (degrees F)
     Array(8, Byte('humidity_setpoint')), # Humidification target per zone (max 99%)
     Byte('speed_controlled_fan'),
-    Byte('hold_timer'),
+    Byte('unknown'),
     Array(8, UBInt16('hold_duration')),  # "Hold until" duration in minutes
     Array(8, Field('zone_name', 12))     # 11 chars max + NUL terminator
 ));
@@ -311,22 +338,25 @@ CarBus::Frame->add_parser('3B05', Struct('sam_accessories',
     Enum(Byte('ventilator_reminders'), off=>0, on=>1),
 ));
 
-# 3B06 - Dealer info and configuration register (read-write)
-# dealer_name/dealer_phone: max 18 chars each (Touch: set via online/USB only)
-# temp_units: Query returns F/C, Set uses E (English) or M (Metric)
-# Touch-specific: CFGAUTO, CFGDEAD, CFGCPH set commands return NAK
-# Touch backlight: ON=level>=3, OFF=level<=2; Set ON->Level8, OFF->Level2
+# 3B06 - Dealer info and configuration register (read-write, 52 bytes)
+# Based on infinitive TStatSettings struct (Go: 49 bytes) extended for Touch (52 bytes).
+# Touch-specific: CFGAUTO, CFGDEAD, CFGCPH set commands return NAK.
+# Touch backlight: ON=level>=3, OFF=level<=2; Set ON->Level8, OFF->Level2.
+# dealer_name/dealer_phone: max 18 chars each (Touch: set via online/USB only).
+# temp_units: Query returns F(0x46)/C(0x43), Set uses E(English)/M(Metric).
 CarBus::Frame->add_parser('3B06', Struct('sam_dealer',
-    Byte('backlight'),                   # ON/OFF (Touch: level-based)
-    Byte('auto_mode'),                   # Auto mode enabled (Touch: set returns NAK)
-    Padding(1),
-    Byte('deadband'),                    # Heat/cool deadband 0-6 (Touch: set returns NAK)
-    Byte('cycles_per_hour'),             # CPH 2-6 (Touch: set returns NAK)
-    Byte('schedule_periods'),            # Periods per day 2 or 4 (Touch: returns NAK)
-    Byte('programs_enabled'),            # Programming enabled (Touch: set returns NAK)
-    Byte('temp_units'),                  # F=English, C=Metric (set with E/M)
-    Pointer(15, CString('dealer_name')), # Max 18 chars (Touch: set returns NAK)
-    Pointer(35, CString('dealer_phone')),# Max 18 chars (Touch: set returns NAK)
+    Byte('backlight'),          # Touch: ON=level>=3, OFF=level<=2
+    Byte('auto_mode'),          # Touch: set returns NAK
+    Byte('unknown1'),           # Always 0x00
+    Byte('deadband'),           # 0-6 (Touch: set returns NAK)
+    Byte('cycles_per_hour'),    # 2-6 (Touch: set returns NAK)
+    Byte('schedule_periods'),   # 2 or 4 (Touch: set returns NAK)
+    Byte('programs_enabled'),   # Touch: set returns NAK
+    Byte('temp_units'),         # F=0x46, C=0x43
+    Byte('unknown2'),           # 0xFF observed
+    Array(3, Byte('unknown_padding')),  # 01 00 00 observed
+    Field('dealer_name', 20),   # NUL-padded, max 18 chars (Touch: NAK)
+    Field('dealer_phone', 20),  # NUL-padded, max 18 chars (Touch: NAK)
 ));
 
 # 3B0E - Thermostat activity indicator (write-only from thermostat)
@@ -368,7 +398,9 @@ sub handle_frame {
     my ($self, $frame) = @_;
     my $fs = $frame->struct;
 
-    return unless defined $fs->{dst} && ($fs->{dst} eq 'SAM' || $fs->{dst} eq 'FakeSAM');
+    unless (defined $fs->{dst} && ($fs->{dst} eq 'SAM' || $fs->{dst} eq 'FakeSAM')) {
+        return;
+    }
 
     if ($fs->{cmd} eq 'read') {
         return $self->_handle_read($frame);
@@ -450,30 +482,186 @@ sub read_thermostat {
 # Convenience: write to thermostat
 sub write_thermostat {
     my ($self, $table, $row, $value) = @_;
-    return $self->bus->write_register('Thermostat', $table, $row, $value, {src => $self->emulated_src});
+    my $frame = $self->bus->write_register('Thermostat', $table, $row, $value, {src => $self->emulated_src});
+    return $frame;
 }
 
 # Domain method: set heat and cool setpoints for a zone
+# Write protocol from infinitive (github.com/acd/infinitive):
+#   payload = [00 3B 03] + [00 00 flags] + [zone_data without active_zones prefix]
+# The thermostat's read format has 3 extra bytes (active_zones + padding) at the start,
+# but the write format uses [00 00 flags] in their place.
+# Flags: 0x01=fan, 0x02=hold, 0x04=heat, 0x08=cool, 0x10=mode (3B02)
+
+# Convert integer flag bitmask to change_flags BitStruct hashref
+# Bit order matches Data::ParseBinary BitStruct definition (MSB first):
+#   bit 7=override_timer, bit 6=unknown_bit6, bit 5=unknown_bit5,
+#   bit 4=system_mode, bit 3=cool_setpoint, bit 2=heat_setpoint,
+#   bit 1=hold, bit 0=fan_mode
+sub _int_to_change_flags {
+    my ($self, $flags) = @_;
+    return {
+        override_timer => ($flags & 0x80) ? 1 : 0,
+        unknown_bit6   => ($flags & 0x40) ? 1 : 0,
+        unknown_bit5   => ($flags & 0x20) ? 1 : 0,
+        system_mode    => ($flags & 0x10) ? 1 : 0,
+        cool_setpoint  => ($flags & 0x08) ? 1 : 0,
+        heat_setpoint  => ($flags & 0x04) ? 1 : 0,
+        hold           => ($flags & 0x02) ? 1 : 0,
+        fan_mode       => ($flags & 0x01) ? 1 : 0,
+    };
+}
+
+# Shared read-modify-write for register 3B03.
+# $flags = bitmask of what changed, $mutate = sub { my ($parsed, $idx) = @_; ... }
+sub _write_3b03 {
+    my ($self, $flags, $mutate) = @_;
+    return unless $flags;
+
+    my $data = $self->get_register('3b03');
+    return unless $data && length($data) >= 27;
+
+    my $parser = CarBus::Frame::subparser('3B03');
+    my $parsed = $parser->parse($data);
+
+    # Let caller modify parsed fields
+    $mutate->($parsed);
+
+    # Set write-mode values for the 3-byte header
+    $parsed->{active_zones} = 0;
+    $parsed->{reserved} = 0;
+    $parsed->{change_flags} = $self->_int_to_change_flags($flags);
+
+    my $full_data = $parser->build($parsed);
+
+    # Update our local cache (restore read-format values)
+    $parsed->{active_zones} = 0x01;
+    $parsed->{change_flags} = $self->_int_to_change_flags(0);
+    $self->set_register('3b03', $parser->build($parsed));
+
+    my $payload = pack("C*", 0, 0x3B, 0x03) . $full_data;
+    my $frame = CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => 1,
+        dst     => 'Thermostat',
+        dst_bus => 1,
+        cmd     => 'write',
+        payload_raw => $payload,
+    );
+    $self->bus->write($frame);
+
+    return 1;
+}
+
 sub set_zone_setpoint {
     my ($self, $zone, $heat_sp, $cool_sp) = @_;
 
-    my $reg_key = '3b03';
-    my $parser = CarBus::Frame::subparser('3B03');
-    my $data = $self->get_register($reg_key);
+    my $flags = 0;
+    $flags |= 0x04 if defined $heat_sp;
+    $flags |= 0x08 if defined $cool_sp;
+
+    my $idx = $zone - 1;
+    return $self->_write_3b03($flags, sub {
+        my ($parsed) = @_;
+        $parsed->{heat_setpoint}[$idx] = $heat_sp if defined $heat_sp;
+        $parsed->{cool_setpoint}[$idx] = $cool_sp if defined $cool_sp;
+    });
+}
+
+sub set_zone_fan {
+    my ($self, $zone, $fan_mode) = @_;
+    return unless defined $fan_mode;
+
+    # Normalize infinitude's "med" to parser's "medium"
+    my %fan_map = (med => 'medium');
+    $fan_mode = $fan_map{lc($fan_mode)} // lc($fan_mode);
+
+    my $idx = $zone - 1;
+    return $self->_write_3b03(0x01, sub {
+        my ($parsed) = @_;
+        $parsed->{fan_mode}[$idx] = $fan_mode;
+    });
+}
+
+# Domain method: set zone hold timer
+# Uses flag 0x80 (override active) — the real SAM uses the same 3B03 struct
+# with identity data in masked fields and only hold_duration set meaningfully.
+# $duration in minutes, 0 to cancel hold
+sub set_zone_hold {
+    my ($self, $zone, $duration) = @_;
+    $duration //= 0;
+
+    my $idx = $zone - 1;
+    return $self->_write_3b03(0x80, sub {
+        my ($parsed) = @_;
+        $parsed->{hold_duration}[$idx] = $duration;
+    });
+}
+
+# Domain method: set backlight level
+# NOTE: Backlight is a SAM-local setting. The real SAM propagates it via its
+# proprietary 3B03 notification blob, which the thermostat doesn't read from us.
+# Direct 3B06 writes to the thermostat are silently ignored. This is not currently
+# functional — included as a stub for future ASCII protocol integration.
+sub set_backlight {
+    my ($self, $level) = @_;
+    return unless defined $level;
+
+    # Normalize on/off to levels (Touch convention)
+    if ($level =~ /^on$/i)    { $level = 8 }
+    elsif ($level =~ /^off$/i) { $level = 2 }
+
+    my $parser = CarBus::Frame::subparser('3B06');
+    my $data = $self->get_register('3b06');
     return unless defined $data;
 
     my $parsed = $parser->parse($data);
+    $parsed->{backlight} = $level;
+    $self->set_register('3b06', $parser->build($parsed));
 
-    # Zone indices are 1-based in the API, 0-based in the array
-    my $idx = $zone - 1;
-    $parsed->{heat_setpoint}[$idx] = $heat_sp if defined $heat_sp;
-    $parsed->{cool_setpoint}[$idx] = $cool_sp if defined $cool_sp;
+    return 1;
+}
 
-    my $new_data = $parser->build($parsed);
-    $self->set_register($reg_key, $new_data);
+# Domain method: set system mode (heat/cool/auto/off)
+# Writes register 3B02 with flag 0x10 in change_flags header
+sub set_system_mode {
+    my ($self, $mode) = @_;
+    return unless defined $mode;
+    $mode = lc($mode);
 
-    # Notify thermostat of the change (handles bus write internally)
-    $self->notify_change($reg_key);
+    my $data = $self->get_register('3b02');
+    return unless defined $data;
+
+    my $parser = CarBus::Frame::subparser('3B02');
+    my $parsed = $parser->parse($data);
+
+    $parsed->{stagmode}{mode} = $mode;
+    $parsed->{stagmode}{stage} = 0;
+
+    # Set write-mode header: replace active_zones + padding with flags
+    $parsed->{active_zones} = 0;
+    # Padding(2) is skipped by parser — we handle it in the raw build
+
+    my $full_data = $parser->build($parsed);
+
+    # Overwrite the 3-byte header with [0x00, 0x00, 0x10] (write-mode flags)
+    substr($full_data, 0, 3) = pack("C*", 0, 0, 0x10);
+
+    # Update local cache (restore read-format header)
+    my $cache_data = $full_data;
+    substr($cache_data, 0, 3) = pack("C*", 0x01, 0, 0);
+    $self->set_register('3b02', $cache_data);
+
+    my $payload = pack("C*", 0, 0x3B, 0x02) . $full_data;
+    my $frame = CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => 1,
+        dst     => 'Thermostat',
+        dst_bus => 1,
+        cmd     => 'write',
+        payload_raw => $payload,
+    );
+    $self->bus->write($frame);
 
     return 1;
 }

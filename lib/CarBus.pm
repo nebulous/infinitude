@@ -96,6 +96,7 @@ sub shift_stream {
 sub write {
     my $self = shift;
     my $frame = shift;
+    $frame->frame;  # ensure raw bytes are computed
     $self->fh->syswrite($frame->struct->{raw});
 }
 
