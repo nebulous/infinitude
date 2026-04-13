@@ -72,10 +72,8 @@
         systemsEdit: null,
         systemsEdited: null,  // null=never copied, false=clean copy, true=dirty
         selectedZone: 0,
-        activeSchedulePeriods: {},  // "zi-di" -> period index or null
 
         // UI state
-        darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
         globeColor: GLOBE_LOADING,
         transferColor: '#5E5',
 
@@ -111,101 +109,18 @@
           window.addEventListener('hashchange', function() {
             self.currentRoute = window.location.hash.replace('#', '') || '/';
           });
-          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-            self.darkMode = e.matches;
-            self.rebuildGauges();
-          });
         },
 
         isActive: function(route) { return route === this.currentRoute; },
 
+        mkTime: function(input) {
+          if (input && typeof input === 'object' && Object.keys(input).length === 0) return '00:00';
+          return input;
+        },
+
+        typeofVar: function(v) { return typeof v; },
+
         equals: function(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
-
-        getCurrentActivity: function(zi) {
-          if (!this.status || !this.status.zones || !this.systemsEdit) return null;
-          var zone = this.status.zones[0].zone[zi];
-          if (!zone) return null;
-          var name = zone.currentActivity[0];
-          if (name === 'vacation') return null;
-          var editZone = this.systemsEdit.config[0].zones[0].zone[zi];
-          if (!editZone) return null;
-          return editZone.activities[0].activity.find(function(a) { return a.id === name; });
-        },
-
-        adjustSetpoint: function(zi, field, delta) {
-          var act = this.getCurrentActivity(zi);
-          if (!act) return;
-          var val = parseFloat(act[field][0]) || 0;
-          act[field][0] = (val + delta).toFixed(0);
-          this.markDirty();
-        },
-
-        setZoneFan: function(zi, fan) {
-          var act = this.getCurrentActivity(zi);
-          if (!act) return;
-          act.fan[0] = fan;
-          this.markDirty();
-        },
-
-        adjustActivitySp: function(activity, field, delta) {
-          if (!activity) return;
-          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
-          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
-          var val = parseFloat(activity[field][0]) || 0;
-          activity[field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
-          this.markDirty();
-        },
-
-        adjustVacSp: function(field, delta) {
-          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
-          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
-          var val = parseFloat(this.systemsEdit.config[0][field][0]) || 0;
-          this.systemsEdit.config[0][field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
-          this.markDirty();
-        },
-
-        getZoneTemp: function(zone) {
-          if (!zone || !zone.rt || typeof zone.rt[0] !== 'string') return '--';
-          return parseFloat(zone.rt[0]).toFixed(0);
-        },
-
-        fmtSp: function(val) {
-          return parseFloat(val).toFixed(0);
-        },
-
-        isoToLocal: function(iso) {
-          if (!iso) return '';
-          var d = new Date(iso);
-          if (isNaN(d.getTime())) return iso.replace(/:\d{2}(Z|[+-]\d{2}:?\d{2})?$/, '');
-          var pad = function(n) { return String(n).padStart(2, '0'); };
-          return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-        },
-        localToIso: function(local) {
-          if (!local) return '';
-          // Snap minutes to nearest 15
-          var m = parseInt(local.slice(14, 16));
-          var snapped = Math.round(m / 15) * 15;
-          if (snapped >= 60) snapped = 45;
-          var pad = function(n) { return String(n).padStart(2, '0'); };
-          local = local.slice(0, 14) + pad(snapped);
-          var d = new Date(local);
-          if (isNaN(d.getTime())) return local;
-          return d.toISOString().replace('.000', '');
-        },
-
-        defaultVacDates: function() {
-          var now = new Date();
-          var m = Math.ceil((now.getMinutes() + 1) / 15) * 15;
-          var start = new Date(now);
-          start.setMinutes(m, 0, 0);
-          if (m >= 60) start.setHours(start.getHours() + 1);
-          var end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-          var pad = function(n) { return String(n).padStart(2, '0'); };
-          var fmt = function(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
-          this.systemsEdit.config[0].vacstart = [fmt(start)];
-          this.systemsEdit.config[0].vacend = [fmt(end)];
-          this.markDirty();
-        },
 
         reloadData: function(userInitiated) {
           if (userInitiated && this.systemsEdited) {
@@ -228,10 +143,7 @@
                     self.systemsEdit = JSON.parse(JSON.stringify(val));
                   }
                 } else {
-                  // Only update if data actually changed to avoid unnecessary repaints
-                  if (JSON.stringify(self[key]) !== JSON.stringify(val)) {
-                    self[key] = val;
-                  }
+                  self[key] = val;
                 }
                 store[key] = val;
                 if (self.systemsEdited !== true) self.globeColor = GLOBE_CONNECTED;
@@ -245,10 +157,10 @@
 
         markDirty: function() {
           if (this.systemsEdit !== null) {
-            if (this.equals(this.systems, this.systemsEdit)) {
+            if (this.systemsEdited === null || this.equals(this.systems, this.systemsEdit)) {
               this.systemsEdited = false;
               this.globeColor = GLOBE_CONNECTED;
-            } else {
+            } else if (this.systemsEdited === false) {
               this.systemsEdited = true;
               this.globeColor = GLOBE_UNSAVED;
             }
@@ -286,7 +198,6 @@
             cls: 'LinearGauge',
             width: 80, height: 220,
             minValue: 30, maxValue: 100,
-            majorTicks: [30, 40, 50, 60, 70, 80, 90, 100],
             units: '\u00B0',
             colorBarProgress: '#0000FF',
             colorBarProgressEnd: '#FF2010'
@@ -294,7 +205,6 @@
           percentage: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 100,
-            majorTicks: [0, 20, 40, 60, 80, 100],
             units: '%',
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
@@ -302,7 +212,6 @@
           rpm: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 1200,
-            majorTicks: [0, 200, 400, 600, 800, 1000, 1200],
             units: 'RPM',
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
@@ -310,7 +219,6 @@
           cfm: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 2000,
-            majorTicks: [0, 400, 800, 1200, 1600, 2000],
             units: 'CFM',
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
@@ -318,36 +226,27 @@
           hpStage: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 5,
-            majorTicks: [0, 1, 2, 3, 4, 5],
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
           },
           ehStage: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 3,
-            majorTicks: [0, 1, 2, 3],
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
           },
           damper: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 15,
-            majorTicks: [0, 5, 10, 15],
             colorBarProgress: '#FF0000',
             colorBarProgressEnd: '#00FF00'
           }
         },
 
-        gaugeTheme: function() {
-          return this.darkMode
-            ? { plateColor: '#1a1a2e', colorPlate: '#1a1a2e', colorMajorTicks: '#aaa', colorMinorTicks: '#555', colorTitle: '#ccc', colorUnits: '#888', colorNumbers: '#aaa', colorValueText: '#eee', colorValueBoxBackground: '#0c1520', colorValueBoxShadow: false, colorNeedle: '#ddd', colorNeedleEnd: '#999', colorBarStroke: '#333' }
-            : { plateColor: '#ffffff', colorPlate: '#ffffff', colorMajorTicks: '#333', colorMinorTicks: '#bbb', colorTitle: '#333', colorUnits: '#777', colorNumbers: '#333', colorValueText: '#111', colorValueBoxBackground: '#f5f5f5', colorValueBoxShadow: false, colorNeedle: '#333', colorNeedleEnd: '#666', colorBarStroke: '#ccc' };
-        },
-
         renderGauge: function(el, value, typeName, overrides) {
           if (!el) return;
           var preset = this.gaugeTypes[typeName] || {};
-          var opts = Object.assign({}, preset, overrides || {}, this.gaugeTheme());
+          var opts = Object.assign({}, preset, overrides || {});
           if (!el._gauge) {
             var canvas = document.createElement('canvas');
             el.appendChild(canvas);
@@ -365,23 +264,8 @@
               animationDuration: 500,
               animationRule: 'linear'
             }, opts)).draw();
-          } else {
-            Object.assign(el._gauge.options, opts);
-            el._gauge.update();
           }
           el._gauge.value = Number(value) || 0;
-        },
-
-        rebuildGauges: function() {
-          // Destroy all gauge canvases so they get recreated with new theme colors
-          document.querySelectorAll('canvas').forEach(function(c) {
-            var parent = c.parentElement;
-            if (parent && parent._gauge) {
-              parent._gauge.destroy();
-              delete parent._gauge;
-              parent.innerHTML = '';
-            }
-          });
         },
 
         renderGauges: function() {
@@ -425,14 +309,10 @@
 
         initSerial: function() {
           var self = this;
-          try {
-            var ws = new WebSocket(wsu('/serial'));
-            ws.onopen = function() { console.log('Socket open'); };
-            ws.onclose = function() { console.log('Socket closed'); };
-            ws.onerror = function(err) { console.log('Socket error', err); };
-          } catch(e) {
-            console.log('WebSocket not available');
-          }
+          var ws = new WebSocket(wsu('/serial'));
+          ws.onopen = function() { console.log('Socket open'); };
+          ws.onclose = function() { console.log('Socket closed'); window.location.reload(); };
+          ws.onerror = function(err) { console.log('Socket error', err); };
           ws.onmessage = function(m) {
             var frame = JSON.parse(m.data);
             if (typeof frame.cmd != 'string') { console.log(frame); return; }
@@ -529,110 +409,6 @@
                    (a.cmd || '').localeCompare(b.cmd || '') ||
                    (a.reg_string || '').localeCompare(b.reg_string || '');
           });
-        },
-
-        // --- Schedule helpers ---
-
-        timeToMinutes: function(timeStr) {
-          if (!timeStr || typeof timeStr !== 'string') return 0;
-          var parts = timeStr.split(':');
-          return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-        },
-
-        snapTime: function(timeStr) {
-          var total = this.timeToMinutes(timeStr);
-          var snapped = Math.round(total / 15) * 15;
-          if (snapped >= 1440) snapped = 1425;
-          var h = Math.floor(snapped / 60);
-          var m = snapped % 60;
-          return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
-        },
-
-        enablePeriod: function(day, periodIndex) {
-          var period = day.period[periodIndex];
-          if (!period || period.enabled[0] === 'on') return;
-          var self = this;
-          var thisTime = self.timeToMinutes(period.time[0]);
-          // Find times of enabled periods before and after this one (by original order)
-          var beforeTime = null, afterTime = null;
-          for (var i = periodIndex - 1; i >= 0; i--) {
-            if (day.period[i].enabled[0] === 'on') { beforeTime = self.timeToMinutes(day.period[i].time[0]); break; }
-          }
-          for (var j = periodIndex + 1; j < day.period.length; j++) {
-            if (day.period[j].enabled[0] === 'on') { afterTime = self.timeToMinutes(day.period[j].time[0]); break; }
-          }
-          var defaultMin;
-          if (beforeTime !== null && afterTime !== null) {
-            defaultMin = Math.round((beforeTime + afterTime) / 2 / 15) * 15; // midpoint, snapped to 15min
-          } else if (beforeTime !== null) {
-            defaultMin = Math.min(beforeTime + 120, 1440); // 2 hours after previous
-          } else if (afterTime !== null) {
-            defaultMin = Math.max(afterTime - 120, 0); // 2 hours before next
-          } else {
-            defaultMin = 720; // noon
-          }
-          var h = Math.floor(defaultMin / 60);
-          var m = defaultMin % 60;
-          period.time = [(h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m];
-          period.enabled = ['on'];
-          this.markDirty();
-        },
-
-        firstDisabledPeriod: function(day) {
-          if (!day || !day.period) return null;
-          for (var i = 0; i < day.period.length; i++) {
-            if (day.period[i].enabled[0] !== 'on') return i;
-          }
-          return null;
-        },
-
-        scheduleRangeStart: function(zone) {
-          if (!zone || !zone.program || !zone.program[0] || !zone.program[0].day) return 240;
-          var self = this;
-          var minTime = 1440;
-          zone.program[0].day.forEach(function(day) {
-            if (!day.period) return;
-            day.period.forEach(function(p) {
-              if (p.enabled[0] === 'on') {
-                var t = self.timeToMinutes(p.time[0]);
-                if (t < minTime) minTime = t;
-              }
-            });
-          });
-          // Subtract 1 hour padding, round down to nearest hour, minimum 0
-          return Math.max(0, Math.floor((minTime - 60) / 60) * 60);
-        },
-
-        scheduleItems: function(day, start) {
-          if (!day || !day.period) return [];
-          var START = start || 0;
-          var RANGE = 1440 - START;
-          if (RANGE <= 0) RANGE = 1440;
-          var self = this;
-          // Only return enabled periods, sorted by time
-          var enabled = [];
-          for (var i = 0; i < day.period.length; i++) {
-            if (day.period[i].enabled[0] === 'on') {
-              enabled.push({ period: day.period[i], index: i });
-            }
-          }
-          enabled.sort(function(a, b) { return self.timeToMinutes(a.period.time[0]) - self.timeToMinutes(b.period.time[0]); });
-          var items = [];
-          for (var j = 0; j < enabled.length; j++) {
-            var s = self.timeToMinutes(enabled[j].period.time[0]);
-            var e = (j + 1 < enabled.length) ? self.timeToMinutes(enabled[j + 1].period.time[0]) : 1440;
-            if (e > s) {
-              items.push({
-                index: enabled[j].index,
-                activity: enabled[j].period.activity[0],
-                time: enabled[j].period.time[0],
-                enabled: true,
-                left: (s - START) / RANGE * 100,
-                width: (e - s) / RANGE * 100
-              });
-            }
-          }
-          return items;
         }
       };
     });
