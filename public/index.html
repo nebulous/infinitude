@@ -1,0 +1,448 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Infinitude</title>
+    <meta name="viewport" content="width=device-width">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="styles/main.css">
+    <style>
+      .dg { display: inline-block; width: 180px; }
+      .dg-linear { display: inline-block; width: 80px; height: 220px; }
+      .diff { background-color: #AFA; }
+    </style>
+  </head>
+  <body x-data="infinitude" x-init="init()">
+
+    <div class="header">
+      <ul class="nav nav-pills float-end">
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/')}" href="#/">Status</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/profiles')}" href="#/profiles">Comfort Profiles</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/schedules')}" href="#/schedules">Schedules</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/serial')}" href="#/serial">Serial</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/energy')}" href="#/energy">Energy</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/about')}" href="#/about">About</a></li>
+      </ul>
+      <h3 class="text-muted">&infin;&nbsp;Infinitude
+        <span style="cursor: pointer;" :style="{ color: globeColor }" @click="reloadData(true)" class="bi bi-globe" aria-hidden="true"></span>
+        <span :style="{ color: transferColor }" class="bi bi-arrow-left-right" aria-hidden="true"></span>
+      </h3>
+    </div>
+
+    <div class="container-fluid">
+
+      <!-- ==================== STATUS ==================== -->
+      <div x-show="currentRoute === '/'" x-cloak>
+
+        <h3>Status</h3>
+        <template x-if="notifications && notifications.notification">
+          <blockquote>
+            <span x-text="notifications.notification[0].message[0]"></span>
+            <strong x-text="Date(notifications.notification[0].timestamp[0]).toLocaleString()"></strong>
+          </blockquote>
+        </template>
+
+        <h4>Global</h4>
+        Operating Mode: <strong x-text="status && status.mode ? status.mode[0] : ''"></strong>
+
+        <div class="row align-items-end" x-effect="renderGauges()">
+          <div class="col-6 col-sm-4 col-md-2">
+            <div x-ref="gaugeHumidity"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="status && status.oat && (status.oat[0] || carbus.outsideTemp)">
+            <div x-ref="gaugeOutside" class="dg-linear"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="status && status.odu && status.odu[0].type[0].includes('proteus')">
+            <div x-ref="gaugeHPStage"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="status && status.idu && status.idu[0].type[0].includes('electric')">
+            <div x-ref="gaugeEHtStage"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="carbus.coilTemp">
+            <div x-ref="gaugeCoil" class="dg-linear"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="carbus.airflowCFM || (status && status.idu && status.idu[0].cfm[0])">
+            <div x-ref="gaugeAirflow"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="carbus.blowerRPM">
+            <div x-ref="gaugeBlower"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2">
+            <div x-ref="gaugeFilter"></div>
+          </div>
+          <div class="col-6 col-sm-4 col-md-2" x-show="systems && systems.config && systems.config[0].cfgvent[0]">
+            <div x-ref="gaugeVent"></div>
+          </div>
+        </div>
+
+
+        <template x-if="status && status.zones">
+          <div>
+            <template x-for="(zone, zi) in status.zones[0].zone" :key="zi">
+              <div x-show="zone.enabled[0] === 'on'" @click="selectZone(zone.id - 1)">
+                <h4 x-text="zone.name[0]"></h4>
+                <div class="row align-items-end" x-effect="renderZoneGauges(zi)">
+                  <div class="col-6 col-sm-4 col-md-2">
+                    <div :x-ref="'gaugeZoneInside_' + zi" class="dg-linear"></div>
+                  </div>
+                  <div class="col-6 col-sm-4 col-md-2">
+                    <div :x-ref="'gaugeZoneHeat_' + zi" class="dg-linear"></div>
+                  </div>
+                  <div class="col-6 col-sm-4 col-md-2">
+                    <div :x-ref="'gaugeZoneCool_' + zi" class="dg-linear"></div>
+                  </div>
+                  <div class="col-6 col-sm-4 col-md-2" x-show="systems && systems.config[0].cfgzoning[0] === 'on'">
+                    <div :x-ref="'gaugeZoneDamper_' + zi"></div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <div class="row" x-show="status">
+          <div class="col-md-6">
+            <div class="table-responsive">
+              <table class="table table-striped table-bordered">
+                <tbody>
+                <template x-if="status && status.zones && status.zones[0].zone[selectedZone]">
+                  <template x-for="(value, key) in status.zones[0].zone[selectedZone]" :key="key">
+                    <tr><th x-text="key"></th><td style="white-space: pre-wrap" x-text="appUtils.display(value[0])"></td></tr>
+                  </template>
+                </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="table-responsive">
+              <table class="table table-striped table-bordered">
+                <tbody>
+                <template x-if="status">
+                  <template x-for="(value, key) in Object.fromEntries(Object.entries(status).filter(function(e) { return e[0] !== 'zones'; }))" :key="key">
+                    <tr><th x-text="key"></th><td style="white-space: pre-wrap" x-text="appUtils.display(value[0])"></td></tr>
+                  </template>
+                </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PROFILES ==================== -->
+      <div x-show="currentRoute === '/profiles'" x-cloak>
+        <h2>Comfort Profiles</h2>
+        <template x-if="systemsEdit">
+          <div>
+            <div>
+              <p>Climate Mode
+                <select x-model="systemsEdit.config[0].mode[0]" @change="markDirty()">
+                  <option value="off">Off</option>
+                  <option value="fanonly">Fan only</option>
+                  <option value="auto">Auto</option>
+                  <option value="heat">Heat</option>
+                  <option value="cool">Cool</option>
+                </select>
+              </p>
+            </div>
+            <div x-show="status && status.odu && status.odu[0].type[0].includes('hp')">
+              <p>Heat Source
+                <select x-model="systemsEdit.config[0].heatsource[0]" @change="markDirty()">
+                  <option value="system">System in control</option>
+                  <option value="odu only">Heat pump only</option>
+                  <option value="idu only">Aux heat only</option>
+                </select>
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><strong>whole house</strong>
+                <br>Hold: <input type="checkbox" x-model="systemsEdit.config[0].wholeHouse[0].hold[0]" true-value="on" false-value="off" @change="markDirty()">
+                <span x-show="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on'">
+                  <select x-model="systemsEdit.config[0].wholeHouse[0].holdActivity[0]" @change="markDirty()">
+                    <option>home</option><option>away</option>
+                  </select>
+                  Forever <input type="checkbox" x-model="systemsEdit.config[0].wholeHouse[0].otmr[0]" true-value="{}" false-value="00:00" @change="markDirty()">
+                  <br>
+                  <span x-show="typeof systemsEdit.config[0].wholeHouse[0].otmr[0] === 'string' && systemsEdit.config[0].wholeHouse[0].otmr[0].includes(':')">
+                    Until <input type="time" x-model="systemsEdit.config[0].wholeHouse[0].otmr[0]" step="900" @change="markDirty()">
+                  </span>
+                </span>
+              </div>
+              <div class="card-body">
+                <table class="table table-striped table-bordered">
+                  <thead><tr><th></th><th>Dehum. Overcool</th><th>Cooling Humidity</th>
+                    <th x-show="systems && systems.config[0].cfgvent[0]">Cooling Ventilator</th>
+                    <th x-show="systems && systems.config[0].cfgvent[0]">Cooling Vent. Speed</th>
+                    <th x-show="systems && systems.config[0].cfgvent[0]">Heating Ventilator</th>
+                    <th x-show="systems && systems.config[0].cfgvent[0]">Heating Vent. Speed</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr>
+                      <th>Home</th>
+                      <td><input type="checkbox" x-model="systemsEdit.config[0].humidityHome[0].rclgovercool[0]" true-value="on" false-value="off" @change="markDirty()"></td>
+                      <td><select x-model="systemsEdit.config[0].humidityHome[0].rclg[0]" @change="markDirty()">
+                        <option value="1">46%</option><option value="2">48%</option><option value="3">50%</option>
+                        <option value="4">52%</option><option value="5">54%</option><option value="6">56%</option><option value="7">58%</option>
+                      </select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].ventclg[0]" @change="markDirty()">
+                        <option>off</option><option>manual</option><option>auto</option></select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].ventspdclg[0]" @change="markDirty()">
+                        <option>low</option><option>med</option><option>high</option></select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].venthtg[0]" @change="markDirty()">
+                        <option>off</option><option>manual</option><option>auto</option></select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].ventspdhtg[0]" @change="markDirty()">
+                        <option>low</option><option>med</option><option>high</option></select></td>
+                    </tr>
+                    <tr>
+                      <th>Away</th>
+                      <td><input type="checkbox" x-model="systemsEdit.config[0].humidityAway[0].rclgovercool[0]" true-value="on" false-value="off" @change="markDirty()"></td>
+                      <td><select x-model="systemsEdit.config[0].humidityAway[0].rclg[0]" @change="markDirty()">
+                        <option value="3">50%</option><option value="12">55%</option><option value="13">60%</option>
+                        <option value="14">65%</option><option value="15">None</option>
+                      </select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].ventclg[0]" @change="markDirty()">
+                        <option>off</option><option>manual</option><option>auto</option></select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].ventspdclg[0]" @change="markDirty()">
+                        <option>low</option><option>med</option><option>high</option></select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].venthtg[0]" @change="markDirty()">
+                        <option>off</option><option>manual</option><option>auto</option></select></td>
+                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].ventspdhtg[0]" @change="markDirty()">
+                        <option>low</option><option>med</option><option>high</option></select></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button>
+              </div>
+            </div>
+
+            <template x-for="(zone, zi) in systemsEdit.config[0].zones[0].zone" :key="zi">
+              <div class="card" x-show="zone.enabled[0] === 'on'">
+                <div class="card-header"><strong x-text="zone.name[0]"></strong>
+                  <span><br>Hold: <input type="checkbox" x-model="zone.hold[0]" true-value="on" false-value="off" @change="markDirty()">
+                    <span x-show="zone.hold[0] === 'on'">
+                      <select x-model="zone.holdActivity[0]" @change="markDirty()">
+                        <option>home</option><option>away</option><option>sleep</option><option>wake</option><option>manual</option>
+                      </select>
+                      Forever <input type="checkbox" x-model="zone.otmr[0]" true-value="{}" false-value="00:00" @change="markDirty()">
+                      <br>
+                      <span x-show="typeof zone.otmr[0] === 'string' && zone.otmr[0].includes(':')">
+                        Until <input type="time" x-model="zone.otmr[0]" step="900" @change="markDirty()">
+                      </span>
+                    </span>
+                  </span>
+                </div>
+                <div class="card-body" x-show="zone.enabled[0] === 'on'">
+                  <table class="table table-striped table-bordered">
+                    <thead><tr><th></th><th>Heat</th><th>Cool</th><th>Fan</th></tr></thead>
+                    <tbody>
+                      <template x-for="(activity, ai) in zone.activities[0].activity" :key="ai">
+                        <tr>
+                          <th x-text="activity.id"></th>
+                          <td><input type="text" x-model="activity.htsp[0]" @change="markDirty()"></td>
+                          <td><input type="text" x-model="activity.clsp[0]" @change="markDirty()"></td>
+                          <td><select x-model="activity.fan[0]" @change="markDirty()">
+                            <option>off</option><option>low</option><option>med</option><option>high</option>
+                          </select></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                  <button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- ==================== SCHEDULES ==================== -->
+      <div x-show="currentRoute === '/schedules'" x-cloak>
+        <h2>Schedules</h2>
+        <template x-if="systemsEdit && systemsEdit.config">
+          <template x-for="(zone, zi) in systemsEdit.config[0].zones[0].zone" :key="zi">
+            <div class="card" x-show="zone.enabled[0] === 'on'">
+              <div class="card-header" x-text="zone.name[0]"></div>
+              <div class="card-body" x-show="zone.enabled[0] === 'on'">
+                <table class="table table-striped table-bordered">
+                  <tbody>
+                    <template x-for="(day, di) in zone.program[0].day" :key="di">
+                      <tr>
+                        <th x-text="day.id"></th>
+                        <template x-for="(period, pi) in day.period" :key="pi">
+                          <td>
+                            <input type="checkbox" x-model="period.enabled[0]" true-value="on" false-value="off" @change="markDirty()">
+                            <span x-show="period.enabled[0] === 'on'">
+                              <select x-model="period.activity[0]" @change="markDirty()">
+                                <option>wake</option><option>away</option><option>home</option><option>sleep</option>
+                              </select>
+                              <input type="time" x-model="period.time[0]" step="900" @change="markDirty()">
+                            </span>
+                            <span x-show="period.enabled[0] === 'off'"><i>disabled</i></span>
+                          </td>
+                        </template>
+                      </tr>
+                    </template>
+                  </tbody>
+                  <tfoot>
+                    <tr><td colspan="6"><button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button></td></tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
+
+      <!-- ==================== SERIAL ==================== -->
+      <div x-show="currentRoute === '/serial'" x-cloak>
+        <div class="row" x-show="frames.length">
+          <div class="col-md-12">
+            <h4>Virtual SAM Request</h4>
+            Thermostat Register <input type="text" x-model="samreqReg" placeholder="000104">
+            <button @click="samreq(samreqReg)">send request</button>
+            <hr>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+            <h3>Stream</h3>
+            <div class="table-responsive">
+            <table class="table table-bordered table-hover" style="table-layout: fixed; width: 100%">
+              <thead>
+                <tr class="table-active">
+                  <th>src <input type="text" x-model="srcFilter"></th>
+                  <th>dst <input type="text" x-model="dstFilter"></th>
+                  <th>cmd <input type="text" x-model="cmdFilter"></th>
+                  <th>reg <input type="text" x-model="regFilter"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(frame, fi) in serialFrames()" :key="fi">
+                  <tr :class="{'table-success': frame.cmd==='reply', 'table-warning': frame.cmd==='write', 'table-danger': frame.cmd==='exception'}">
+                    <td x-text="frame.src"></td>
+                    <td x-text="frame.dst"></td>
+                    <td x-text="frame.cmd"></td>
+                    <td style="white-space: nowrap;" x-text="appUtils.toHex(frame.payload_raw.substring(0,3))"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+            <h3>State</h3>
+            <div class="table-responsive">
+            <table class="table table-bordered table-hover table-striped" style="table-layout: fixed; width: 100%">
+              <colgroup><col style="width:10%"><col></colgroup>
+              <thead><tr><th>Info</th><th>Value</th></tr></thead>
+              <tbody>
+                <template x-for="(frame, fi) in sortedState()" :key="fi">
+                  <tr :class="{'table-success': frame.cmd==='read', 'table-danger': frame.cmd==='write', 'table-warning': frame.cmd==='reply'}">
+                    <td style="white-space: pre-line">
+                      <small x-text="timeAgo(frame.timestamp)"></small><br>
+                      <strong x-text="frame.Device"></strong><br>
+                      <span x-text="appUtils.toHex(frame.payload_raw.substring(0,3))"></span>
+                      <p class="text-primary" x-show="frame.field && frame.field.name" x-text="frame.field ? frame.field.name : ''"></p>
+                    </td>
+                    <td style="font-family: monospace; word-break: break-all; overflow-wrap: break-word">
+                      <strong x-html="appUtils.markDiff(appUtils.toHex(frame.payload_raw.substring(3)), frame.history && frame.history[0] ? appUtils.toHex(frame.history[0].substring(3)) : '')"></strong>
+                      <br>
+                      <pre class="text-primary" style="white-space: pre-wrap; word-break: break-all" x-show="appUtils.strings(frame.payload_raw)" x-text="appUtils.strings(frame.payload_raw)"></pre>
+                      <hr>
+                      <template x-for="(log, li) in (frame.history || [])" :key="li">
+                        <p :style="'opacity: ' + (1 - li/20)" x-show="li < frame.history.length - 1" x-html="appUtils.markDiff(appUtils.toHex(log.substring(3)), frame.history[li+1] ? appUtils.toHex(frame.history[li+1].substring(3)) : '')"></p>
+                      </template>
+                      <p class="text-primary" style="white-space: pre-wrap" x-show="frame.field" x-text="JSON.stringify(frame.field)"></p>
+                      <div x-show="frame.field" x-html="renderNodeTree(frame.field, 0)"></div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== ENERGY ==================== -->
+      <div x-show="currentRoute === '/energy'" x-cloak>
+        <h2>Energy</h2>
+        <div class="card">
+          <div class="card-header">Usage</div>
+          <table class="table table-striped table-bordered">
+            <tbody>
+              <template x-if="energy && energy.usage">
+                <template x-for="(period, pi) in energy.usage[0].period" :key="pi">
+                  <tr>
+                    <th x-text="period.id"></th>
+                    <template x-for="(mes, mk) in Object.entries(period)" :key="mk">
+                      <td x-show="mes[1] && mes[1][0] && energy[mes[0]] && energy[mes[0]][0].enabled === 'on'">
+                        <b x-text="mes[0]"></b> <span x-text="mes[1][0]"></span>
+                      </td>
+                    </template>
+                  </tr>
+                </template>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header">Cost</div>
+          <table class="table table-striped table-bordered">
+            <tbody>
+              <template x-if="energy && energy.cost">
+                <template x-for="(period, pi) in energy.cost[0].period" :key="pi">
+                  <tr>
+                    <th x-text="period.id"></th>
+                    <template x-for="(mes, mk) in Object.entries(period)" :key="mk">
+                      <td x-show="mes[1] && mes[1][0] && energy[mes[0]] && energy[mes[0]][0].enabled === 'on'">
+                        <b x-text="mes[0]"></b> <span x-text="new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(mes[1][0])"></span>
+                      </td>
+                    </template>
+                  </tr>
+                </template>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ==================== ABOUT ==================== -->
+      <div x-show="currentRoute === '/about'" x-cloak>
+        <div class="row">
+          <div class="col-md-4"></div>
+          <div class="col-md-4">
+            <div class="p-5 bg-body-tertiary rounded-3">
+              <h1><a href="https://www.github.com/nebulous/infinitude">Infinitude</a></h1>
+              <p class="lead">Carrier/Bryant network thermostat control</p>
+              <fieldset x-show="systemsEdit && systemsEdit.dealer">
+                <legend>Dealer Info</legend>
+                <div class="mb-3"><label class="form-label">Name</label><input class="form-control" x-model="systemsEdit.dealer[0].name[0]" @change="markDirty()" placeholder="Infinitude"></div>
+                <div class="mb-3"><label class="form-label">Phone</label><input class="form-control" x-model="systemsEdit.dealer[0].phone[0]" @change="markDirty()" placeholder="OpenHVAC"></div>
+                <div class="mb-3"><label class="form-label">URL</label><input class="form-control" x-model="systemsEdit.dealer[0].url[0]" @change="markDirty()" placeholder="http://github.com/nebulous/infinitude"></div>
+                <div class="mb-3"><label class="form-label">PID</label><input class="form-control" x-model="systemsEdit.dealer[0].pid[0]" @change="markDirty()" placeholder="123456789"></div>
+                <br>
+                <button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button>
+              </fieldset>
+            </div>
+          </div>
+          <div class="col-md-4"></div>
+        </div>
+      </div>
+
+    </div><!-- /container-fluid -->
+
+    <div class="footer">
+      <p><a href="https://www.github.com/nebulous/infinitude">Infinitude on github</a></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-gauges@2.1.7/gauge.min.js"></script>
+    <script src="scripts/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </body>
+</html>
