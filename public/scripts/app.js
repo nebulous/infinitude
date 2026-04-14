@@ -74,6 +74,7 @@
         selectedZone: 0,
 
         // UI state
+        darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
         globeColor: GLOBE_LOADING,
         transferColor: '#5E5',
 
@@ -109,6 +110,9 @@
           window.addEventListener('hashchange', function() {
             self.currentRoute = window.location.hash.replace('#', '') || '/';
           });
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            self.darkMode = e.matches;
+          });
         },
 
         isActive: function(route) { return route === this.currentRoute; },
@@ -121,6 +125,55 @@
         typeofVar: function(v) { return typeof v; },
 
         equals: function(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
+
+        getCurrentActivity: function(zi) {
+          if (!this.status || !this.status.zones || !this.systemsEdit) return null;
+          var zone = this.status.zones[0].zone[zi];
+          if (!zone) return null;
+          var name = zone.currentActivity[0];
+          if (name === 'vacation') return null;
+          var editZone = this.systemsEdit.config[0].zones[0].zone[zi];
+          if (!editZone) return null;
+          return editZone.activities[0].activity.find(function(a) { return a.id === name; });
+        },
+
+        adjustSetpoint: function(zi, field, delta) {
+          var act = this.getCurrentActivity(zi);
+          if (!act) return;
+          var val = parseFloat(act[field][0]) || 0;
+          act[field][0] = (val + delta).toFixed(0);
+          this.markDirty();
+        },
+
+        setZoneFan: function(zi, fan) {
+          var act = this.getCurrentActivity(zi);
+          if (!act) return;
+          act.fan[0] = fan;
+          this.markDirty();
+        },
+
+        getZoneTemp: function(zone) {
+          if (!zone || !zone.rt || typeof zone.rt[0] !== 'string') return '--';
+          return parseFloat(zone.rt[0]).toFixed(0);
+        },
+
+        fmtSp: function(val) {
+          return parseFloat(val).toFixed(0);
+        },
+
+        isoToLocal: function(iso) {
+          if (!iso) return '';
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return iso.replace(/:\d{2}(Z|[+-]\d{2}:?\d{2})?$/, '');
+          var pad = function(n) { return String(n).padStart(2, '0'); };
+          return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        },
+        localToIso: function(local) {
+          if (!local) return '';
+          var d = new Date(local);
+          if (isNaN(d.getTime())) return local;
+          return d.toISOString().replace('.000', '');
+        },
 
         reloadData: function(userInitiated) {
           if (userInitiated && this.systemsEdited) {
