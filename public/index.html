@@ -89,14 +89,22 @@
 
       /* Theme overrides for light mode */
       [data-bs-theme="light"] .home-panel {
-        --h-bg: #1a2332;
-        --h-card: #243044;
-        --h-card-hover: #2a3850;
-        --h-border: #304060;
-        --h-text: #f0eeeb;
-        --h-muted: #8a9baa;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+        --h-bg: #f5f3f0;
+        --h-card: #ffffff;
+        --h-card-hover: #f0eeeb;
+        --h-text: #1a1a1a;
+        --h-muted: #6b7280;
+        --h-border: #d6d3cd;
+        --h-heat: #c85a1a;
+        --h-cool: #1a7ab5;
+        --h-auto: #2d8a4e;
+        --h-accent: #1a7ab5;
+        background: linear-gradient(160deg, #f5f3f0 0%, #eeebe6 40%, #f0ede8 100%);
+        box-shadow: 0 2px 16px rgba(0,0,0,0.08);
       }
+      [data-bs-theme="light"] .home-vacation-badge { color: #fff; }
+      [data-bs-theme="light"] .home-save-bar { color: #fff; }
+      [data-bs-theme="light"] .home-zone-sp .form-select { background-color: var(--h-card); }
     </style>
   </head>
   <body x-data="infinitude" x-init="init()" x-effect="document.documentElement.setAttribute('data-bs-theme', darkMode ? 'dark' : 'light')">
