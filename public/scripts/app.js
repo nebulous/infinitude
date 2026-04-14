@@ -157,10 +157,10 @@
 
         markDirty: function() {
           if (this.systemsEdit !== null) {
-            if (this.systemsEdited === null || this.equals(this.systems, this.systemsEdit)) {
+            if (this.equals(this.systems, this.systemsEdit)) {
               this.systemsEdited = false;
               this.globeColor = GLOBE_CONNECTED;
-            } else if (this.systemsEdited === false) {
+            } else {
               this.systemsEdited = true;
               this.globeColor = GLOBE_UNSAVED;
             }
@@ -198,6 +198,7 @@
             cls: 'LinearGauge',
             width: 80, height: 220,
             minValue: 30, maxValue: 100,
+            majorTicks: [30, 40, 50, 60, 70, 80, 90, 100],
             units: '\u00B0',
             colorBarProgress: '#0000FF',
             colorBarProgressEnd: '#FF2010'
@@ -205,6 +206,7 @@
           percentage: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 100,
+            majorTicks: [0, 20, 40, 60, 80, 100],
             units: '%',
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
@@ -212,6 +214,7 @@
           rpm: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 1200,
+            majorTicks: [0, 200, 400, 600, 800, 1000, 1200],
             units: 'RPM',
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
@@ -219,6 +222,7 @@
           cfm: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 2000,
+            majorTicks: [0, 400, 800, 1200, 1600, 2000],
             units: 'CFM',
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
@@ -226,18 +230,21 @@
           hpStage: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 5,
+            majorTicks: [0, 1, 2, 3, 4, 5],
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
           },
           ehStage: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 3,
+            majorTicks: [0, 1, 2, 3],
             colorBarProgress: '#00FF00',
             colorBarProgressEnd: '#FF0000'
           },
           damper: {
             cls: 'RadialGauge',
             minValue: 0, maxValue: 15,
+            majorTicks: [0, 5, 10, 15],
             colorBarProgress: '#FF0000',
             colorBarProgressEnd: '#00FF00'
           }
