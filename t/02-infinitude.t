@@ -65,27 +65,6 @@ subtest 'modify_system saves xml/json/changes' => sub {
     ok($json, 'JSON updated');
 };
 
-subtest 'modify_system no-op skips save and publish' => sub {
-    my $mqtt = MockMQTT->new;
-    my ($inf, $store) = make_inf($mqtt);
-
-    # Set mode to heat first
-    $inf->modify_system(sub {
-        my $xml = shift;
-        $xml->system->config->mode(['heat']);
-    });
-    is($mqtt->published, 1, 'first mutation publishes');
-    my $first_xml = $store->get('systems.xml');
-
-    # No-op: set mode to heat again
-    $inf->modify_system(sub {
-        my $xml = shift;
-        $xml->system->config->mode(['heat']);
-    });
-    is($mqtt->published, 1, 'no-op does not publish again');
-    is($store->get('systems.xml'), $first_xml, 'xml unchanged');
-};
-
 subtest 'set_system_mode' => sub {
     my $mqtt = MockMQTT->new;
     my $sam = MockSAM->new;
@@ -96,7 +75,7 @@ subtest 'set_system_mode' => sub {
     my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
     is($xml->system->config->mode, 'heat', 'mode set to heat');
     is_deeply($sam->calls, [['set_system_mode', 'heat']], 'RS485 called');
-    is($mqtt->published, 1, 'MQTT publish_state called');
+    is($mqtt->published, 1, 'MQTT published');
 };
 
 subtest 'set_system_mode without sam' => sub {
@@ -128,7 +107,7 @@ subtest 'set_zone_setpoint sets manual activity and hold' => sub {
     }
 
     is_deeply($sam->calls, [['set_zone_setpoint', 1, 70, 74]], 'RS485 setpoint called');
-    is($mqtt->published, 1, 'MQTT publish_state called');
+    is($mqtt->published, 1, 'MQTT published');
 };
 
 subtest 'set_zone_setpoint partial - heat only' => sub {

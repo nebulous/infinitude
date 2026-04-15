@@ -19,11 +19,8 @@ sub new {
 sub modify_system {
     my ($self, $code) = @_;
     my $xml = XML::Simple::Minded->new($self->{store}->get('systems.xml'));
-    my $before = "$xml";
     $code->($xml);
-    my $after = "$xml";
-    return if $before eq $after;
-    $self->{store}->set('systems.xml',  $after);
+    $self->{store}->set('systems.xml',  $xml . '');
     $self->{store}->set('systems.json', $xml->_as_json());
     $self->{store}->set(changes => 'true');
     $self->{mqtt}->publish_state if $self->{mqtt};
