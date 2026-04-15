@@ -5,6 +5,7 @@ use warnings;
 use feature ':5.10';
 use utf8;
 use Mojo::JSON qw/encode_json decode_json/;
+use Net::MQTT::Simple;
 
 sub new {
     my ($class, %args) = @_;
@@ -13,10 +14,9 @@ sub new {
     my $config = $args{config} or die "MQTT: config required";
 
     my $broker = $config->{mqtt_broker} or do {
+        warn "MQTT: mqtt_broker not configured, MQTT disabled\n";
         return bless { enabled => 0 }, $class;
     };
-
-    require Net::MQTT::Simple;
 
     my $prefix = $config->{mqtt_prefix} // 'homeassistant';
     my $base   = $config->{mqtt_topic}  // 'infinitude';
@@ -52,12 +52,16 @@ sub _v {
     my $val = shift;
     return '' unless defined $val;
     $val = $val->[0] if ref($val) eq 'ARRAY' && @$val == 1;
-    return '' if ref($val) eq 'HASH' && !keys %$val;
     return $val // '';
 }
 
-# JSON encode for MQTT
-sub _json { encode_json(shift) }
+# JSON encode to UTF-8 bytes for MQTT
+sub _json {
+    my $data = shift;
+    my $json = encode_json($data);
+    utf8::encode($json) if utf8::is_utf8($json);
+    return $json;
+}
 
 sub publish_discovery {
     my ($self) = @_;
@@ -72,7 +76,7 @@ sub publish_discovery {
         identifiers  => ['infinitude'],
         name         => 'Infinitude',
         manufacturer => 'Carrier',
-        model        => 'Infinity',
+        model        => 'Infinity Touch',
     };
 
     my @topics;
@@ -91,7 +95,7 @@ sub publish_discovery {
                 unique_id              => "infinitude_zone_${zid}",
                 name                   => $name,
                 device                 => $device,
-                modes                  => ['off', 'heat', 'cool', 'heat_cool'],
+                modes                  => ['off', 'heat', 'cool', 'auto'],
                 fan_modes              => ['auto', 'low', 'medium', 'high'],
                 preset_modes           => [qw(schedule home away sleep wake hold hold_until)],
                 mode_state_topic       => "$zbase/mode/state",
@@ -109,7 +113,6 @@ sub publish_discovery {
                 preset_mode_state_topic      => "$zbase/preset/state",
                 preset_mode_command_topic    => "$zbase/preset/cmd",
                 action_topic                 => "$zbase/action",
-                optimistic                   => 1,
                 temp_step                    => 1,
                 min_temp                     => 40,
                 max_temp                     => 99,
@@ -129,6 +132,7 @@ sub publish_discovery {
         ['humlvl',     'Humidifier Level',    '%'],
         ['ventlvl',    'Ventilator Level',    '%'],
         ['humid',      'Humidifier State',    undef],
+        ['statusCode', 'Status Code',         undef],
     );
 
     for my $s (@sensors) {
@@ -145,7 +149,7 @@ sub publish_discovery {
         $payload->{unit_of_measurement} = $unit if defined $unit;
         push @topics,
             $self->_disc('sensor', "infinitude_$key", 'config') =>
-            _json($payload);
+            encode_json($payload);
     }
 
     while (@topics) {
@@ -180,9 +184,6 @@ sub publish_state {
         'idle'        => 'idle',
     );
 
-    my $systems = decode_json($self->{store}->get('systems.json') || '{}');
-    my $cfg     = eval { $systems->{system}[0]{config}[0] } // {};
-
     for my $i (0 .. $#$zones) {
         my $zone = $zones->[$i];
         next unless lc(_v($zone->{enabled})) eq 'on';
@@ -191,60 +192,34 @@ sub publish_state {
         my $zbase = $self->_topic('zone', $zid);
         my $mqtt  = $self->{mqtt};
 
-        # Runtime values from status
         $mqtt->retain("$zbase/current_temp"    => _v($zone->{rt}));
         $mqtt->retain("$zbase/humidity"        => _v($zone->{rh}));
+        $mqtt->retain("$zbase/temp_low/state"  => _v($zone->{htsp}));
+        $mqtt->retain("$zbase/temp_high/state" => _v($zone->{clsp}));
 
-        # Config values from systems.json
-        my $cfg_zone = $cfg->{zones}[0]{zone}[$i];
-        my ($cfg_htsp, $cfg_clsp, $cfg_fan);
-        if ($cfg_zone) {
-            my $act_id = lc(_v($cfg_zone->{holdActivity})) eq 'manual' ? 'manual' : lc(_v($zone->{currentActivity}) || 'home');
-            for my $a (@{$cfg_zone->{activities}[0]{activity} || []}) {
-                my $aid = ref($a->{id}) eq 'ARRAY' ? $a->{id}[0] : $a->{id};
-                if (lc($aid // '') eq $act_id) {
-                    $cfg_htsp = _v($a->{htsp});
-                    $cfg_clsp = _v($a->{clsp});
-                    $cfg_fan  = _v($a->{fan});
-                    last;
-                }
-            }
-        }
-        # Fallback to status values if config not found
-        $cfg_htsp //= _v($zone->{htsp});
-        $cfg_clsp //= _v($zone->{clsp});
-        $cfg_fan  //= _v($zone->{fan});
-
-        $mqtt->retain("$zbase/temp_low/state"  => $cfg_htsp);
-        $mqtt->retain("$zbase/temp_high/state" => $cfg_clsp);
-
-        my $cfg_mode = lc(_v($cfg->{mode}) || _v($sys->{mode}) || 'off');
-        my $mode = $cfg_mode;
+        my $mode = lc(_v($sys->{mode}) || 'off');
         if ($mode eq 'heat') {
-            $mqtt->retain("$zbase/temp/state" => $cfg_htsp);
+            $mqtt->retain("$zbase/temp/state" => _v($zone->{htsp}));
         } elsif ($mode eq 'cool') {
-            $mqtt->retain("$zbase/temp/state" => $cfg_clsp);
+            $mqtt->retain("$zbase/temp/state" => _v($zone->{clsp}));
         } else {
-            $mqtt->retain("$zbase/temp/state" => 'None');
+            $mqtt->retain("$zbase/temp/state" => _v($zone->{rt}));
         }
 
-        my $ha_mode = $mode eq 'auto' ? 'heat_cool' : $mode;
-        $mqtt->retain("$zbase/mode/state" => $ha_mode);
+        $mqtt->retain("$zbase/mode/state" => $mode eq 'auto' ? 'auto' : $mode);
 
-        my $fan = lc($cfg_fan || 'off');
+        my $fan = lc(_v($zone->{fan}) || 'off');
         $mqtt->retain("$zbase/fan/state" => ($fan_map{$fan} // 'auto'));
 
         my $zc = lc(_v($zone->{zoneconditioning}) || 'idle');
         $mqtt->retain("$zbase/action" => ($action_map{$zc} // 'idle'));
 
-        # Preset mode — read hold state from config (systems.json), not runtime (status.json)
+        # Preset mode
         my $preset = 'schedule';
-        my $cfg_hold = $cfg_zone ? lc(_v($cfg_zone->{hold})) : '';
-        my $cfg_hold_act = $cfg_zone ? _v($cfg_zone->{holdActivity}) : '';
-        my $cfg_otmr = $cfg_zone ? _v($cfg_zone->{otmr}) : '';
-        if ($cfg_hold eq 'on') {
-            my $act = lc($cfg_hold_act || 'manual');
-            if ($cfg_otmr ne '' && $cfg_otmr ne 'forever') {
+        my $otmr = _v($zone->{otmr});
+        if (lc(_v($zone->{hold})) eq 'on') {
+            my $act = lc(_v($zone->{currentActivity}) || 'manual');
+            if ($otmr ne '') {
                 $preset = ($act eq 'manual') ? 'hold_until' : $act;
             } else {
                 $preset = ($act eq 'manual') ? 'hold' : $act;
@@ -258,9 +233,8 @@ sub publish_state {
 
     # System sensors
     my $sbase = $self->_topic('system');
-    for my $key (qw(oat filtrlvl uvlvl humlvl ventlvl humid)) {
-        my $val = _v($sys->{$key});
-        $self->{mqtt}->retain("$sbase/$key" => $val) if $val ne '';
+    for my $key (qw(oat filtrlvl uvlvl humlvl ventlvl humid statusCode)) {
+        $self->{mqtt}->retain("$sbase/$key" => _v($sys->{$key}));
     }
 }
 
@@ -298,7 +272,7 @@ sub _extract_zone {
 sub _handle_mode {
     my ($self, $topic, $msg) = @_;
     $self->_extract_zone($topic) or return;
-    my %map = (off => 'off', heat => 'heat', cool => 'cool', heat_cool => 'auto', auto => 'auto');
+    my %map = (off => 'off', heat => 'heat', cool => 'cool', auto => 'auto');
     my $mode = $map{lc($msg)} or return;
     $self->{on_set_mode}->($mode) if $self->{on_set_mode};
 }
@@ -342,41 +316,6 @@ sub tick {
     my ($self) = @_;
     return unless $self->{enabled};
     $self->{mqtt}->tick(0);
-}
-
-my @STATUS_WATCH = qw(rt rh zoneconditioning fan currentActivity hold holdActivity otmr);
-
-sub publish_if_status_changed {
-    my ($self) = @_;
-    return unless $self->{enabled};
-    return if ($self->{store}->get('changes') || '') eq 'true';
-
-    my $status = decode_json($self->{store}->get('status.json') || '{}');
-    my $sys    = $status->{status}[0] or return;
-    my $zones  = $sys->{zones}[0]{zone} // [];
-
-    my %cur;
-    $cur{mode} = _v($sys->{mode});
-    for my $i (0 .. $#$zones) {
-        my $zone = $zones->[$i];
-        next unless lc(_v($zone->{enabled})) eq 'on';
-        my $zid = $i + 1;
-        $cur{"z${zid}$_"} = _v($zone->{$_}) for @STATUS_WATCH;
-    }
-
-    my $prev = $self->{_last_status} // {};
-    my $changed;
-    for my $k (keys %cur) {
-        if (($cur{$k} // '') ne ($prev->{$k} // '')) {
-            $changed = 1;
-            last;
-        }
-    }
-
-    if ($changed) {
-        $self->{_last_status} = \%cur;
-        $self->publish_state;
-    }
 }
 
 1;
