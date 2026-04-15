@@ -112,6 +112,7 @@
           });
           window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
             self.darkMode = e.matches;
+            self.rebuildGauges();
           });
         },
 
@@ -303,10 +304,16 @@
           }
         },
 
+        gaugeTheme: function() {
+          return this.darkMode
+            ? { plateColor: '#1a1a2e', colorPlate: '#1a1a2e', colorMajorTicks: '#aaa', colorMinorTicks: '#555', colorTitle: '#ccc', colorUnits: '#888', colorNumbers: '#aaa', colorValueText: '#eee', colorValueBoxBackground: '#0c1520', colorValueBoxShadow: false, colorNeedle: '#ddd', colorNeedleEnd: '#999', colorBarStroke: '#333' }
+            : { plateColor: '#ffffff', colorPlate: '#ffffff', colorMajorTicks: '#333', colorMinorTicks: '#bbb', colorTitle: '#333', colorUnits: '#777', colorNumbers: '#333', colorValueText: '#111', colorValueBoxBackground: '#f5f5f5', colorValueBoxShadow: false, colorNeedle: '#333', colorNeedleEnd: '#666', colorBarStroke: '#ccc' };
+        },
+
         renderGauge: function(el, value, typeName, overrides) {
           if (!el) return;
           var preset = this.gaugeTypes[typeName] || {};
-          var opts = Object.assign({}, preset, overrides || {});
+          var opts = Object.assign({}, preset, overrides || {}, this.gaugeTheme());
           if (!el._gauge) {
             var canvas = document.createElement('canvas');
             el.appendChild(canvas);
@@ -324,8 +331,23 @@
               animationDuration: 500,
               animationRule: 'linear'
             }, opts)).draw();
+          } else {
+            Object.assign(el._gauge.options, opts);
+            el._gauge.update();
           }
           el._gauge.value = Number(value) || 0;
+        },
+
+        rebuildGauges: function() {
+          // Destroy all gauge canvases so they get recreated with new theme colors
+          document.querySelectorAll('canvas').forEach(function(c) {
+            var parent = c.parentElement;
+            if (parent && parent._gauge) {
+              parent._gauge.destroy();
+              delete parent._gauge;
+              parent.innerHTML = '';
+            }
+          });
         },
 
         renderGauges: function() {
