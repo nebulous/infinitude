@@ -17,6 +17,7 @@ use Time::HiRes qw/time/;
 use Try::Tiny;
 use XML::Simple::Minded;
 use Infinitude::MQTT;
+use Infinitude;
 
 my $store = CHI->new(
     driver         => 'File',
@@ -167,6 +168,9 @@ serial_init();
 
 # MQTT Discovery integration
 my $mqtt = Infinitude::MQTT->new(store => $store, config => $config);
+my $inf = Infinitude->new(store => $store, mqtt => $mqtt, sam => $sam);
+
+# --- MQTT command wiring ---
 
 if ($mqtt->enabled) {
     app->log->info("MQTT: Connecting to $config->{mqtt_broker}");
@@ -174,166 +178,54 @@ if ($mqtt->enabled) {
     $mqtt->subscribe_commands(
         on_set_mode => sub {
             my ($mode) = @_;
-            my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-            $xml->system->config->mode([$mode]);
-            $store->set('systems.xml',  $xml . '');
-            $store->set('systems.json', $xml->_as_json());
-            $store->set(changes => 'true');
-            if ($sam) {
-                try { $sam->set_system_mode($mode) }
-                catch { warn "MQTT: RS485 mode write failed: $_" };
-            }
+            $inf->set_system_mode($mode);
             app->log->debug("MQTT: Set system mode to $mode");
-            $mqtt->publish_state;
         },
         on_set_temperature => sub {
             my ($zone_id, $temp) = @_;
-            my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-            my $idx = $zone_id - 1;
-            my $zone = $xml->system->config->zones->zone->[$idx];
-            my $sys_mode = lc($xml->system->config->mode . '');
-
-            for my $activity (@{$zone->activities->activity}) {
-                if ($activity->id eq 'manual') {
-                    if ($sys_mode eq 'heat') {
-                        $activity->htsp([$temp]);
-                    } elsif ($sys_mode eq 'cool') {
-                        $activity->clsp([$temp]);
-                    } else {
-                        my $htsp = $activity->htsp->[0] + 0;
-                        my $clsp = $activity->clsp->[0] + 0;
-                        if (abs($temp - $htsp) <= abs($temp - $clsp)) {
-                            $activity->htsp([$temp]);
-                        } else {
-                            $activity->clsp([$temp]);
-                        }
-                    }
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-
-                    $zone->hold(['on']);
-                    $zone->holdActivity(['manual']);
-                    my $until = qtr_hr((localtime)[2] + 1);
-                    $zone->otmr([$until]);
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-
-                    if ($sam) {
-                        try { $sam->set_zone_setpoint($zone_id, $activity->htsp->[0]+0, $activity->clsp->[0]+0) }
-                        catch { warn "MQTT: RS485 setpoint write failed: $_" };
-                    }
-                    last;
-                }
+            my $sys_mode = 'auto';
+            if (my $xml_str = $store->get('systems.xml')) {
+                my $xml = XML::Simple::Minded->new($xml_str);
+                $sys_mode = lc($xml->system->config->mode . '');
+            }
+            if ($sys_mode eq 'heat') {
+                $inf->set_zone_setpoint($zone_id, $temp, undef);
+            } elsif ($sys_mode eq 'cool') {
+                $inf->set_zone_setpoint($zone_id, undef, $temp);
+            } else {
+                $inf->set_zone_setpoint($zone_id, $temp, $temp);
             }
             app->log->debug("MQTT: Set zone $zone_id temperature to $temp");
-            $mqtt->publish_state;
         },
         on_set_temp_low => sub {
             my ($zone_id, $temp) = @_;
-            my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-            my $idx = $zone_id - 1;
-            my $zone = $xml->system->config->zones->zone->[$idx];
-            for my $activity (@{$zone->activities->activity}) {
-                if ($activity->id eq 'manual') {
-                    $activity->htsp([$temp]);
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-                    $zone->hold(['on']);
-                    $zone->holdActivity(['manual']);
-                    $zone->otmr([qtr_hr((localtime)[2] + 1)]);
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-                    if ($sam) {
-                        try { $sam->set_zone_setpoint($zone_id, $temp, $activity->clsp->[0]+0) }
-                        catch { warn "MQTT: RS485 setpoint write failed: $_" };
-                    }
-                    last;
-                }
-            }
+            $inf->set_zone_setpoint($zone_id, $temp, undef);
             app->log->debug("MQTT: Set zone $zone_id heat setpoint to $temp");
-            $mqtt->publish_state;
         },
         on_set_temp_high => sub {
             my ($zone_id, $temp) = @_;
-            my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-            my $idx = $zone_id - 1;
-            my $zone = $xml->system->config->zones->zone->[$idx];
-            for my $activity (@{$zone->activities->activity}) {
-                if ($activity->id eq 'manual') {
-                    $activity->clsp([$temp]);
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-                    $zone->hold(['on']);
-                    $zone->holdActivity(['manual']);
-                    $zone->otmr([qtr_hr((localtime)[2] + 1)]);
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-                    if ($sam) {
-                        try { $sam->set_zone_setpoint($zone_id, $activity->htsp->[0]+0, $temp) }
-                        catch { warn "MQTT: RS485 setpoint write failed: $_" };
-                    }
-                    last;
-                }
-            }
+            $inf->set_zone_setpoint($zone_id, undef, $temp);
             app->log->debug("MQTT: Set zone $zone_id cool setpoint to $temp");
-            $mqtt->publish_state;
         },
         on_set_fan => sub {
             my ($zone_id, $fan) = @_;
-            my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-            my $idx = $zone_id - 1;
-            my $zone = $xml->system->config->zones->zone->[$idx];
-            for my $activity (@{$zone->activities->activity}) {
-                if ($activity->id eq 'manual') {
-                    $activity->fan([$fan]);
-                    $store->set('systems.xml',  $xml . '');
-                    $store->set('systems.json', $xml->_as_json());
-                    $store->set(changes => 'true');
-                    if ($sam) {
-                        try { $sam->set_zone_fan($zone_id, $fan) }
-                        catch { warn "MQTT: RS485 fan write failed: $_" };
-                    }
-                    last;
-                }
-            }
+            $inf->set_zone_fan($zone_id, $fan);
             app->log->debug("MQTT: Set zone $zone_id fan to $fan");
-            $mqtt->publish_state;
         },
         on_set_preset => sub {
             my ($zone_id, $preset) = @_;
-            my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-            my $idx = $zone_id - 1;
-            my $zone = $xml->system->config->zones->zone->[$idx];
-
+            my ($hold, $activity, $until);
             if ($preset eq 'schedule') {
-                $zone->hold(['off']);
-                $zone->holdActivity(['']);
-                $zone->otmr([{}]);
+                ($hold, $activity, $until) = ('off', '', {});
             } elsif ($preset =~ /^(home|away|sleep|wake)$/) {
-                $zone->hold(['on']);
-                $zone->holdActivity([$preset]);
-                $zone->otmr([qtr_hr()]);
+                ($hold, $activity, $until) = ('on', $preset, qtr_hr());
             } elsif ($preset eq 'hold') {
-                $zone->hold(['on']);
-                $zone->holdActivity(['manual']);
-                $zone->otmr(['forever']);
+                ($hold, $activity, $until) = ('on', 'manual', 'forever');
             } elsif ($preset eq 'hold_until') {
-                $zone->hold(['on']);
-                $zone->holdActivity(['manual']);
-                $zone->otmr([qtr_hr((localtime)[2] + 1)]);
+                ($hold, $activity, $until) = ('on', 'manual', qtr_hr((localtime)[2] + 1));
             }
-
-            $store->set('systems.xml',  $xml . '');
-            $store->set('systems.json', $xml->_as_json());
-            $store->set(changes => 'true');
+            $inf->set_zone_hold($zone_id, $hold, $activity, $until) if defined $hold;
             app->log->debug("MQTT: Set zone $zone_id preset to $preset");
-            $mqtt->publish_state;
         },
     );
 
@@ -434,38 +326,19 @@ sub qtr_hr {
 # 	but we want to ensure automation devices eg VeraLite will work first
 any '/api/:zone_id/hold' => sub {
 	my $c = shift;
-	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-
-	my $zone;
 	my $idx = $c->stash('zone_id')||1;
-	if ($idx eq 'wholeHouse') {
-		$zone = $xml->system->config->wholeHouse;
-	} else {
-		$idx--;
-		$zone = $xml->system->config->zones->zone->[$idx];
-	}
 
 	my $setting = {};
-
 	my $hold = $c->req->param('hold') || '';
 	$setting->{hold} = $hold eq 'off' ? 'off' : 'on';
-	$zone->hold([$setting->{hold}]);
 
 	my $activities = { home=>'home', away=>'away', sleep=>'sleep', wake=>'wake', manual=>'manual' };
 	$setting->{activity} = $activities->{lc($c->req->param('activity'))} || 'home';
-	$zone->holdActivity([$setting->{activity}]);
 
-	# default to about an hour from now
 	my $until = $c->req->param('until') || ((localtime)[2] + 1);
 	$setting->{until} = $until eq 'forever' ? {} : &qtr_hr($until);
-	$zone->otmr([$setting->{until}]);
 
-	$store->set('systems.xml',  $xml.'');
-	$store->set('systems.json', $xml->_as_json());
-	$store->set(changes => 'true');
-
-	#$c->render(text=>$xml, format=>'xml');
-	$mqtt->publish_state;
+	$inf->set_zone_hold($idx, $setting->{hold}, $setting->{activity}, $setting->{until});
 	$c->render(json=>$setting);
 };
 
@@ -494,40 +367,45 @@ get '/api/status/' => \&api_stat;
 
 any '/api/:zone_id/activity/:activity_id' => sub {
 	my $c = shift;
-	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+	my $zone_id = $c->stash('zone_id')||1;
+	my $activity_id = $c->stash('activity_id');
 
-	my $idx = ($c->stash('zone_id')||1) - 1;
-	my $zone = $xml->system->config->zones->zone->[$idx];
+	my $htsp = $c->req->param('htsp');
+	my $clsp = $c->req->param('clsp');
+	my $fan  = $c->req->param('fan');
 
-	my $setting = {};
-	foreach my $activity (@{$zone->activities->activity}) {
-		if ($activity->id eq $c->stash('activity_id')) {
-			foreach my $set (qw/clsp htsp fan/) {
-				$activity->$set([$c->req->param($set)]) if $c->req->param($set);
-			}
-			$setting = decode_json($activity->_as_json);
-			$store->set('systems.xml',  $xml.'');
-			$store->set('systems.json', $xml->_as_json());
-			$store->set(changes => 'true');
-			# Route changes through RS485 if SAM emulation is active
-			if ($sam and (defined $c->req->param("htsp") or defined $c->req->param("clsp") or defined $c->req->param("fan"))) {
-			    my $heat = $c->req->param("htsp");
-			    my $cool = $c->req->param("clsp");
-			    my $fan = $c->req->param("fan");
-			    $heat += 0 if defined $heat;
-			    $cool += 0 if defined $cool;
-			    
-			    try { $sam->set_zone_setpoint($idx + 1, $heat, $cool) if defined $heat or defined $cool }
-			    catch { warn "RS485 setpoint write failed: $_" };
-			    try { $sam->set_zone_fan($idx + 1, $fan) if defined $fan }
-			    catch { warn "RS485 fan write failed: $_" };
-			}
-			last;
-		}
+	if (defined $htsp || defined $clsp || defined $fan) {
+	    if ($activity_id eq 'manual') {
+	        $inf->set_zone_setpoint($zone_id, $htsp, $clsp) if defined $htsp || defined $clsp;
+	        $inf->set_zone_fan($zone_id, $fan) if defined $fan;
+	    } else {
+	        $inf->modify_system(sub {
+	            my $xml = shift;
+	            my $zone = $xml->system->config->zones->zone->[$zone_id - 1];
+	            for my $activity (@{$zone->activities->activity}) {
+	                if ($activity->id eq $activity_id) {
+	                    $activity->htsp([$htsp]) if defined $htsp;
+	                    $activity->clsp([$clsp]) if defined $clsp;
+	                    $activity->fan([$fan]) if defined $fan;
+	                    last;
+	                }
+	            }
+	        });
+	    }
 	}
-	$mqtt->publish_state;
+
+	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
+	my $zone = $xml->system->config->zones->zone->[$zone_id - 1];
+	my $setting = {};
+	for my $activity (@{$zone->activities->activity}) {
+	    if ($activity->id eq $activity_id) {
+	        $setting = decode_json($activity->_as_json);
+	        last;
+	    }
+	}
 	$c->render(json=>$setting);
 };
+
 
 get '/api/state_keys' => sub {
 	my $c = shift;
@@ -544,27 +422,17 @@ post '/api/samreq' => sub {
     $c->render( json=>{ frame_hex=>$frame->frame_hex });
 };
 
-# Set system mode via RS485 (heat/cool/auto/off)
+# Set system mode (heat/cool/auto/off)
 post '/api/mode' => sub {
     my $c = shift;
     my $mode = $c->req->param('mode');
     unless ($mode && $mode =~ /^(heat|cool|auto|off)$/i) {
         return $c->render(json => { error => 'mode must be heat, cool, auto, or off' }, status => 400);
     }
-    # Update XML cache
-    my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-    $xml->system->config->mode([$mode]);
-    $store->set('systems.xml', $xml . '');
-    $store->set('systems.json', $xml->_as_json());
-    $store->set(changes => 'true');
-    # Write to thermostat via RS485
-    if ($sam) {
-        try { $sam->set_system_mode($mode) }
-        catch { warn "RS485 mode write failed: $_" };
-    }
-    $mqtt->publish_state;
+    $inf->set_system_mode($mode);
     $c->render(json => { mode => $mode });
 };
+
 
 # Set zone hold timer via RS485 (minutes, 0 to cancel)
 post '/api/hold' => sub {
@@ -575,7 +443,7 @@ post '/api/hold' => sub {
         return $c->render(json => { error => 'duration required (minutes, 0 to cancel)' }, status => 400);
     }
     if ($sam) {
-        try { $sam->set_zone_hold($zone + 0, $duration + 0) }
+        try { $sam->$inf->set_zone_hold($zone + 0, $duration + 0) }
         catch { warn "RS485 hold write failed: $_" };
     }
     $c->render(json => { zone => $zone, duration => $duration + 0 });
