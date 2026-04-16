@@ -63,6 +63,7 @@ $config->{mqtt_topic}    = $ENV{MQTT_TOPIC}    || $config->{mqtt_topic};
 my $handle;
 my $carbus;
 my $sam;
+my $inf;
 my $init_attempt;
 my @ws_clients;
 my $busloop_id;
@@ -106,6 +107,7 @@ sub serial_init {
         require CarBus::SAM;
         $sam = CarBus::SAM->new(bus => $carbus, emulated_src => 'SAM');
         $sam->initialize_defaults();
+        $inf->{sam} = $sam if $inf;    # keep Infinitude module in sync after reconnect
         warn "SAM emulation enabled\n";
     }
     bus_loop_start() if $carbus;
@@ -168,7 +170,7 @@ serial_init();
 
 # MQTT Discovery integration
 my $mqtt = Infinitude::MQTT->new(store => $store, config => $config);
-my $inf = Infinitude->new(store => $store, mqtt => $mqtt, sam => $sam);
+$inf = Infinitude->new(store => $store, mqtt => $mqtt, sam => $sam);
 
 # --- MQTT command wiring ---
 
@@ -391,6 +393,15 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 	                }
 	            }
 	        });
+	        # Route changes through RS485 if SAM emulation is active
+	        if ($sam) {
+	            my $h = defined $htsp ? $htsp + 0 : undef;
+	            my $c = defined $clsp ? $clsp + 0 : undef;
+	            try { $sam->set_zone_setpoint($zone_id, $h, $c) if defined $h or defined $c }
+	            catch { warn "RS485 setpoint write failed: $_" };
+	            try { $sam->set_zone_fan($zone_id, $fan) if defined $fan }
+	            catch { warn "RS485 fan write failed: $_" };
+	        }
 	    }
 	}
 
@@ -443,7 +454,7 @@ post '/api/hold' => sub {
         return $c->render(json => { error => 'duration required (minutes, 0 to cancel)' }, status => 400);
     }
     if ($sam) {
-        try { $sam->$inf->set_zone_hold($zone + 0, $duration + 0) }
+        try { $sam->set_zone_hold($zone + 0, $duration + 0) }
         catch { warn "RS485 hold write failed: $_" };
     }
     $c->render(json => { zone => $zone, duration => $duration + 0 });
@@ -489,6 +500,7 @@ any '/api/*variable_path' => sub {
 			$store->set('systems.json', $xml->_as_json());
 			if (('POST' eq $c->req->method) or ('PUT' eq $c->req->method) or $set_changes) {
 				$store->set(changes => 'true');
+				$mqtt->publish_state;
 			}
 		} else {
 			#path is a scalar. return only.
@@ -499,7 +511,6 @@ any '/api/*variable_path' => sub {
 	};
 
 
-	$mqtt->publish_state;
 	$c->render(json=>$setting);
 };
 
@@ -539,6 +550,7 @@ post '/systems/:id' => sub {
 		$store->set('systems.xml'  => $xml.'');
 		$store->set('systems.json' => $xml->_as_json);
 		$store->set(changes => 'true');
+		$mqtt->publish_state;
 	} else { # Data from thermostat.
 		if (!$c->stash('error')) {
 			if (my $key = $c->stash('store_key')) {
