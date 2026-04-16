@@ -8,11 +8,15 @@
 ### Infinitude is an alternative web service for [Carrier Infinity Touch](https://github.com/nebulous/infinitude/wiki/Infinity-touch) and compatible thermostats.
 
 Infinitude allows direct web-based control of
-  * Temperature setpoints
-  * Schedules
+  * Temperature setpoints (per zone)
+  * Schedules (7-day, 5-period per zone)
+  * System mode (heat/cool/auto/off)
+  * Fan speed per zone
+  * Hold modes and activity presets
+  * Vacation scheduling
   * Dealer information
 
-As well as providing an open RESTish API 
+As well as providing an open RESTish API
 
 <img src="http://i.imgur.com/1LhLKbp.png" />
 
@@ -20,16 +24,25 @@ Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus to obt
 Infinitude provides a serial monitor which keeps track of the current state of registers on the serial bus, and highlights changing bytes to aid in protocol analysis.
 Serial data can be monitored via an attached serial port or via a networked serial bridge.
 
+With SAM emulation enabled (`EMULATE_SAM=1`), Infinitude can also write setpoints, mode, fan speed, and hold settings directly to the RS485 bus. **SAM emulation is experimental and, like all of Infinitude, use at your own risk.**
+
+### Home Assistant Integration via MQTT Discovery
+
+Infinitude can register itself directly as climate entities in Home Assistant using MQTT Discovery. No separate integration is needed — Infinitude publishes discovery payloads, state, and accepts commands all via MQTT. Requires an MQTT broker (e.g., Mosquitto).
+
+Each enabled zone appears as a climate entity with:
+  * Current temperature and humidity
+  * Target temperature (heat/cool/auto modes, including range control)
+  * HVAC mode, fan mode, and preset modes (home, away, sleep, wake, hold)
+  * HVAC action (heating/cooling/idle via `zoneconditioning`)
+
+System-level sensors (outdoor temperature, filter levels, humidifier state) are also published.
+
 <img src="http://i.imgur.com/5Ge1zEM.png" />
 
 RS485 stream monitoring example video:
 
 [![Real time RS485 monitoring](http://img.youtube.com/vi/ybjCumDG_d8/0.jpg)](https://www.youtube.com/watch?v=ybjCumDG_d8)
-
-
-Infinitude does **not** control thermostats via the RS485 bus in the default build at this time. RS485 communication is optional, and _read only_.
-
-Serial-based control of touch thermostats is possible and has been demonstrated by writing to thermostat table 0x40 via Infinitude's CarBus library, but is experimental at this time. 
 
 Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
 
@@ -56,6 +69,12 @@ Infinitude configuration parameters can be passed through environment variables 
 | SERIAL_SOCKET | optional tcp/rs485 bridge string eg `192.168.1.42:23` |
 | LOGLEVEL | optional [minimum severity of log messages to print](https://docs.mojolicious.org/Mojo/Log#level) |
 | SCAN_THERMOSTAT | truthy values on systems with serial connectivity cause Infinitude to continuously scan each Thermostat table |
+| EMULATE_SAM | Enable SAM emulation for RS485 bus writes (1 = enabled) |
+| MQTT_BROKER | MQTT broker address (e.g., `192.168.1.3:1883`). Enables Home Assistant MQTT Discovery. |
+| MQTT_USER | Optional MQTT broker username |
+| MQTT_PASS | Optional MQTT broker password |
+| MQTT_PREFIX | HA discovery prefix (default: `homeassistant`) |
+| MQTT_TOPIC | MQTT base topic (default: `infinitude`) |
 
 
 the published container can be run as
@@ -108,8 +127,8 @@ See <a target="_blank" href="https://www.amazon.com/ideas/amzn1.account.AEFBGWAO
 
 
 #### Usage / Thermostat configuration
- * Set your proxy server/port in the advanced wireless settings on the thermostat to point to your infinitude host/port. 
- * Edit the $conf section of the infinitude file to set your optional RS485 serial tty device.
+ * Set your proxy server/port in the advanced wireless settings on the thermostat to point to your infinitude host/port.
+ * Edit `infinitude.json` to configure optional settings (RS485 serial, MQTT, etc).
  * Start Infinitude. This traffic is _not encrypted_, so only run on a trusted network.
 
 Infinitude is a Mojolicious application, so the simplest way to run it from source is via:
