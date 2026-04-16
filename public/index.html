@@ -466,8 +466,8 @@
                       <template x-for="(activity, ai) in zone.activities[0].activity" :key="ai">
                         <tr>
                           <th x-text="activity.id"></th>
-                          <td><input type="text" x-model="activity.htsp[0]" @change="markDirty()"></td>
-                          <td><input type="text" x-model="activity.clsp[0]" @change="markDirty()"></td>
+                          <td><input type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="activity.htsp[0]" @change="markDirty()"></td>
+                          <td><input type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="activity.clsp[0]" @change="markDirty()"></td>
                           <td><select x-model="activity.fan[0]" @change="markDirty()">
                             <option>off</option><option>low</option><option>med</option><option>high</option>
                           </select></td>
@@ -523,11 +523,11 @@
                 <div class="row mb-3">
                   <div class="col-md-3">
                     <label class="form-label">Min Temp</label>
-                    <input class="form-control" type="number" step="0.5" x-model="systemsEdit.config[0].vacmint[0]" @change="markDirty()">
+                    <input class="form-control" type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="systemsEdit.config[0].vacmint[0]" @change="markDirty()">
                   </div>
                   <div class="col-md-3">
                     <label class="form-label">Max Temp</label>
-                    <input class="form-control" type="number" step="0.5" x-model="systemsEdit.config[0].vacmaxt[0]" @change="markDirty()">
+                    <input class="form-control" type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="systemsEdit.config[0].vacmaxt[0]" @change="markDirty()">
                   </div>
                 </div>
 
