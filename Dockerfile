@@ -5,7 +5,7 @@ COPY . /infinitude
 WORKDIR /infinitude
 
 RUN apk add --no-cache make perl-app-cpanminus perl-mojolicious perl-chi perl-datetime perl-path-tiny perl-json perl-xml-simple perl-moo perl-io-tty
-RUN cpanm -n Data::ParseBinary Digest::CRC Hash::AsObject IO::Termios
+RUN cpanm -n Data::ParseBinary Digest::CRC Hash::AsObject IO::Termios Net::MQTT::Simple
 RUN apk --purge del apk-tools make perl-app-cpanminus
 
 ENV LANG=en_US.UTF-8
