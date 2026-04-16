@@ -19,7 +19,9 @@ services:
       - MOJO_MODE=development
       - MOJO_LOG_COLOR=1
       - MOJO_LOG_LEVEL=debug
-      - SCAN_THERMOSTAT=1
+      - SCAN_THERMOSTAT=16
+      - EMULATE_SAM=1
+      - MQTT_BROKER=192.168.1.3:1883
 #    devices:
 #      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always
