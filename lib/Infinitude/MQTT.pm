@@ -113,6 +113,7 @@ sub publish_discovery {
                 preset_mode_state_topic      => "$zbase/preset/state",
                 preset_mode_command_topic    => "$zbase/preset/cmd",
                 action_topic                 => "$zbase/action",
+                optimistic                   => 1,
                 temp_step                    => 1,
                 min_temp                     => 40,
                 max_temp                     => 99,
@@ -132,7 +133,6 @@ sub publish_discovery {
         ['humlvl',     'Humidifier Level',    '%'],
         ['ventlvl',    'Ventilator Level',    '%'],
         ['humid',      'Humidifier State',    undef],
-        ['statusCode', 'Status Code',         undef],
     );
 
     for my $s (@sensors) {
@@ -233,8 +233,9 @@ sub publish_state {
 
     # System sensors
     my $sbase = $self->_topic('system');
-    for my $key (qw(oat filtrlvl uvlvl humlvl ventlvl humid statusCode)) {
-        $self->{mqtt}->retain("$sbase/$key" => _v($sys->{$key}));
+    for my $key (qw(oat filtrlvl uvlvl humlvl ventlvl humid)) {
+        my $val = _v($sys->{$key});
+        $self->{mqtt}->retain("$sbase/$key" => $val) if $val ne '';
     }
 }
 
