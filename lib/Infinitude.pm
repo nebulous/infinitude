@@ -24,6 +24,7 @@ sub modify_system {
     $self->{store}->set('systems.json', $xml->_as_json());
     $self->{store}->set(changes => 'true');
     $self->{mqtt}->publish_state if $self->{mqtt};
+    $self->{on_after_mutate}->() if $self->{on_after_mutate};
 }
 
 sub set_system_mode {
