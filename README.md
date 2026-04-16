@@ -14,6 +14,7 @@ Infinitude allows direct web-based control of
   * Fan speed per zone
   * Hold modes and activity presets
   * Vacation scheduling
+  * Dealer information
 
 As well as providing an open RESTish API
 
@@ -30,10 +31,6 @@ Infinitude provides a serial monitor which keeps track of the current state of r
 Serial data can be monitored via an attached serial port or via a networked serial bridge.
 
 With SAM emulation enabled (`EMULATE_SAM=1`), Infinitude can also write setpoints, mode, fan speed, and hold settings directly to the RS485 bus. **SAM emulation is experimental and, like all of Infinitude, use at your own risk.**
-
-<img width="1121" height="665" alt="image" src="https://github.com/user-attachments/assets/b6634bda-af9d-4e2f-8fd2-036c31a2cbe7" />
-
-
 
 ### Home Assistant Integration via MQTT Discovery
 
