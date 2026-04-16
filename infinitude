@@ -236,9 +236,13 @@ if ($mqtt->enabled) {
         app->log->info("MQTT: Discovery published");
     });
 
+    my $mqtt_state_skip;
     Mojo::IOLoop->recurring(60 => sub {
-        $mqtt->publish_state;
+        $mqtt->publish_state unless $mqtt_state_skip;
+        $mqtt_state_skip = 0;
     });
+
+    $inf->{on_after_mutate} = sub { $mqtt_state_skip = 1 };
 
     Mojo::IOLoop->recurring(1 => sub {
         $mqtt->tick;
