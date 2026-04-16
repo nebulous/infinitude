@@ -146,7 +146,7 @@ sub bus_loop_start {
             }
 
             if ($ENV{SCAN_THERMOSTAT}) {
-                if (time>=$scansec+3) {
+                if (time>=$scansec+($ENV{SCAN_THERMOSTAT})) {
                     $scansec = time;
                     if ($scanrow > 0) {
                         $scanrow--;
