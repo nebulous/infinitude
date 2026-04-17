@@ -97,7 +97,7 @@ sub publish_discovery {
                 device                 => $device,
                 modes                  => ['off', 'heat', 'cool', 'auto'],
                 fan_modes              => ['auto', 'low', 'medium', 'high'],
-                preset_modes           => [qw(home away sleep wake hold hold_until)],
+                preset_modes           => [qw(none home away sleep wake hold hold_until)],
                 mode_state_topic       => "$zbase/mode/state",
                 mode_command_topic     => "$zbase/mode/cmd",
                 temperature_state_topic      => "$zbase/temp/state",
