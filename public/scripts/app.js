@@ -72,6 +72,7 @@
         systemsEdit: null,
         systemsEdited: null,  // null=never copied, false=clean copy, true=dirty
         selectedZone: 0,
+        activeSchedulePeriods: {},  // "zi-di" -> period index or null
 
         // UI state
         darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -118,13 +119,6 @@
 
         isActive: function(route) { return route === this.currentRoute; },
 
-        mkTime: function(input) {
-          if (input && typeof input === 'object' && Object.keys(input).length === 0) return '00:00';
-          return input;
-        },
-
-        typeofVar: function(v) { return typeof v; },
-
         equals: function(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
 
         getCurrentActivity: function(zi) {
@@ -153,6 +147,23 @@
           this.markDirty();
         },
 
+        adjustActivitySp: function(activity, field, delta) {
+          if (!activity) return;
+          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
+          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
+          var val = parseFloat(activity[field][0]) || 0;
+          activity[field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
+          this.markDirty();
+        },
+
+        adjustVacSp: function(field, delta) {
+          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
+          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
+          var val = parseFloat(this.systemsEdit.config[0][field][0]) || 0;
+          this.systemsEdit.config[0][field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
+          this.markDirty();
+        },
+
         getZoneTemp: function(zone) {
           if (!zone || !zone.rt || typeof zone.rt[0] !== 'string') return '--';
           return parseFloat(zone.rt[0]).toFixed(0);
@@ -171,9 +182,29 @@
         },
         localToIso: function(local) {
           if (!local) return '';
+          // Snap minutes to nearest 15
+          var m = parseInt(local.slice(14, 16));
+          var snapped = Math.round(m / 15) * 15;
+          if (snapped >= 60) snapped = 45;
+          var pad = function(n) { return String(n).padStart(2, '0'); };
+          local = local.slice(0, 14) + pad(snapped);
           var d = new Date(local);
           if (isNaN(d.getTime())) return local;
           return d.toISOString().replace('.000', '');
+        },
+
+        defaultVacDates: function() {
+          var now = new Date();
+          var m = Math.ceil((now.getMinutes() + 1) / 15) * 15;
+          var start = new Date(now);
+          start.setMinutes(m, 0, 0);
+          if (m >= 60) start.setHours(start.getHours() + 1);
+          var end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+          var pad = function(n) { return String(n).padStart(2, '0'); };
+          var fmt = function(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+          this.systemsEdit.config[0].vacstart = [fmt(start)];
+          this.systemsEdit.config[0].vacend = [fmt(end)];
+          this.markDirty();
         },
 
         reloadData: function(userInitiated) {
@@ -197,7 +228,10 @@
                     self.systemsEdit = JSON.parse(JSON.stringify(val));
                   }
                 } else {
-                  self[key] = val;
+                  // Only update if data actually changed to avoid unnecessary repaints
+                  if (JSON.stringify(self[key]) !== JSON.stringify(val)) {
+                    self[key] = val;
+                  }
                 }
                 store[key] = val;
                 if (self.systemsEdited !== true) self.globeColor = GLOBE_CONNECTED;
@@ -391,10 +425,14 @@
 
         initSerial: function() {
           var self = this;
-          var ws = new WebSocket(wsu('/serial'));
-          ws.onopen = function() { console.log('Socket open'); };
-          ws.onclose = function() { console.log('Socket closed'); window.location.reload(); };
-          ws.onerror = function(err) { console.log('Socket error', err); };
+          try {
+            var ws = new WebSocket(wsu('/serial'));
+            ws.onopen = function() { console.log('Socket open'); };
+            ws.onclose = function() { console.log('Socket closed'); };
+            ws.onerror = function(err) { console.log('Socket error', err); };
+          } catch(e) {
+            console.log('WebSocket not available');
+          }
           ws.onmessage = function(m) {
             var frame = JSON.parse(m.data);
             if (typeof frame.cmd != 'string') { console.log(frame); return; }
@@ -491,6 +529,110 @@
                    (a.cmd || '').localeCompare(b.cmd || '') ||
                    (a.reg_string || '').localeCompare(b.reg_string || '');
           });
+        },
+
+        // --- Schedule helpers ---
+
+        timeToMinutes: function(timeStr) {
+          if (!timeStr || typeof timeStr !== 'string') return 0;
+          var parts = timeStr.split(':');
+          return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        },
+
+        snapTime: function(timeStr) {
+          var total = this.timeToMinutes(timeStr);
+          var snapped = Math.round(total / 15) * 15;
+          if (snapped >= 1440) snapped = 1425;
+          var h = Math.floor(snapped / 60);
+          var m = snapped % 60;
+          return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+        },
+
+        enablePeriod: function(day, periodIndex) {
+          var period = day.period[periodIndex];
+          if (!period || period.enabled[0] === 'on') return;
+          var self = this;
+          var thisTime = self.timeToMinutes(period.time[0]);
+          // Find times of enabled periods before and after this one (by original order)
+          var beforeTime = null, afterTime = null;
+          for (var i = periodIndex - 1; i >= 0; i--) {
+            if (day.period[i].enabled[0] === 'on') { beforeTime = self.timeToMinutes(day.period[i].time[0]); break; }
+          }
+          for (var j = periodIndex + 1; j < day.period.length; j++) {
+            if (day.period[j].enabled[0] === 'on') { afterTime = self.timeToMinutes(day.period[j].time[0]); break; }
+          }
+          var defaultMin;
+          if (beforeTime !== null && afterTime !== null) {
+            defaultMin = Math.round((beforeTime + afterTime) / 2 / 15) * 15; // midpoint, snapped to 15min
+          } else if (beforeTime !== null) {
+            defaultMin = Math.min(beforeTime + 120, 1440); // 2 hours after previous
+          } else if (afterTime !== null) {
+            defaultMin = Math.max(afterTime - 120, 0); // 2 hours before next
+          } else {
+            defaultMin = 720; // noon
+          }
+          var h = Math.floor(defaultMin / 60);
+          var m = defaultMin % 60;
+          period.time = [(h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m];
+          period.enabled = ['on'];
+          this.markDirty();
+        },
+
+        firstDisabledPeriod: function(day) {
+          if (!day || !day.period) return null;
+          for (var i = 0; i < day.period.length; i++) {
+            if (day.period[i].enabled[0] !== 'on') return i;
+          }
+          return null;
+        },
+
+        scheduleRangeStart: function(zone) {
+          if (!zone || !zone.program || !zone.program[0] || !zone.program[0].day) return 240;
+          var self = this;
+          var minTime = 1440;
+          zone.program[0].day.forEach(function(day) {
+            if (!day.period) return;
+            day.period.forEach(function(p) {
+              if (p.enabled[0] === 'on') {
+                var t = self.timeToMinutes(p.time[0]);
+                if (t < minTime) minTime = t;
+              }
+            });
+          });
+          // Subtract 1 hour padding, round down to nearest hour, minimum 0
+          return Math.max(0, Math.floor((minTime - 60) / 60) * 60);
+        },
+
+        scheduleItems: function(day, start) {
+          if (!day || !day.period) return [];
+          var START = start || 0;
+          var RANGE = 1440 - START;
+          if (RANGE <= 0) RANGE = 1440;
+          var self = this;
+          // Only return enabled periods, sorted by time
+          var enabled = [];
+          for (var i = 0; i < day.period.length; i++) {
+            if (day.period[i].enabled[0] === 'on') {
+              enabled.push({ period: day.period[i], index: i });
+            }
+          }
+          enabled.sort(function(a, b) { return self.timeToMinutes(a.period.time[0]) - self.timeToMinutes(b.period.time[0]); });
+          var items = [];
+          for (var j = 0; j < enabled.length; j++) {
+            var s = self.timeToMinutes(enabled[j].period.time[0]);
+            var e = (j + 1 < enabled.length) ? self.timeToMinutes(enabled[j + 1].period.time[0]) : 1440;
+            if (e > s) {
+              items.push({
+                index: enabled[j].index,
+                activity: enabled[j].period.activity[0],
+                time: enabled[j].period.time[0],
+                enabled: true,
+                left: (s - START) / RANGE * 100,
+                width: (e - s) / RANGE * 100
+              });
+            }
+          }
+          return items;
         }
       };
     });
