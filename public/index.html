@@ -13,8 +13,8 @@
       .dg-linear { display: inline-block; width: 80px; height: 220px; }
       .diff { background-color: rgba(100, 255, 100, 0.35); }
 
-      /* Home Panel - Dark Thermostat UI */
-      .home-panel {
+      /* Thermostat UI Variables - defaults for dark mode */
+      :root {
         --h-bg: #0c1520;
         --h-card: #141f2e;
         --h-card-hover: #1a2840;
@@ -25,6 +25,22 @@
         --h-cool: #4ab8e8;
         --h-auto: #5ab870;
         --h-accent: #4ab8e8;
+      }
+      [data-bs-theme="light"] {
+        --h-bg: #f5f3f0;
+        --h-card: #ffffff;
+        --h-card-hover: #f0eeeb;
+        --h-text: #1a1a1a;
+        --h-muted: #6b7280;
+        --h-border: #d6d3cd;
+        --h-heat: #c85a1a;
+        --h-cool: #1a7ab5;
+        --h-auto: #2d8a4e;
+        --h-accent: #1a7ab5;
+      }
+
+      /* Home Panel - Dark Thermostat UI */
+      .home-panel {
         background: linear-gradient(160deg, #0c1520 0%, #111d2d 40%, #0e1822 100%);
         border-radius: 20px;
         padding: 1.5rem;
@@ -87,24 +103,74 @@
         .home-sp-value { font-size: 2rem; }
       }
 
-      /* Theme overrides for light mode */
+      /* Light mode overrides for home panel background only */
       [data-bs-theme="light"] .home-panel {
-        --h-bg: #f5f3f0;
-        --h-card: #ffffff;
-        --h-card-hover: #f0eeeb;
-        --h-text: #1a1a1a;
-        --h-muted: #6b7280;
-        --h-border: #d6d3cd;
-        --h-heat: #c85a1a;
-        --h-cool: #1a7ab5;
-        --h-auto: #2d8a4e;
-        --h-accent: #1a7ab5;
         background: linear-gradient(160deg, #f5f3f0 0%, #eeebe6 40%, #f0ede8 100%);
         box-shadow: 0 2px 16px rgba(0,0,0,0.08);
       }
       [data-bs-theme="light"] .home-vacation-badge { color: #fff; }
       [data-bs-theme="light"] .home-save-bar { color: #fff; }
       [data-bs-theme="light"] .home-zone-sp .form-select { background-color: var(--h-card); }
+
+      /* Schedule Timeline */
+      .schedule-day { margin-bottom: 0.6rem; }
+      .schedule-day-row { display: flex; align-items: center; gap: 0.5rem; }
+      .schedule-day-label { width: 5.5rem; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--h-muted); flex-shrink: 0; padding: 0.35rem 0; text-align: right; white-space: nowrap; }
+      .schedule-bar { flex: 1; height: 2.2rem; background: var(--h-card); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid var(--h-border); }
+      .schedule-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--h-border); opacity: 0.5; }
+      .schedule-block {
+        position: absolute; top: 3px; bottom: 3px; border-radius: 5px;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0.85; transition: opacity 0.15s; cursor: pointer;
+        font-size: 0.68rem; font-weight: 600; text-transform: capitalize;
+        color: #fff; overflow: hidden; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+      }
+      .schedule-block:hover { opacity: 1; }
+      .schedule-block-wake { background: #d4952a; }
+      .schedule-block-away { background: #7b8d9e; }
+      .schedule-block-home { background: #4a9e5f; }
+      .schedule-block-sleep { background: #5b6abf; }
+      .schedule-block-active { opacity: 1; outline: 2px solid #fff; outline-offset: -2px; }
+      .schedule-add-btn {
+        flex-shrink: 0; width: 28px; height: 28px;
+        border-radius: 50%; border: 1px solid var(--h-border);
+        background: var(--h-card); color: var(--h-muted);
+        font-size: 0.9rem; line-height: 1; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0; margin: 0;
+        transition: all 0.15s;
+      }
+      .schedule-add-btn:hover { background: var(--h-accent); color: #fff; border-color: var(--h-accent); }
+
+      /* Edit panel */
+      .schedule-edit {
+        margin-top: 0.4rem; margin-left: 5rem;
+        padding: 0.6rem 0.8rem; border-radius: 8px;
+        background: var(--h-card); border: 1px solid var(--h-border);
+        display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+        justify-content: center;
+      }
+      .schedule-edit .form-control { width: auto; padding: 0.15rem 0.4rem; font-size: 0.82rem; }
+      .schedule-activity-pill {
+        padding: 0.3rem 0.7rem; border-radius: 14px; border: 1px solid var(--h-border);
+        background: transparent; color: var(--h-muted); cursor: pointer;
+        font-size: 0.78rem; font-family: 'Lexend', sans-serif; font-weight: 500;
+        transition: all 0.15s ease; text-transform: capitalize;
+      }
+      .schedule-activity-pill:hover { color: var(--h-text); background: rgba(128,128,128,0.15); }
+      .schedule-disable-btn { color: var(--h-muted); }
+      .schedule-disable-btn:hover { color: #e44; background: rgba(228,68,68,0.12); }
+      .schedule-activity-pill-active { color: #fff !important; font-weight: 600; border-color: transparent !important; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+      .schedule-activity-pill-wake.schedule-activity-pill-active { background: #d4952a; }
+      .schedule-activity-pill-away.schedule-activity-pill-active { background: #7b8d9e; }
+      .schedule-activity-pill-home.schedule-activity-pill-active { background: #4a9e5f; }
+      .schedule-activity-pill-sleep.schedule-activity-pill-active { background: #5b6abf; }
+
+      @media (max-width: 576px) {
+        .schedule-day-row { flex-wrap: wrap; }
+        .schedule-day-label { width: 100%; margin-bottom: 0.15rem; }
+        .schedule-edit { margin-left: 0; }
+      }
     </style>
   </head>
   <body x-data="infinitude" x-init="init()" x-effect="document.documentElement.setAttribute('data-bs-theme', darkMode ? 'dark' : 'light')">
@@ -361,25 +427,23 @@
         <h2>Comfort Profiles</h2>
         <template x-if="systemsEdit">
           <div>
-            <div>
-              <p>Climate Mode
-                <select x-model="systemsEdit.config[0].mode[0]" @change="markDirty()">
-                  <option value="off">Off</option>
-                  <option value="fanonly">Fan only</option>
-                  <option value="auto">Auto</option>
-                  <option value="heat">Heat</option>
-                  <option value="cool">Cool</option>
-                </select>
-              </p>
+            <div class="mb-3">
+              <label class="form-label text-muted small text-uppercase" style="letter-spacing:0.1em">Climate Mode</label>
+              <div class="home-pills">
+                <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].mode[0] === 'off'}" @click="systemsEdit.config[0].mode[0] = 'off'; markDirty()"><i class="bi bi-power"></i> Off</button>
+                <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].mode[0] === 'fanonly'}" @click="systemsEdit.config[0].mode[0] = 'fanonly'; markDirty()"><i class="bi bi-fan"></i> Fan Only</button>
+                <button class="home-pill" :class="{'home-pill-active home-pill-heat': systemsEdit.config[0].mode[0] === 'heat'}" @click="systemsEdit.config[0].mode[0] = 'heat'; markDirty()"><i class="bi bi-fire"></i> Heat</button>
+                <button class="home-pill" :class="{'home-pill-active home-pill-cool': systemsEdit.config[0].mode[0] === 'cool'}" @click="systemsEdit.config[0].mode[0] = 'cool'; markDirty()"><i class="bi bi-snow"></i> Cool</button>
+                <button class="home-pill" :class="{'home-pill-active home-pill-auto': systemsEdit.config[0].mode[0] === 'auto'}" @click="systemsEdit.config[0].mode[0] = 'auto'; markDirty()"><i class="bi bi-arrow-repeat"></i> Auto</button>
+              </div>
             </div>
-            <div x-show="status && status.odu && status.odu[0].type[0].includes('hp')">
-              <p>Heat Source
-                <select x-model="systemsEdit.config[0].heatsource[0]" @change="markDirty()">
-                  <option value="system">System in control</option>
-                  <option value="odu only">Heat pump only</option>
-                  <option value="idu only">Aux heat only</option>
-                </select>
-              </p>
+            <div class="mb-3" x-show="status && status.odu && status.odu[0].type[0].includes('hp')">
+              <label class="form-label text-muted small text-uppercase" style="letter-spacing:0.1em">Heat Source</label>
+              <div class="home-pills">
+                <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].heatsource[0] === 'system'}" @click="systemsEdit.config[0].heatsource[0] = 'system'; markDirty()">System</button>
+                <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].heatsource[0] === 'odu only'}" @click="systemsEdit.config[0].heatsource[0] = 'odu only'; markDirty()"><i class="bi bi-thermometer-half"></i> Heat Pump</button>
+                <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].heatsource[0] === 'idu only'}" @click="systemsEdit.config[0].heatsource[0] = 'idu only'; markDirty()"><i class="bi bi-lightning"></i> Aux Heat</button>
+              </div>
             </div>
 
             <div class="card">
@@ -573,33 +637,48 @@
         <h2>Schedules</h2>
         <template x-if="systemsEdit && systemsEdit.config">
           <template x-for="(zone, zi) in systemsEdit.config[0].zones[0].zone" :key="zi">
-            <div class="card" x-show="zone.enabled[0] === 'on'">
+            <div class="card" x-show="zone.enabled[0] === 'on'" x-data="{ rangeStart: scheduleRangeStart(zone) }">
               <div class="card-header" x-text="zone.name[0]"></div>
               <div class="card-body" x-show="zone.enabled[0] === 'on'">
-                <table class="table table-striped table-bordered">
-                  <tbody>
-                    <template x-for="(day, di) in zone.program[0].day" :key="di">
-                      <tr>
-                        <th x-text="day.id"></th>
-                        <template x-for="(period, pi) in day.period" :key="pi">
-                          <td>
-                            <input type="checkbox" x-model="period.enabled[0]" true-value="on" false-value="off" @change="markDirty()">
-                            <span x-show="period.enabled[0] === 'on'">
-                              <select x-model="period.activity[0]" @change="markDirty()">
-                                <option>wake</option><option>away</option><option>home</option><option>sleep</option>
-                              </select>
-                              <input type="time" x-model="period.time[0]" step="900" @change="markDirty()">
-                            </span>
-                            <span x-show="period.enabled[0] === 'off'"><i>disabled</i></span>
-                          </td>
+                <template x-for="(day, di) in zone.program[0].day" :key="di">
+                  <div class="schedule-day">
+                    <div class="schedule-day-row">
+                      <div class="schedule-day-label" x-text="day.id"></div>
+                      <div class="schedule-bar">
+                        <div class="schedule-tick" :style="'left:' + ((360 - rangeStart) / (1440 - rangeStart) * 100) + '%'"></div>
+                        <div class="schedule-tick" :style="'left:' + ((720 - rangeStart) / (1440 - rangeStart) * 100) + '%'"></div>
+                        <div class="schedule-tick" :style="'left:' + ((1080 - rangeStart) / (1440 - rangeStart) * 100) + '%'"></div>
+                        <template x-for="(item, ii) in scheduleItems(day, rangeStart)" :key="item.index">
+                          <div :class="['schedule-block', 'schedule-block-' + item.activity, {'schedule-block-active': activeSchedulePeriods[zi + '-' + di] === item.index}]"
+                               :style="'left:' + item.left + '%;width:' + item.width + '%'"
+                               @click="activeSchedulePeriods[zi + '-' + di] = activeSchedulePeriods[zi + '-' + di] === item.index ? null : item.index"
+                               x-text="item.activity"></div>
                         </template>
-                      </tr>
-                    </template>
-                  </tbody>
-                  <tfoot>
-                    <tr><td colspan="6"><button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button></td></tr>
-                  </tfoot>
-                </table>
+                      </div>
+                      <button x-show="firstDisabledPeriod(day) !== null"
+                              class="schedule-add-btn"
+                              @click="activeSchedulePeriods[zi + '-' + di] = firstDisabledPeriod(day); enablePeriod(day, activeSchedulePeriods[zi + '-' + di])"
+                              title="Add period"><i class="bi bi-plus"></i></button>
+                    </div>
+                    <div class="schedule-edit" x-show="activeSchedulePeriods[zi + '-' + di] != null" x-transition>
+                      <div class="d-flex gap-1 align-items-center flex-wrap">
+                        <template x-for="act in ['wake','away','home','sleep']">
+                          <button class="schedule-activity-pill"
+                                  :class="'schedule-activity-pill-' + act + (day.period[activeSchedulePeriods[zi + '-' + di]]?.activity?.[0] === act ? ' schedule-activity-pill-active' : '')"
+                                  @click="day.period[activeSchedulePeriods[zi + '-' + di]].activity = [act]; markDirty()"
+                                  x-text="act"></button>
+                        </template>
+                        <button class="schedule-activity-pill schedule-disable-btn"
+                                @click="day.period[activeSchedulePeriods[zi + '-' + di]].enabled = ['off']; activeSchedulePeriods[zi + '-' + di] = null; markDirty()"
+                                title="Disable this period"><i class="bi bi-x-lg"></i></button>
+                      </div>
+                      <input type="time" step="900" :value="day.period[activeSchedulePeriods[zi + '-' + di]]?.time?.[0]"
+                             @change="day.period[activeSchedulePeriods[zi + '-' + di]].time = [snapTime($event.target.value)]; markDirty()"
+                             class="form-control form-control-sm">
+                    </div>
+                  </div>
+                </template>
+                <button class="btn btn-primary mt-2" :disabled="systemsEdited !== true" @click="save()">Save</button>
               </div>
             </div>
           </template>

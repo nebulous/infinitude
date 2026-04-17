@@ -72,6 +72,7 @@
         systemsEdit: null,
         systemsEdited: null,  // null=never copied, false=clean copy, true=dirty
         selectedZone: 0,
+        activeSchedulePeriods: {},  // "zi-di" -> period index or null
 
         // UI state
         darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -197,7 +198,10 @@
                     self.systemsEdit = JSON.parse(JSON.stringify(val));
                   }
                 } else {
-                  self[key] = val;
+                  // Only update if data actually changed to avoid unnecessary repaints
+                  if (JSON.stringify(self[key]) !== JSON.stringify(val)) {
+                    self[key] = val;
+                  }
                 }
                 store[key] = val;
                 if (self.systemsEdited !== true) self.globeColor = GLOBE_CONNECTED;
@@ -391,10 +395,14 @@
 
         initSerial: function() {
           var self = this;
-          var ws = new WebSocket(wsu('/serial'));
-          ws.onopen = function() { console.log('Socket open'); };
-          ws.onclose = function() { console.log('Socket closed'); window.location.reload(); };
-          ws.onerror = function(err) { console.log('Socket error', err); };
+          try {
+            var ws = new WebSocket(wsu('/serial'));
+            ws.onopen = function() { console.log('Socket open'); };
+            ws.onclose = function() { console.log('Socket closed'); };
+            ws.onerror = function(err) { console.log('Socket error', err); };
+          } catch(e) {
+            console.log('WebSocket not available');
+          }
           ws.onmessage = function(m) {
             var frame = JSON.parse(m.data);
             if (typeof frame.cmd != 'string') { console.log(frame); return; }
@@ -491,6 +499,110 @@
                    (a.cmd || '').localeCompare(b.cmd || '') ||
                    (a.reg_string || '').localeCompare(b.reg_string || '');
           });
+        },
+
+        // --- Schedule helpers ---
+
+        timeToMinutes: function(timeStr) {
+          if (!timeStr || typeof timeStr !== 'string') return 0;
+          var parts = timeStr.split(':');
+          return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        },
+
+        snapTime: function(timeStr) {
+          var total = this.timeToMinutes(timeStr);
+          var snapped = Math.round(total / 15) * 15;
+          if (snapped >= 1440) snapped = 1425;
+          var h = Math.floor(snapped / 60);
+          var m = snapped % 60;
+          return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+        },
+
+        enablePeriod: function(day, periodIndex) {
+          var period = day.period[periodIndex];
+          if (!period || period.enabled[0] === 'on') return;
+          var self = this;
+          var thisTime = self.timeToMinutes(period.time[0]);
+          // Find times of enabled periods before and after this one (by original order)
+          var beforeTime = null, afterTime = null;
+          for (var i = periodIndex - 1; i >= 0; i--) {
+            if (day.period[i].enabled[0] === 'on') { beforeTime = self.timeToMinutes(day.period[i].time[0]); break; }
+          }
+          for (var j = periodIndex + 1; j < day.period.length; j++) {
+            if (day.period[j].enabled[0] === 'on') { afterTime = self.timeToMinutes(day.period[j].time[0]); break; }
+          }
+          var defaultMin;
+          if (beforeTime !== null && afterTime !== null) {
+            defaultMin = Math.round((beforeTime + afterTime) / 2 / 15) * 15; // midpoint, snapped to 15min
+          } else if (beforeTime !== null) {
+            defaultMin = Math.min(beforeTime + 120, 1440); // 2 hours after previous
+          } else if (afterTime !== null) {
+            defaultMin = Math.max(afterTime - 120, 0); // 2 hours before next
+          } else {
+            defaultMin = 720; // noon
+          }
+          var h = Math.floor(defaultMin / 60);
+          var m = defaultMin % 60;
+          period.time = [(h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m];
+          period.enabled = ['on'];
+          this.markDirty();
+        },
+
+        firstDisabledPeriod: function(day) {
+          if (!day || !day.period) return null;
+          for (var i = 0; i < day.period.length; i++) {
+            if (day.period[i].enabled[0] !== 'on') return i;
+          }
+          return null;
+        },
+
+        scheduleRangeStart: function(zone) {
+          if (!zone || !zone.program || !zone.program[0] || !zone.program[0].day) return 240;
+          var self = this;
+          var minTime = 1440;
+          zone.program[0].day.forEach(function(day) {
+            if (!day.period) return;
+            day.period.forEach(function(p) {
+              if (p.enabled[0] === 'on') {
+                var t = self.timeToMinutes(p.time[0]);
+                if (t < minTime) minTime = t;
+              }
+            });
+          });
+          // Subtract 1 hour padding, round down to nearest hour, minimum 0
+          return Math.max(0, Math.floor((minTime - 60) / 60) * 60);
+        },
+
+        scheduleItems: function(day, start) {
+          if (!day || !day.period) return [];
+          var START = start || 0;
+          var RANGE = 1440 - START;
+          if (RANGE <= 0) RANGE = 1440;
+          var self = this;
+          // Only return enabled periods, sorted by time
+          var enabled = [];
+          for (var i = 0; i < day.period.length; i++) {
+            if (day.period[i].enabled[0] === 'on') {
+              enabled.push({ period: day.period[i], index: i });
+            }
+          }
+          enabled.sort(function(a, b) { return self.timeToMinutes(a.period.time[0]) - self.timeToMinutes(b.period.time[0]); });
+          var items = [];
+          for (var j = 0; j < enabled.length; j++) {
+            var s = self.timeToMinutes(enabled[j].period.time[0]);
+            var e = (j + 1 < enabled.length) ? self.timeToMinutes(enabled[j + 1].period.time[0]) : 1440;
+            if (e > s) {
+              items.push({
+                index: enabled[j].index,
+                activity: enabled[j].period.activity[0],
+                time: enabled[j].period.time[0],
+                enabled: true,
+                left: (s - START) / RANGE * 100,
+                width: (e - s) / RANGE * 100
+              });
+            }
+          }
+          return items;
         }
       };
     });
