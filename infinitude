@@ -217,7 +217,7 @@ if ($mqtt->enabled) {
         on_set_preset => sub {
             my ($zone_id, $preset) = @_;
             my ($hold, $activity, $until);
-            if ($preset eq 'schedule') {
+            if ($preset eq 'none' || $preset eq 'schedule') {
                 ($hold, $activity, $until) = ('off', '', {});
             } elsif ($preset =~ /^(home|away|sleep|wake)$/) {
                 ($hold, $activity, $until) = ('on', $preset, qtr_hr());
