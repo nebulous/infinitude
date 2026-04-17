@@ -119,13 +119,6 @@
 
         isActive: function(route) { return route === this.currentRoute; },
 
-        mkTime: function(input) {
-          if (input && typeof input === 'object' && Object.keys(input).length === 0) return '00:00';
-          return input;
-        },
-
-        typeofVar: function(v) { return typeof v; },
-
         equals: function(a, b) { return JSON.stringify(a) === JSON.stringify(b); },
 
         getCurrentActivity: function(zi) {
@@ -154,6 +147,23 @@
           this.markDirty();
         },
 
+        adjustActivitySp: function(activity, field, delta) {
+          if (!activity) return;
+          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
+          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
+          var val = parseFloat(activity[field][0]) || 0;
+          activity[field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
+          this.markDirty();
+        },
+
+        adjustVacSp: function(field, delta) {
+          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
+          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
+          var val = parseFloat(this.systemsEdit.config[0][field][0]) || 0;
+          this.systemsEdit.config[0][field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
+          this.markDirty();
+        },
+
         getZoneTemp: function(zone) {
           if (!zone || !zone.rt || typeof zone.rt[0] !== 'string') return '--';
           return parseFloat(zone.rt[0]).toFixed(0);
@@ -172,9 +182,29 @@
         },
         localToIso: function(local) {
           if (!local) return '';
+          // Snap minutes to nearest 15
+          var m = parseInt(local.slice(14, 16));
+          var snapped = Math.round(m / 15) * 15;
+          if (snapped >= 60) snapped = 45;
+          var pad = function(n) { return String(n).padStart(2, '0'); };
+          local = local.slice(0, 14) + pad(snapped);
           var d = new Date(local);
           if (isNaN(d.getTime())) return local;
           return d.toISOString().replace('.000', '');
+        },
+
+        defaultVacDates: function() {
+          var now = new Date();
+          var m = Math.ceil((now.getMinutes() + 1) / 15) * 15;
+          var start = new Date(now);
+          start.setMinutes(m, 0, 0);
+          if (m >= 60) start.setHours(start.getHours() + 1);
+          var end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+          var pad = function(n) { return String(n).padStart(2, '0'); };
+          var fmt = function(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+          this.systemsEdit.config[0].vacstart = [fmt(start)];
+          this.systemsEdit.config[0].vacend = [fmt(end)];
+          this.markDirty();
         },
 
         reloadData: function(userInitiated) {

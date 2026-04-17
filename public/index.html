@@ -13,6 +13,16 @@
       .dg-linear { display: inline-block; width: 80px; height: 220px; }
       .diff { background-color: rgba(100, 255, 100, 0.35); }
 
+      /* Header icons */
+      .header-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 30px; height: 30px; border-radius: 50%;
+        margin-left: 0.3rem; vertical-align: middle; cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .header-icon:hover { background: rgba(128,128,128,0.15); }
+      .header-theme-toggle { margin-left: 0.5rem; color: var(--bs-secondary-color); }
+
       /* Thermostat UI Variables - defaults for dark mode */
       :root {
         --h-bg: #0c1520;
@@ -171,6 +181,99 @@
         .schedule-day-label { width: 100%; margin-bottom: 0.15rem; }
         .schedule-edit { margin-left: 0; }
       }
+
+      /* === Profiles Page === */
+      .profile-zone-card {
+        background: var(--h-card); border: 1px solid var(--h-border);
+        border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 0.75rem;
+      }
+      .profile-zone-header {
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      .profile-zone-title { font-size: 1rem; font-weight: 600; color: var(--h-text); }
+      .profile-zone-chevron { color: var(--h-muted); font-size: 0.85rem; cursor: pointer; }
+
+      .profile-activity-card {
+        display: flex; align-items: center; gap: 0.65rem;
+        padding: 0.55rem 0.75rem; border-radius: 10px;
+        background: var(--h-bg); border: 1px solid var(--h-border);
+        margin-bottom: 0.35rem; transition: border-color 0.15s;
+      }
+      .profile-activity-card:hover { border-color: var(--h-accent); }
+      .profile-activity-accent {
+        width: 4px; min-height: 32px; border-radius: 2px; flex-shrink: 0;
+      }
+      .profile-accent-wake  { background: #d4952a; }
+      .profile-accent-away  { background: #7b8d9e; }
+      .profile-accent-home  { background: #4a9e5f; }
+      .profile-accent-sleep { background: #5b6abf; }
+      .profile-accent-manual { background: var(--h-muted); }
+      .profile-activity-name {
+        width: 4.8rem; font-size: 0.82rem; font-weight: 600;
+        text-transform: capitalize; color: var(--h-text); flex-shrink: 0;
+        display: flex; align-items: center; gap: 0.3rem;
+      }
+      .profile-activity-name .bi { font-size: 0.85rem; }
+      .profile-activity-setpoints {
+        display: flex; gap: 0.75rem; flex: 1;
+      }
+      .profile-sp-group {
+        display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+        flex: 1; min-width: 0;
+      }
+      .profile-sp-group {
+        display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+      }
+      .profile-sp-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
+      .profile-sp-control {
+        display: flex; align-items: center; gap: 0.3rem;
+        background: var(--h-card); border-radius: 14px; padding: 0.25rem 0.4rem;
+        border: 1px solid var(--h-border);
+      }
+      .profile-sp-heat .profile-sp-label { color: var(--h-heat); }
+      .profile-sp-cool .profile-sp-label { color: var(--h-cool); }
+      .profile-sp-value {
+        font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem;
+        min-width: 2.2rem; text-align: center; color: var(--h-text);
+      }
+
+      .profile-hold-toggle {
+        display: flex; align-items: center; gap: 0.4rem; cursor: pointer;
+        font-size: 0.82rem; color: var(--h-muted); user-select: none;
+      }
+      .profile-hold-toggle:hover { color: var(--h-text); }
+      .profile-hold-panel {
+        padding: 0.5rem 0.75rem; border-radius: 10px;
+        background: var(--h-bg); border: 1px solid var(--h-border);
+        margin-top: 0.5rem;
+      }
+      .profile-hold-options {
+        display: flex; align-items: center; gap: 0.5rem;
+        flex-wrap: wrap; font-size: 0.82rem; color: var(--h-muted);
+      }
+
+      .profile-humidity-section {
+        margin-top: 0.75rem; border-top: 1px solid var(--h-border); padding-top: 0.5rem;
+      }
+      .profile-humidity-toggle {
+        display: flex; align-items: center; gap: 0.4rem;
+        font-size: 0.78rem; color: var(--h-muted); cursor: pointer;
+        text-transform: uppercase; letter-spacing: 0.05em;
+      }
+      .profile-humidity-toggle:hover { color: var(--h-text); }
+      .profile-humidity-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 0.4rem; margin-top: 0.5rem;
+      }
+      .profile-humidity-item {
+        display: flex; align-items: center; gap: 0.4rem;
+        font-size: 0.78rem; color: var(--h-muted);
+      }
+
+      @media (max-width: 576px) {
+        .profile-activity-card { flex-wrap: wrap; }
+        .profile-activity-setpoints { width: 100%; }
+      }
     </style>
   </head>
   <body x-data="infinitude" x-init="init()" x-effect="document.documentElement.setAttribute('data-bs-theme', darkMode ? 'dark' : 'light')">
@@ -178,18 +281,18 @@
     <div class="header">
       <ul class="nav nav-pills float-end">
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/')}" href="#/">Home</a></li>
-        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/status')}" href="#/status">Status</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/profiles')}" href="#/profiles">Comfort Profiles</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/schedules')}" href="#/schedules">Schedules</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/vacation')}" href="#/vacation">Vacation</a></li>
+        <li class="nav-item"><a class="nav-link" :class="{active: isActive('/status')}" href="#/status">Status</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/serial')}" href="#/serial">Serial</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/energy')}" href="#/energy">Energy</a></li>
         <li class="nav-item"><a class="nav-link" :class="{active: isActive('/about')}" href="#/about">About</a></li>
       </ul>
       <h3 class="text-muted">&infin;&nbsp;Infinitude
-        <span style="cursor: pointer;" :style="{ color: globeColor }" @click="reloadData(true)" class="bi bi-globe" aria-hidden="true"></span>
-        <span :style="{ color: transferColor }" class="bi bi-arrow-left-right" aria-hidden="true"></span>
-        <span style="cursor: pointer; margin-left: 0.5rem;" @click="darkMode = !darkMode; rebuildGauges()" class="bi" :class="darkMode ? 'bi-sun' : 'bi-moon'" aria-hidden="true"></span>
+        <span class="header-icon" :style="{ color: globeColor }" @click="reloadData(true)" title="Refresh data"><i class="bi bi-globe2"></i></span>
+        <span class="header-icon" :style="{ color: transferColor }" title="Bus activity"><i class="bi bi-arrow-left-right"></i></span>
+        <span class="header-icon header-theme-toggle" @click="darkMode = !darkMode; rebuildGauges()" :title="darkMode ? 'Light mode' : 'Dark mode'"><i class="bi" :class="darkMode ? 'bi-sun' : 'bi-moon-stars'"></i></span>
       </h3>
     </div>
 
@@ -229,7 +332,7 @@
           <!-- Setpoint controls for primary zone -->
           <div class="home-setpoints" x-show="getCurrentActivity(0) && systemsEdit.config[0].mode[0] !== 'off'">
             <div class="home-setpoint home-setpoint-heat" x-show="systemsEdit.config[0].mode[0] === 'heat' || systemsEdit.config[0].mode[0] === 'auto'">
-              <span class="home-setpoint-label">Heat</span>
+              <span class="home-setpoint-label"><i class="bi bi-fire"></i> Heat</span>
               <div class="home-setpoint-control">
                 <button class="home-sp-btn" @click="adjustSetpoint(0, 'htsp', -1)">−</button>
                 <span class="home-sp-value" x-text="fmtSp(getCurrentActivity(0).htsp[0])"></span>
@@ -237,7 +340,7 @@
               </div>
             </div>
             <div class="home-setpoint home-setpoint-cool" x-show="systemsEdit.config[0].mode[0] === 'cool' || systemsEdit.config[0].mode[0] === 'auto'">
-              <span class="home-setpoint-label">Cool</span>
+              <span class="home-setpoint-label"><i class="bi bi-snow"></i> Cool</span>
               <div class="home-setpoint-control">
                 <button class="home-sp-btn" @click="adjustSetpoint(0, 'clsp', -1)">−</button>
                 <span class="home-sp-value" x-text="fmtSp(getCurrentActivity(0).clsp[0])"></span>
@@ -296,19 +399,19 @@
                   <div class="home-zone-details" x-show="expanded && getCurrentActivity(zi)" x-transition @click.stop>
                     <div class="home-zone-setpoints">
                       <div class="home-zone-sp">
-                        <span>Heat</span>
+                        <span><i class="bi bi-fire" style="color:var(--h-heat)"></i> Heat</span>
                         <button class="home-sp-btn-sm" @click.stop="adjustSetpoint(zi, 'htsp', -1)">−</button>
                         <span x-text="fmtSp(getCurrentActivity(zi).htsp[0])"></span>
                         <button class="home-sp-btn-sm" @click.stop="adjustSetpoint(zi, 'htsp', 1)">+</button>
                       </div>
                       <div class="home-zone-sp">
-                        <span>Cool</span>
+                        <span><i class="bi bi-snow" style="color:var(--h-cool)"></i> Cool</span>
                         <button class="home-sp-btn-sm" @click.stop="adjustSetpoint(zi, 'clsp', -1)">−</button>
                         <span x-text="fmtSp(getCurrentActivity(zi).clsp[0])"></span>
                         <button class="home-sp-btn-sm" @click.stop="adjustSetpoint(zi, 'clsp', 1)">+</button>
                       </div>
                       <div class="home-zone-sp">
-                        <span>Fan</span>
+                        <span><i class="bi bi-fan"></i> Fan</span>
                         <select class="form-select form-select-sm" :value="getCurrentActivity(zi).fan[0]" @change.stop="setZoneFan(zi, $event.target.value)">
                           <option>off</option><option>low</option><option>med</option><option>high</option>
                         </select>
@@ -446,103 +549,250 @@
               </div>
             </div>
 
-            <div class="card">
-              <div class="card-header"><strong>whole house</strong>
-                <br>Hold: <input type="checkbox" x-model="systemsEdit.config[0].wholeHouse[0].hold[0]" true-value="on" false-value="off" @change="markDirty()">
-                <span x-show="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on'">
-                  <select x-model="systemsEdit.config[0].wholeHouse[0].holdActivity[0]" @change="markDirty()">
-                    <option>home</option><option>away</option>
-                  </select>
-                  Forever <input type="checkbox" x-model="systemsEdit.config[0].wholeHouse[0].otmr[0]" true-value="{}" false-value="00:00" @change="markDirty()">
-                  <br>
-                  <span x-show="typeof systemsEdit.config[0].wholeHouse[0].otmr[0] === 'string' && systemsEdit.config[0].wholeHouse[0].otmr[0].includes(':')">
-                    Until <input type="time" x-model="systemsEdit.config[0].wholeHouse[0].otmr[0]" step="900" @change="markDirty()">
-                  </span>
-                </span>
-              </div>
-              <div class="card-body">
-                <table class="table table-striped table-bordered">
-                  <thead><tr><th></th><th>Dehum. Overcool</th><th>Cooling Humidity</th>
-                    <th x-show="systems && systems.config[0].cfgvent[0]">Cooling Ventilator</th>
-                    <th x-show="systems && systems.config[0].cfgvent[0]">Cooling Vent. Speed</th>
-                    <th x-show="systems && systems.config[0].cfgvent[0]">Heating Ventilator</th>
-                    <th x-show="systems && systems.config[0].cfgvent[0]">Heating Vent. Speed</th>
-                  </tr></thead>
-                  <tbody>
-                    <tr>
-                      <th>Home</th>
-                      <td><input type="checkbox" x-model="systemsEdit.config[0].humidityHome[0].rclgovercool[0]" true-value="on" false-value="off" @change="markDirty()"></td>
-                      <td><select x-model="systemsEdit.config[0].humidityHome[0].rclg[0]" @change="markDirty()">
-                        <option value="1">46%</option><option value="2">48%</option><option value="3">50%</option>
-                        <option value="4">52%</option><option value="5">54%</option><option value="6">56%</option><option value="7">58%</option>
-                      </select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].ventclg[0]" @change="markDirty()">
-                        <option>off</option><option>manual</option><option>auto</option></select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].ventspdclg[0]" @change="markDirty()">
-                        <option>low</option><option>med</option><option>high</option></select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].venthtg[0]" @change="markDirty()">
-                        <option>off</option><option>manual</option><option>auto</option></select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityHome[0].ventspdhtg[0]" @change="markDirty()">
-                        <option>low</option><option>med</option><option>high</option></select></td>
-                    </tr>
-                    <tr>
-                      <th>Away</th>
-                      <td><input type="checkbox" x-model="systemsEdit.config[0].humidityAway[0].rclgovercool[0]" true-value="on" false-value="off" @change="markDirty()"></td>
-                      <td><select x-model="systemsEdit.config[0].humidityAway[0].rclg[0]" @change="markDirty()">
-                        <option value="3">50%</option><option value="12">55%</option><option value="13">60%</option>
-                        <option value="14">65%</option><option value="15">None</option>
-                      </select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].ventclg[0]" @change="markDirty()">
-                        <option>off</option><option>manual</option><option>auto</option></select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].ventspdclg[0]" @change="markDirty()">
-                        <option>low</option><option>med</option><option>high</option></select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].venthtg[0]" @change="markDirty()">
-                        <option>off</option><option>manual</option><option>auto</option></select></td>
-                      <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityAway[0].ventspdhtg[0]" @change="markDirty()">
-                        <option>low</option><option>med</option><option>high</option></select></td>
-                    </tr>
-                  </tbody>
-                </table>
-                <button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button>
-              </div>
-            </div>
-
+            <!-- Zone cards -->
             <template x-for="(zone, zi) in systemsEdit.config[0].zones[0].zone" :key="zi">
-              <div class="card" x-show="zone.enabled[0] === 'on'">
-                <div class="card-header"><strong x-text="zone.name[0]"></strong>
-                  <span><br>Hold: <input type="checkbox" x-model="zone.hold[0]" true-value="on" false-value="off" @change="markDirty()">
-                    <span x-show="zone.hold[0] === 'on'">
-                      <select x-model="zone.holdActivity[0]" @change="markDirty()">
-                        <option>home</option><option>away</option><option>sleep</option><option>wake</option><option>manual</option>
-                      </select>
-                      Forever <input type="checkbox" x-model="zone.otmr[0]" true-value="{}" false-value="00:00" @change="markDirty()">
-                      <br>
-                      <span x-show="typeof zone.otmr[0] === 'string' && zone.otmr[0].includes(':')">
-                        Until <input type="time" x-model="zone.otmr[0]" step="900" @change="markDirty()">
-                      </span>
+              <div class="profile-zone-card" x-show="zone.enabled[0] === 'on'" x-data="{ holdOpen: false, expanded: true }">
+                <div class="profile-zone-header">
+                  <span class="profile-zone-title" x-text="zone.name[0]"></span>
+                  <div class="d-flex align-items-center gap-3">
+                    <span class="profile-hold-toggle" @click="holdOpen = !holdOpen; if (!holdOpen) { zone.hold[0] = 'off'; markDirty() }">
+                      <i class="bi" :class="zone.hold[0] === 'on' ? 'bi-pause-circle-fill' : 'bi-pause-circle'" :style="zone.hold[0] === 'on' ? 'color:var(--h-accent)' : ''"></i>
+                      <span :style="zone.hold[0] === 'on' ? 'color:var(--h-accent);font-weight:600' : ''">Hold</span>
                     </span>
-                  </span>
+                    <i class="bi profile-zone-chevron" :class="expanded ? 'bi-chevron-up' : 'bi-chevron-down'" @click="expanded = !expanded"></i>
+                  </div>
                 </div>
-                <div class="card-body" x-show="zone.enabled[0] === 'on'">
-                  <table class="table table-striped table-bordered">
-                    <thead><tr><th></th><th>Heat</th><th>Cool</th><th>Fan</th></tr></thead>
-                    <tbody>
-                      <template x-for="(activity, ai) in zone.activities[0].activity" :key="ai">
-                        <tr>
-                          <th x-text="activity.id"></th>
-                          <td><input type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="activity.htsp[0]" @change="markDirty()"></td>
-                          <td><input type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="activity.clsp[0]" @change="markDirty()"></td>
-                          <td><select x-model="activity.fan[0]" @change="markDirty()">
-                            <option>off</option><option>low</option><option>med</option><option>high</option>
-                          </select></td>
-                        </tr>
-                      </template>
-                    </tbody>
-                  </table>
-                  <button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button>
+
+                <!-- Hold sub-panel -->
+                <div class="profile-hold-panel" x-show="holdOpen" x-transition>
+                  <div class="profile-hold-options">
+                    <div class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" role="switch"
+                             :checked="zone.hold[0] === 'on'"
+                             @change="zone.hold = [$event.target.checked ? 'on' : 'off']; markDirty()"
+                             class="form-check-input">
+                    </div>
+                    <select class="form-select form-select-sm" style="width:auto"
+                            x-model="zone.holdActivity[0]" @change="markDirty()"
+                            x-show="zone.hold[0] === 'on'">
+                      <option>home</option><option>away</option><option>sleep</option><option>wake</option><option>manual</option>
+                    </select>
+                    <div class="form-check" x-show="zone.hold[0] === 'on'">
+                      <input class="form-check-input" type="checkbox"
+                             :checked="typeof zone.otmr[0] !== 'string' || !zone.otmr[0].includes(':')"
+                             @change="zone.otmr = [$event.target.checked ? '{}' : '00:00']; markDirty()">
+                      <label class="form-check-label" style="font-size:0.82rem">Forever</label>
+                    </div>
+                    <span x-show="zone.hold[0] === 'on' && typeof zone.otmr[0] === 'string' && zone.otmr[0].includes(':')">
+                      Until <input type="time" x-model="zone.otmr[0]" step="900" @change="markDirty()">
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Activity cards -->
+                <div x-show="expanded" x-transition style="margin-top:0.5rem">
+                  <template x-for="(activity, ai) in zone.activities[0].activity" :key="ai">
+                    <div class="profile-activity-card">
+                      <div class="profile-activity-accent" :class="'profile-accent-' + activity.id"></div>
+                      <span class="profile-activity-name">
+                        <i class="bi" :class="{'bi-sunrise': activity.id === 'wake', 'bi-door-open': activity.id === 'away', 'bi-house': activity.id === 'home', 'bi-moon': activity.id === 'sleep', 'bi-sliders': activity.id === 'manual'}"></i>
+                        <span x-text="activity.id"></span>
+                      </span>
+                      <div class="profile-activity-setpoints">
+                        <div class="profile-sp-group profile-sp-heat">
+                          <span class="profile-sp-label"><i class="bi bi-fire"></i> Heat</span>
+                          <div class="profile-sp-control">
+                            <button class="home-sp-btn-sm" @click="adjustActivitySp(activity, 'htsp', -1)">−</button>
+                            <span class="profile-sp-value" x-text="fmtSp(activity.htsp[0])"></span>
+                            <button class="home-sp-btn-sm" @click="adjustActivitySp(activity, 'htsp', 1)">+</button>
+                          </div>
+                        </div>
+                        <div class="profile-sp-group profile-sp-cool">
+                          <span class="profile-sp-label"><i class="bi bi-snow"></i> Cool</span>
+                          <div class="profile-sp-control">
+                            <button class="home-sp-btn-sm" @click="adjustActivitySp(activity, 'clsp', -1)">−</button>
+                            <span class="profile-sp-value" x-text="fmtSp(activity.clsp[0])"></span>
+                            <button class="home-sp-btn-sm" @click="adjustActivitySp(activity, 'clsp', 1)">+</button>
+                          </div>
+                        </div>
+                        <div class="profile-sp-group">
+                          <span class="profile-sp-label"><i class="bi bi-fan"></i> Fan</span>
+                          <div class="home-pills">
+                            <template x-for="f in ['off','low','med','high']">
+                              <button class="home-pill" style="padding:0.2rem 0.5rem;font-size:0.72rem"
+                                      :class="{'home-pill-active': activity.fan[0] === f}"
+                                      @click="activity.fan = [f]; markDirty()"
+                                      x-text="f"></button>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
                 </div>
               </div>
             </template>
+
+            <!-- Whole House -->
+            <div class="profile-zone-card" x-data="{ holdOpen: false, humOpen: false }">
+              <div class="profile-zone-header">
+                <span class="profile-zone-title">Whole House</span>
+                <div class="d-flex align-items-center gap-3">
+                  <span class="profile-hold-toggle" @click="holdOpen = !holdOpen; if (!holdOpen) { systemsEdit.config[0].wholeHouse[0].hold[0] = 'off'; markDirty() }">
+                    <i class="bi" :class="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on' ? 'bi-pause-circle-fill' : 'bi-pause-circle'"
+                       :style="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on' ? 'color:var(--h-accent)' : ''"></i>
+                    <span :style="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on' ? 'color:var(--h-accent);font-weight:600' : ''">Hold</span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Whole House hold sub-panel -->
+              <div class="profile-hold-panel" x-show="holdOpen" x-transition>
+                <div class="profile-hold-options">
+                  <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           :checked="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on'"
+                           @change="systemsEdit.config[0].wholeHouse[0].hold = [$event.target.checked ? 'on' : 'off']; markDirty()">
+                  </div>
+                  <select class="form-select form-select-sm" style="width:auto"
+                          x-model="systemsEdit.config[0].wholeHouse[0].holdActivity[0]" @change="markDirty()"
+                          x-show="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on'">
+                    <option>home</option><option>away</option>
+                  </select>
+                  <div class="form-check" x-show="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on'">
+                    <input class="form-check-input" type="checkbox"
+                           :checked="typeof systemsEdit.config[0].wholeHouse[0].otmr[0] !== 'string' || !systemsEdit.config[0].wholeHouse[0].otmr[0].includes(':')"
+                           @change="systemsEdit.config[0].wholeHouse[0].otmr = [$event.target.checked ? '{}' : '00:00']; markDirty()">
+                    <label class="form-check-label" style="font-size:0.82rem">Forever</label>
+                  </div>
+                  <span x-show="systemsEdit.config[0].wholeHouse[0].hold[0] === 'on' && typeof systemsEdit.config[0].wholeHouse[0].otmr[0] === 'string' && systemsEdit.config[0].wholeHouse[0].otmr[0].includes(':')">
+                    Until <input type="time" x-model="systemsEdit.config[0].wholeHouse[0].otmr[0]" step="900" @change="markDirty()">
+                  </span>
+                </div>
+              </div>
+
+              <!-- Humidity settings — collapsed by default -->
+              <div class="profile-humidity-section">
+                <div class="profile-humidity-toggle" @click="humOpen = !humOpen">
+                  <i class="bi" :class="humOpen ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size:0.7rem"></i>
+                  <span>Humidity &amp; Ventilator Settings</span>
+                </div>
+                <div x-show="humOpen" x-transition>
+                  <!-- Home humidity row -->
+                  <div style="margin-top:0.5rem;margin-bottom:0.4rem">
+                    <div style="font-size:0.82rem;font-weight:600;color:var(--h-text);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.4rem">
+                      <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#4a9e5f"></span>
+                      Home
+                    </div>
+                    <div class="profile-humidity-grid">
+                      <div class="profile-humidity-item">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox"
+                                 :checked="systemsEdit.config[0].humidityHome[0].rclgovercool[0] === 'on'"
+                                 @change="systemsEdit.config[0].humidityHome[0].rclgovercool = [$event.target.checked ? 'on' : 'off']; markDirty()">
+                          <label class="form-check-label" style="font-size:0.78rem">Dehum. Overcool</label>
+                        </div>
+                      </div>
+                      <div class="profile-humidity-item">
+                        <label style="font-size:0.78rem">Cooling Humidity</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityHome[0].rclg[0]" @change="markDirty()">
+                          <option value="1">46%</option><option value="2">48%</option><option value="3">50%</option>
+                          <option value="4">52%</option><option value="5">54%</option><option value="6">56%</option><option value="7">58%</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Cool Vent</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityHome[0].ventclg[0]" @change="markDirty()">
+                          <option>off</option><option>manual</option><option>auto</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Cool Vent Speed</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityHome[0].ventspdclg[0]" @change="markDirty()">
+                          <option>low</option><option>med</option><option>high</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Heat Vent</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityHome[0].venthtg[0]" @change="markDirty()">
+                          <option>off</option><option>manual</option><option>auto</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Heat Vent Speed</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityHome[0].ventspdhtg[0]" @change="markDirty()">
+                          <option>low</option><option>med</option><option>high</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Away humidity row -->
+                  <div style="margin-top:0.3rem">
+                    <div style="font-size:0.82rem;font-weight:600;color:var(--h-text);margin-bottom:0.3rem;display:flex;align-items:center;gap:0.4rem">
+                      <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#7b8d9e"></span>
+                      Away
+                    </div>
+                    <div class="profile-humidity-grid">
+                      <div class="profile-humidity-item">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox"
+                                 :checked="systemsEdit.config[0].humidityAway[0].rclgovercool[0] === 'on'"
+                                 @change="systemsEdit.config[0].humidityAway[0].rclgovercool = [$event.target.checked ? 'on' : 'off']; markDirty()">
+                          <label class="form-check-label" style="font-size:0.78rem">Dehum. Overcool</label>
+                        </div>
+                      </div>
+                      <div class="profile-humidity-item">
+                        <label style="font-size:0.78rem">Cooling Humidity</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityAway[0].rclg[0]" @change="markDirty()">
+                          <option value="3">50%</option><option value="12">55%</option><option value="13">60%</option>
+                          <option value="14">65%</option><option value="15">None</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Cool Vent</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityAway[0].ventclg[0]" @change="markDirty()">
+                          <option>off</option><option>manual</option><option>auto</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Cool Vent Speed</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityAway[0].ventspdclg[0]" @change="markDirty()">
+                          <option>low</option><option>med</option><option>high</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Heat Vent</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityAway[0].venthtg[0]" @change="markDirty()">
+                          <option>off</option><option>manual</option><option>auto</option>
+                        </select>
+                      </div>
+                      <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                        <label style="font-size:0.78rem">Heat Vent Speed</label>
+                        <select class="form-select form-select-sm" style="width:auto"
+                                x-model="systemsEdit.config[0].humidityAway[0].ventspdhtg[0]" @change="markDirty()">
+                          <option>low</option><option>med</option><option>high</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Global save bar -->
+            <div class="home-save-bar" x-show="systemsEdited === true" x-transition style="margin-top:1rem">
+              <span>Changes pending</span>
+              <button class="btn btn-light btn-sm" @click="save()">Save</button>
+            </div>
           </div>
         </template>
       </div>
@@ -552,81 +802,133 @@
         <h2>Vacation</h2>
         <template x-if="systemsEdit && status">
           <div>
-            <div class="alert" :class="status.vacatrunning && status.vacatrunning[0] === 'on' ? 'alert-success' : 'alert-secondary'">
-              <span x-show="status.vacatrunning && status.vacatrunning[0] === 'on'">Vacation mode is active</span>
-              <span x-show="!status.vacatrunning || status.vacatrunning[0] !== 'on'">Vacation mode is not active</span>
+            <!-- Status banner -->
+            <div class="profile-zone-card" style="text-align:center;padding:0.6rem 1rem;margin-bottom:0.75rem" :style="status.vacatrunning && status.vacatrunning[0] === 'on' ? 'border-color:var(--h-auto)' : ''">
+              <span x-show="status.vacatrunning && status.vacatrunning[0] === 'on'" style="color:var(--h-auto);font-weight:600"><i class="bi bi-signpost-split"></i> Vacation mode is active</span>
+              <span x-show="!status.vacatrunning || status.vacatrunning[0] !== 'on'" style="color:var(--h-muted)"><i class="bi bi-signpost-split"></i> Vacation mode is not active</span>
             </div>
 
-            <div class="card">
-              <div class="card-body">
-                <div class="row mb-3">
-                  <div class="col-md-3">
-                    <label class="form-label">Vacation Mode</label>
-                    <select class="form-select" x-model="systemsEdit.config[0].vacat[0]" @change="markDirty()">
-                      <option value="on">Enabled</option>
-                      <option value="off">Disabled</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Fan</label>
-                    <select class="form-select" x-model="systemsEdit.config[0].vacfan[0]" @change="markDirty()">
-                      <option>off</option><option>low</option><option>med</option><option>high</option>
-                    </select>
-                  </div>
+            <!-- Controls -->
+            <div class="profile-zone-card">
+              <!-- Enable toggle -->
+              <div class="profile-zone-header" style="margin-bottom:0.75rem">
+                <span class="profile-zone-title"><i class="bi bi-signpost-split"></i> Vacation Mode</span>
+                <div class="home-pills">
+                  <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].vacat[0] === 'on'}" @click="systemsEdit.config[0].vacat = ['on']; defaultVacDates()"><i class="bi bi-power"></i> Enabled</button>
+                  <button class="home-pill" :class="{'home-pill-active': systemsEdit.config[0].vacat[0] !== 'on'}" @click="systemsEdit.config[0].vacat = ['off']; markDirty()"><i class="bi bi-power"></i> Disabled</button>
                 </div>
-                <div class="row mb-3">
-                  <div class="col-md-3">
-                    <label class="form-label">Start</label>
-                    <input class="form-control" type="datetime-local" :value="isoToLocal(systemsEdit.config[0].vacstart[0])" @change="systemsEdit.config[0].vacstart[0] = localToIso($event.target.value); markDirty()">
+              </div>
+
+              <div x-show="systemsEdit.config[0].vacat[0] === 'on'">
+                <!-- Date range -->
+                <div class="d-flex gap-3 flex-wrap" style="margin-bottom:0.75rem">
+                  <div class="profile-sp-group" style="flex:1;min-width:0">
+                    <span class="profile-sp-label"><i class="bi bi-play-circle"></i> Start</span>
+                    <input class="form-control form-control-sm" type="datetime-local" step="900" :value="isoToLocal(systemsEdit.config[0].vacstart[0])" @change="systemsEdit.config[0].vacstart[0] = localToIso($event.target.value); markDirty()">
                   </div>
-                  <div class="col-md-3">
-                    <label class="form-label">End</label>
-                    <input class="form-control" type="datetime-local" :value="isoToLocal(systemsEdit.config[0].vacend[0])" @change="systemsEdit.config[0].vacend[0] = localToIso($event.target.value); markDirty()">
-                  </div>
-                </div>
-                <div class="row mb-3">
-                  <div class="col-md-3">
-                    <label class="form-label">Min Temp</label>
-                    <input class="form-control" type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="systemsEdit.config[0].vacmint[0]" @change="markDirty()">
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Max Temp</label>
-                    <input class="form-control" type="number" :step="systemsEdit.config[0].cfgem?.[0]?.toLowerCase() === 'c' ? 0.5 : 1" x-model="systemsEdit.config[0].vacmaxt[0]" @change="markDirty()">
+                  <div class="profile-sp-group" style="flex:1;min-width:0">
+                    <span class="profile-sp-label"><i class="bi bi-stop-circle"></i> End</span>
+                    <input class="form-control form-control-sm" type="datetime-local" step="900" :value="isoToLocal(systemsEdit.config[0].vacend[0])" @change="systemsEdit.config[0].vacend[0] = localToIso($event.target.value); markDirty()">
                   </div>
                 </div>
 
+                <!-- Temp range -->
+                <div class="d-flex gap-3 flex-wrap" style="margin-bottom:0.75rem">
+                  <div class="profile-sp-group profile-sp-heat">
+                    <span class="profile-sp-label"><i class="bi bi-fire"></i> Min Temp</span>
+                    <div class="profile-sp-control">
+                      <button class="home-sp-btn-sm" @click="adjustVacSp('vacmint', -1)">−</button>
+                      <span class="profile-sp-value" x-text="fmtSp(systemsEdit.config[0].vacmint[0])"></span>
+                      <button class="home-sp-btn-sm" @click="adjustVacSp('vacmint', 1)">+</button>
+                    </div>
+                  </div>
+                  <div class="profile-sp-group profile-sp-cool">
+                    <span class="profile-sp-label"><i class="bi bi-snow"></i> Max Temp</span>
+                    <div class="profile-sp-control">
+                      <button class="home-sp-btn-sm" @click="adjustVacSp('vacmaxt', -1)">−</button>
+                      <span class="profile-sp-value" x-text="fmtSp(systemsEdit.config[0].vacmaxt[0])"></span>
+                      <button class="home-sp-btn-sm" @click="adjustVacSp('vacmaxt', 1)">+</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Fan -->
+                <div style="margin-bottom:0.75rem">
+                  <label class="form-label text-muted small text-uppercase" style="letter-spacing:0.1em;margin-bottom:0.3rem"><i class="bi bi-fan"></i> Fan</label>
+                  <div class="home-pills">
+                    <template x-for="f in ['off','low','med','high']">
+                      <button class="home-pill" style="padding:0.25rem 0.6rem;font-size:0.78rem"
+                              :class="{'home-pill-active': systemsEdit.config[0].vacfan[0] === f}"
+                              @click="systemsEdit.config[0].vacfan = [f]; markDirty()"
+                              x-text="f"></button>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Humidity (collapsed) -->
                 <template x-if="systemsEdit.config[0].humidityVacation">
-                  <div class="mt-3">
-                    <h5>Humidity</h5>
-                    <table class="table table-striped table-bordered">
-                      <thead><tr>
-                        <th>Dehum. Overcool</th><th>Cooling Humidity</th>
-                        <th x-show="systems && systems.config[0].cfgvent[0]">Cooling Ventilator</th>
-                        <th x-show="systems && systems.config[0].cfgvent[0]">Cooling Vent. Speed</th>
-                        <th x-show="systems && systems.config[0].cfgvent[0]">Heating Ventilator</th>
-                        <th x-show="systems && systems.config[0].cfgvent[0]">Heating Vent. Speed</th>
-                      </tr></thead>
-                      <tbody><tr>
-                        <td><input type="checkbox" x-model="systemsEdit.config[0].humidityVacation[0].rclgovercool[0]" true-value="on" false-value="off" @change="markDirty()"></td>
-                        <td><select x-model="systemsEdit.config[0].humidityVacation[0].rclg[0]" @change="markDirty()">
-                          <option value="3">50%</option><option value="12">55%</option><option value="13">60%</option>
-                          <option value="14">65%</option><option value="15">None</option>
-                        </select></td>
-                        <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityVacation[0].ventclg[0]" @change="markDirty()">
-                          <option>off</option><option>manual</option><option>auto</option></select></td>
-                        <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityVacation[0].ventspdclg[0]" @change="markDirty()">
-                          <option>low</option><option>med</option><option>high</option></select></td>
-                        <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityVacation[0].venthtg[0]" @change="markDirty()">
-                          <option>off</option><option>manual</option><option>auto</option></select></td>
-                        <td x-show="systems && systems.config[0].cfgvent[0]"><select x-model="systemsEdit.config[0].humidityVacation[0].ventspdhtg[0]" @change="markDirty()">
-                          <option>low</option><option>med</option><option>high</option></select></td>
-                      </tr></tbody>
-                    </table>
+                  <div class="profile-humidity-section" x-data="{ humOpen: false }">
+                    <div class="profile-humidity-toggle" @click="humOpen = !humOpen">
+                      <i class="bi" :class="humOpen ? 'bi-chevron-up' : 'bi-chevron-down'" style="font-size:0.7rem"></i>
+                      <span>Humidity &amp; Ventilator Settings</span>
+                    </div>
+                    <div x-show="humOpen" x-transition>
+                      <div class="profile-humidity-grid" style="margin-top:0.5rem">
+                        <div class="profile-humidity-item">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   :checked="systemsEdit.config[0].humidityVacation[0].rclgovercool[0] === 'on'"
+                                   @change="systemsEdit.config[0].humidityVacation[0].rclgovercool = [$event.target.checked ? 'on' : 'off']; markDirty()">
+                            <label class="form-check-label" style="font-size:0.78rem">Dehum. Overcool</label>
+                          </div>
+                        </div>
+                        <div class="profile-humidity-item">
+                          <label style="font-size:0.78rem">Cooling Humidity</label>
+                          <select class="form-select form-select-sm" style="width:auto"
+                                  x-model="systemsEdit.config[0].humidityVacation[0].rclg[0]" @change="markDirty()">
+                            <option value="3">50%</option><option value="12">55%</option><option value="13">60%</option>
+                            <option value="14">65%</option><option value="15">None</option>
+                          </select>
+                        </div>
+                        <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                          <label style="font-size:0.78rem">Cool Vent</label>
+                          <select class="form-select form-select-sm" style="width:auto"
+                                  x-model="systemsEdit.config[0].humidityVacation[0].ventclg[0]" @change="markDirty()">
+                            <option>off</option><option>manual</option><option>auto</option>
+                          </select>
+                        </div>
+                        <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                          <label style="font-size:0.78rem">Cool Vent Speed</label>
+                          <select class="form-select form-select-sm" style="width:auto"
+                                  x-model="systemsEdit.config[0].humidityVacation[0].ventspdclg[0]" @change="markDirty()">
+                            <option>low</option><option>med</option><option>high</option>
+                          </select>
+                        </div>
+                        <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                          <label style="font-size:0.78rem">Heat Vent</label>
+                          <select class="form-select form-select-sm" style="width:auto"
+                                  x-model="systemsEdit.config[0].humidityVacation[0].venthtg[0]" @change="markDirty()">
+                            <option>off</option><option>manual</option><option>auto</option>
+                          </select>
+                        </div>
+                        <div class="profile-humidity-item" x-show="systems && systems.config[0].cfgvent[0]">
+                          <label style="font-size:0.78rem">Heat Vent Speed</label>
+                          <select class="form-select form-select-sm" style="width:auto"
+                                  x-model="systemsEdit.config[0].humidityVacation[0].ventspdhtg[0]" @change="markDirty()">
+                            <option>low</option><option>med</option><option>high</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </template>
-
-                <button class="btn btn-primary" :disabled="systemsEdited !== true" @click="save()">Save</button>
               </div>
+            </div>
+
+            <!-- Global save bar -->
+            <div class="home-save-bar" x-show="systemsEdited === true" x-transition style="margin-top:1rem">
+              <span>Changes pending</span>
+              <button class="btn btn-light btn-sm" @click="save()">Save</button>
             </div>
           </div>
         </template>
@@ -665,8 +967,10 @@
                         <template x-for="act in ['wake','away','home','sleep']">
                           <button class="schedule-activity-pill"
                                   :class="'schedule-activity-pill-' + act + (day.period[activeSchedulePeriods[zi + '-' + di]]?.activity?.[0] === act ? ' schedule-activity-pill-active' : '')"
-                                  @click="day.period[activeSchedulePeriods[zi + '-' + di]].activity = [act]; markDirty()"
-                                  x-text="act"></button>
+                                  @click="day.period[activeSchedulePeriods[zi + '-' + di]].activity = [act]; markDirty()">
+                            <i class="bi" :class="{'bi-sunrise': act === 'wake', 'bi-door-open': act === 'away', 'bi-house': act === 'home', 'bi-moon': act === 'sleep'}"></i>
+                            <span x-text="act"></span>
+                          </button>
                         </template>
                         <button class="schedule-activity-pill schedule-disable-btn"
                                 @click="day.period[activeSchedulePeriods[zi + '-' + di]].enabled = ['off']; activeSchedulePeriods[zi + '-' + di] = null; markDirty()"
