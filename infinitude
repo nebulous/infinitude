@@ -236,14 +236,6 @@ if ($mqtt->enabled) {
         app->log->info("MQTT: Discovery published");
     });
 
-    my $mqtt_state_skip;
-    Mojo::IOLoop->recurring(60 => sub {
-        $mqtt->publish_state unless $mqtt_state_skip;
-        $mqtt_state_skip = 0;
-    });
-
-    $inf->{on_after_mutate} = sub { $mqtt_state_skip = 1 };
-
     Mojo::IOLoop->recurring(1 => sub {
         $mqtt->tick;
     });
@@ -504,7 +496,6 @@ any '/api/*variable_path' => sub {
 			$store->set('systems.json', $xml->_as_json());
 			if (('POST' eq $c->req->method) or ('PUT' eq $c->req->method) or $set_changes) {
 				$store->set(changes => 'true');
-				$mqtt->publish_state;
 			}
 		} else {
 			#path is a scalar. return only.
@@ -554,7 +545,6 @@ post '/systems/:id' => sub {
 		$store->set('systems.xml'  => $xml.'');
 		$store->set('systems.json' => $xml->_as_json);
 		$store->set(changes => 'true');
-		$mqtt->publish_state;
 	} else { # Data from thermostat.
 		if (!$c->stash('error')) {
 			if (my $key = $c->stash('store_key')) {
