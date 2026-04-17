@@ -2,7 +2,7 @@ services:
   infinitude:
     container_name: infinitude
     hostname: infinitude
-    image: nebulous/infinitude:latest
+    image: nebulous/infinitude:edge
     entrypoint: "morbo -v /infinitude/infinitude"
     build:
       context: .
