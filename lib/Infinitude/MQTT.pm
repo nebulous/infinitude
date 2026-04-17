@@ -76,7 +76,7 @@ sub publish_discovery {
         identifiers  => ['infinitude'],
         name         => 'Infinitude',
         manufacturer => 'Carrier',
-        model        => 'Infinity Touch',
+        model        => 'Infinity',
     };
 
     my @topics;
