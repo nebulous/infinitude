@@ -319,4 +319,38 @@ sub tick {
     $self->{mqtt}->tick(0);
 }
 
+my @STATUS_WATCH = qw(rt rh zoneconditioning fan);
+
+sub publish_if_status_changed {
+    my ($self) = @_;
+    return unless $self->{enabled};
+    return if ($self->{store}->get('changes') || '') eq 'true';
+
+    my $status = decode_json($self->{store}->get('status.json') || '{}');
+    my $sys    = $status->{status}[0] or return;
+    my $zones  = $sys->{zones}[0]{zone} // [];
+
+    my %cur;
+    for my $i (0 .. $#$zones) {
+        my $zone = $zones->[$i];
+        next unless lc(_v($zone->{enabled})) eq 'on';
+        my $zid = $i + 1;
+        $cur{"z${zid}$_"} = _v($zone->{$_}) for @STATUS_WATCH;
+    }
+
+    my $prev = $self->{_last_status} // {};
+    my $changed;
+    for my $k (keys %cur) {
+        if (($cur{$k} // '') ne ($prev->{$k} // '')) {
+            $changed = 1;
+            last;
+        }
+    }
+
+    if ($changed) {
+        $self->{_last_status} = \%cur;
+        $self->publish_state;
+    }
+}
+
 1;

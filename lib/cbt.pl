@@ -31,19 +31,14 @@ my $lt=0;
 my $bridge = CarBus::Bridge->new(buslist=>[$sam,$net]);
 my $i;
 use DDP;
+my $start = time;
 while(1) {
     foreach my $frame ($bridge->drive) {
-        say $frame->frame_log if $frame->frame_log =~ /SAM/;
-    }
-    if (time>$i+3) {
-        $i=time;
-        p $sam->devices;
-        p $net->devices;
-    }
-    if (time>$i+3) {
-        $i=time;
-        p $sam->devices;
-        p $net->devices;
+        my $busname = $frame->{busname} // 'unknown';
+        # Prefix with bus source to distinguish real SAM (Serial) from network
+        my $prefix = ($busname =~ /Termios/) ? "[SERIAL-SAM] " : "[NET] ";
+        say $prefix . $frame->frame_log if $frame->frame_log =~ /SAM|schedule|comfort|vacation/;
+        say $prefix . $frame->frame_hex if $frame->frame_log =~ /SAM|schedule|comfort|vacation/;
     }
 #exit if time>($start+(60*4));
 }
