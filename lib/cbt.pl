@@ -3,6 +3,7 @@
 use strict;
 use feature 'say';
 use CarBus;
+use CarBus::SAM;  # Load SAM parsers for register decoding
 use IO::File;
 use IO::Socket::IP;
 use IO::Termios;
@@ -30,14 +31,15 @@ my $lt=0;
 my $bridge = CarBus::Bridge->new(buslist=>[$sam,$net]);
 my $i;
 use DDP;
+my $start = time;
 while(1) {
     foreach my $frame ($bridge->drive) {
-        say $frame->frame_log if $frame->frame_log =~ /SAM/;
+        my $busname = $frame->{busname} // 'unknown';
+        # Prefix with bus source to distinguish real SAM (Serial) from network
+        my $prefix = ($busname =~ /Termios/) ? "[SERIAL-SAM] " : "[NET] ";
+        say $prefix . $frame->frame_log if $frame->frame_log =~ /SAM|schedule|comfort|vacation/;
+        say $prefix . $frame->frame_hex if $frame->frame_log =~ /SAM|schedule|comfort|vacation/;
     }
-    if (time>$i+3) {
-        $i=time;
-        p $sam->devices;
-        p $net->devices;
-    }
+#exit if time>($start+(60*4));
 }
 
