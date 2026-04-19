@@ -5,7 +5,6 @@ use warnings;
 use feature ':5.10';
 use utf8;
 use Mojo::JSON qw/encode_json decode_json/;
-use Net::MQTT::Simple;
 
 sub new {
     my ($class, %args) = @_;
@@ -14,9 +13,10 @@ sub new {
     my $config = $args{config} or die "MQTT: config required";
 
     my $broker = $config->{mqtt_broker} or do {
-        warn "MQTT: mqtt_broker not configured, MQTT disabled\n";
         return bless { enabled => 0 }, $class;
     };
+
+    require Net::MQTT::Simple;
 
     my $prefix = $config->{mqtt_prefix} // 'homeassistant';
     my $base   = $config->{mqtt_topic}  // 'infinitude';
@@ -184,6 +184,9 @@ sub publish_state {
         'idle'        => 'idle',
     );
 
+    my $systems = decode_json($self->{store}->get('systems.json') || '{}');
+    my $cfg     = eval { $systems->{system}[0]{config}[0] } // {};
+
     for my $i (0 .. $#$zones) {
         my $zone = $zones->[$i];
         next unless lc(_v($zone->{enabled})) eq 'on';
@@ -192,23 +195,46 @@ sub publish_state {
         my $zbase = $self->_topic('zone', $zid);
         my $mqtt  = $self->{mqtt};
 
+        # Runtime values from status
         $mqtt->retain("$zbase/current_temp"    => _v($zone->{rt}));
         $mqtt->retain("$zbase/humidity"        => _v($zone->{rh}));
-        $mqtt->retain("$zbase/temp_low/state"  => _v($zone->{htsp}));
-        $mqtt->retain("$zbase/temp_high/state" => _v($zone->{clsp}));
 
-        my $mode = lc(_v($sys->{mode}) || 'off');
+        # Config values from systems.json
+        my $cfg_zone = $cfg->{zones}[0]{zone}[$i];
+        my ($cfg_htsp, $cfg_clsp, $cfg_fan);
+        if ($cfg_zone) {
+            my $act_id = lc(_v($cfg_zone->{holdActivity})) eq 'manual' ? 'manual' : lc(_v($zone->{currentActivity}) || 'home');
+            for my $a (@{$cfg_zone->{activities}[0]{activity} || []}) {
+                my $aid = ref($a->{id}) eq 'ARRAY' ? $a->{id}[0] : $a->{id};
+                if (lc($aid // '') eq $act_id) {
+                    $cfg_htsp = _v($a->{htsp});
+                    $cfg_clsp = _v($a->{clsp});
+                    $cfg_fan  = _v($a->{fan});
+                    last;
+                }
+            }
+        }
+        # Fallback to status values if config not found
+        $cfg_htsp //= _v($zone->{htsp});
+        $cfg_clsp //= _v($zone->{clsp});
+        $cfg_fan  //= _v($zone->{fan});
+
+        $mqtt->retain("$zbase/temp_low/state"  => $cfg_htsp);
+        $mqtt->retain("$zbase/temp_high/state" => $cfg_clsp);
+
+        my $cfg_mode = lc(_v($cfg->{mode}) || _v($sys->{mode}) || 'off');
+        my $mode = $cfg_mode;
         if ($mode eq 'heat') {
-            $mqtt->retain("$zbase/temp/state" => _v($zone->{htsp}));
+            $mqtt->retain("$zbase/temp/state" => $cfg_htsp);
         } elsif ($mode eq 'cool') {
-            $mqtt->retain("$zbase/temp/state" => _v($zone->{clsp}));
+            $mqtt->retain("$zbase/temp/state" => $cfg_clsp);
         } else {
             $mqtt->retain("$zbase/temp/state" => _v($zone->{rt}));
         }
 
         $mqtt->retain("$zbase/mode/state" => $mode eq 'auto' ? 'auto' : $mode);
 
-        my $fan = lc(_v($zone->{fan}) || 'off');
+        my $fan = lc($cfg_fan || 'off');
         $mqtt->retain("$zbase/fan/state" => ($fan_map{$fan} // 'auto'));
 
         my $zc = lc(_v($zone->{zoneconditioning}) || 'idle');
