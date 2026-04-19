@@ -14,17 +14,26 @@ Infinitude allows direct web-based control of
   * Fan speed per zone
   * Hold modes and activity presets
   * Vacation scheduling
-  * Dealer information
 
 As well as providing an open RESTish API
 
-<img src="http://i.imgur.com/1LhLKbp.png" />
+<img width="1032" height="623" alt="image" src="https://github.com/user-attachments/assets/e638064a-26aa-43e5-9178-63973b3ab030" />
+
+<img width="1119" height="300" alt="image" src="https://github.com/user-attachments/assets/dcdd8637-aaa4-45f1-b44a-daf34d2146e5" />
+
+<img width="1015" height="592" alt="image" src="https://github.com/user-attachments/assets/0c19b9fd-d1b3-41fd-a140-fce1b85d35dc" />
+
+### Serial monitoring / control 
 
 Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus to obtain higher resolution access to values within your thermostat, air handler, heat pump, and other devices.
 Infinitude provides a serial monitor which keeps track of the current state of registers on the serial bus, and highlights changing bytes to aid in protocol analysis.
 Serial data can be monitored via an attached serial port or via a networked serial bridge.
 
 With SAM emulation enabled (`EMULATE_SAM=1`), Infinitude can also write setpoints, mode, fan speed, and hold settings directly to the RS485 bus. **SAM emulation is experimental and, like all of Infinitude, use at your own risk.**
+
+<img width="1121" height="665" alt="image" src="https://github.com/user-attachments/assets/b6634bda-af9d-4e2f-8fd2-036c31a2cbe7" />
+
+
 
 ### Home Assistant Integration via MQTT Discovery
 
@@ -153,3 +162,4 @@ least, access to a public API!
 
 - [Infinitude Home Assistant Integration](https://github.com/MizterB/homeassistant-infinitude-beyond)
 - [Infinitive project for RS485 control of non-touch thermostats](https://github.com/acd/infinitive)
+- [Anantha modifies thermostat firmware to intercept AWS IoT control traffic](https://github.com/anupcshan/anantha)
