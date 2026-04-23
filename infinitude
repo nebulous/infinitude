@@ -233,7 +233,8 @@ if ($mqtt->enabled) {
 
     Mojo::IOLoop->timer(8 => sub {
         $mqtt->publish_discovery;
-        app->log->info("MQTT: Discovery published");
+        $mqtt->publish_state;
+        app->log->info("MQTT: Discovery and state published");
     });
 
     Mojo::IOLoop->recurring(60 => sub {
