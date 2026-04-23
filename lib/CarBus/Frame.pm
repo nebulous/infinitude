@@ -199,7 +199,7 @@ our $parsers = {
 
     '4609' => Struct('server',
         Pointer(0,CString('cloud_host')),
-        Pointer(67,CString('proxy_server')),
+        Pointer(67,CString('device_ip')),
     ),
 
     '460A' => Struct('dealer',
