@@ -440,7 +440,7 @@
         <h4>Global</h4>
         Operating Mode: <strong x-text="status && status.mode ? status.mode[0] : ''"></strong>
 
-        <div class="row align-items-end" x-effect="renderGauges()">
+        <div class="row align-items-end text-center" x-effect="renderGauges()">
           <div class="col-6 col-sm-4 col-md-2">
             <div x-ref="gaugeHumidity"></div>
           </div>
@@ -476,7 +476,7 @@
             <template x-for="(zone, zi) in status.zones[0].zone" :key="zi">
               <div x-show="zone.enabled[0] === 'on'" @click="selectZone(zone.id - 1)">
                 <h4 x-text="zone.name[0]"></h4>
-                <div class="row align-items-end" x-effect="renderZoneGauges(zi)">
+                <div class="row align-items-end text-center" x-effect="renderZoneGauges(zi)">
                   <div class="col-6 col-sm-4 col-md-2">
                     <div :x-ref="'gaugeZoneInside_' + zi" class="dg-linear"></div>
                   </div>
