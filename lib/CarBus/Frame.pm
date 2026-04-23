@@ -191,16 +191,42 @@ our $parsers = {
 
     # MISC1
     '4608' => Struct('insecurity',
-        Pointer(7,CString('mac_address')),
-        Pointer(27,CString('ssid')),
-        Pointer(73,CString('password')),
-        Pointer(142,CString('token?')),
+        Pointer(4,CString('mac_address')),
+        Pointer(24,CString('ssid')),
+        Pointer(70,CString('password')),
+        Pointer(139,CString('hostname')),
     ),
 
     '4609' => Struct('server',
-        Pointer(3,CString('cloud_host')),
-        Pointer(70,CString('device_ip')),
-    )
+        Pointer(0,CString('cloud_host')),
+        Pointer(67,CString('device_ip')),
+    ),
+
+    '460A' => Struct('dealer',
+        Pointer(0,CString('dealer_name')),
+        Pointer(50,CString('dealer_brand')),
+        Pointer(70,CString('dealer_url')),
+    ),
+
+    '460B' => Struct('wifi_profiles',
+        Array(4, Struct('profile',
+            PaddedString('ssid', 32, paddir => 'right'),
+            Byte('unknown'),
+            Byte('flag'),
+            Byte('channel'),
+            Byte('rssi'),
+        )),
+    ),
+
+    '460C' => Struct('wifi_scan',
+        Array(4, Struct('ap',
+            PaddedString('ssid', 32, paddir => 'right'),
+            Byte('unknown'),
+            Byte('flag'),
+            Byte('channel'),
+            Byte('rssi'),
+        )),
+    ),
 
 };
 
