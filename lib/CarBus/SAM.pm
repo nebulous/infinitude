@@ -25,8 +25,8 @@ has device_identity => (is => 'rw', default => sub {
         device    => 'SYSTEM ACCESS MODULE',
         software  => 'infinitude',
         model     => 'INFINITUDE01',
-        serial    => '000000000001',
-        reference => 'sam-emulator',
+        serial    => '000000000001000000000001',
+        reference => 'SAM00001',
     }
 });
 
