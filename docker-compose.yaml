@@ -12,9 +12,17 @@ services:
     environment:
       - APP_SECRET=Pogotudinal
       - PASS_REQS=300
-      - MODE=Production
+      - MODE=production
 #      - SERIAL_TTY=/dev/ttyUSB0
 #      - SERIAL_SOCKET=192.168.1.47:23
+#      - LOGLEVEL=info
+#      - SCAN_THERMOSTAT=0
+#      - EMULATE_SAM=0
+#      - MQTT_BROKER=192.168.1.3:1883
+#      - MQTT_USER=
+#      - MQTT_PASS=
+#      - MQTT_PREFIX=homeassistant
+#      - MQTT_TOPIC=infinitude
 #    devices:
 #      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always

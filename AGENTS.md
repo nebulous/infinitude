@@ -120,7 +120,7 @@ Configuration is stored in `infinitude.json` and can be overridden via environme
 | `LOGLEVEL` | Minimum log severity |
 | `SCAN_THERMOSTAT` | Enable continuous thermostat table scanning |
 | `EMULATE_SAM` | Enable SAM emulation on RS485 bus (1 = enabled, experimental) |
-| `MQTT_BROKER` | MQTT broker URL (e.g., `mqtt://192.168.1.100:1883`) |
+| `MQTT_BROKER` | MQTT broker address (e.g., `192.168.1.3:1883`) |
 | `MQTT_USER` | MQTT username |
 | `MQTT_PASS` | MQTT password |
 | `MQTT_PREFIX` | HA discovery prefix (default: `homeassistant`) |

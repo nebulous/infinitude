@@ -164,8 +164,8 @@ our $parsers = {
         PaddedString('location', 24, paddir=>'right'),
         PaddedString('software', 16, paddir=>'right'),
         PaddedString('model', 20, paddir=>'right'),
-        PaddedString('serial', 12, paddir=>'right'),
-        PaddedString('reference', 24, paddir=>'right'),
+        PaddedString('reference', 12, paddir=>'right'),
+        PaddedString('serial', 24, paddir=>'right'),
     ),
 
     '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>5, Saturday=>6)),
@@ -199,7 +199,7 @@ our $parsers = {
 
     '4609' => Struct('server',
         Pointer(0,CString('cloud_host')),
-        Pointer(67,CString('device_ip')),
+        Pointer(67,CString('proxy_server')),
     ),
 
     '460A' => Struct('dealer',

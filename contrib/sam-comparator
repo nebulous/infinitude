@@ -34,6 +34,7 @@ my $config = {
     ascii_idle_ms => 64,
     ascii_zone => 1,
     ascii_enabled => 1,
+    ascii_settle_sec => 25,
     report_interval => 120,
 };
 
@@ -47,6 +48,7 @@ GetOptions($config,
     'ascii_idle_ms=i',
     'ascii_zone=i',
     'ascii_enabled!',
+    'ascii_settle_sec=i',
     'report_interval=i',
     'help',
 ) or usage();
@@ -75,6 +77,7 @@ sub usage {
     say "  --ascii_idle_ms <ms>          Min bus idle ms before ASCII attempt (default: 64)";
     say "  --ascii_zone <1-8>            Zone for ASCII commands (default: 1)";
     say "  --noascii                     Disable ASCII stimulation";
+    say "  --ascii_settle_sec <sec>      Seconds to wait between sequence commands (default: 25)";
     say "";
     say "Other Options:";
     say "  --report_interval <sec>       Stats report interval in seconds (default: 120)";
@@ -148,11 +151,13 @@ log_event({
         ascii_baud     => $config->{ascii_baud},
         ascii_zone     => $config->{ascii_zone},
         ascii_idle_ms  => $config->{ascii_idle_ms},
+        ascii_settle_sec => $config->{ascii_settle_sec},
         report_interval => $config->{report_interval},
     },
     ascii_connected     => ($ascii_sam ? 1 : 0),
     known_registers     => [sort @{$emulated_sam->known_registers()}],
     emulator_defaults_loaded => 1,
+    ascii_commands => ['S1Z1CLSP!73', 'S1Z1OTMR!00:30', 'S1Z1OTMR!00:00'],
 });
 
 # --- State tracking ---
@@ -176,17 +181,20 @@ my %stats = (
 
 my %register_coverage;  # reg => { real_hits, emu_hits, mismatches }
 
-# ASCII stimulation state
+# ASCII stimulation state - command sequence for timed override investigation
+my @ascii_commands = ('S1Z1CLSP!73', 'S1Z1OTMR!00:30', 'S1Z1OTMR!00:00');
+my $ascii_cmd_idx = 0;
 my $sam_sync_count = 0;
 my $ASCII_SYNC_THRESHOLD = 10;
-my $ascii_done = 0;              # 1 once BLIGHT ON ACK'd
-my $ascii_post_start = 0;        # timestamp when ASCII cmd was accepted
+my $ascii_done = 0;              # 1 when all commands in sequence complete
 my $last_frame_time = time();    # updated every frame
 my $last_idle_time = time();     # updated when no frames in a loop cycle
-my $ascii_pending = 0;           # 1 when we've sent a command and are awaiting response
+my $ascii_pending = 0;           # 1 when awaiting ASCII response
 my $ascii_send_time = 0;         # when we last sent an ASCII command
 my $ascii_buf = '';              # buffer for ASCII response
-my $ASCII_RESP_TIMEOUT = 8;     # seconds to wait for ASCII response
+my $ASCII_RESP_TIMEOUT = 8;      # seconds to wait for ASCII response
+my $ascii_settling = 0;          # 1 when waiting for bus to settle between commands
+my $ascii_settle_start = 0;      # when settle phase began
 
 # --- Main loop ---
 
@@ -331,11 +339,13 @@ while (1) {
         }
     }
 
-    # --- ASCII BLIGHT stimulus (fire-and-forget) ---
-    if ($ascii_sam && !$ascii_done && !$ascii_pending
+    # --- ASCII command sequence (fire-and-forget per command) ---
+    if ($ascii_sam && !$ascii_done && !$ascii_pending && !$ascii_settling
+        && $ascii_cmd_idx < @ascii_commands
         && $sam_sync_count >= $ASCII_SYNC_THRESHOLD
         && (time() - $last_idle_time) >= ($config->{ascii_idle_ms} / 1000)) {
 
+        my $cmd = $ascii_commands[$ascii_cmd_idx];
         $stats{ascii_commands}++;
         my $attempt = $stats{ascii_commands};
 
@@ -346,7 +356,7 @@ while (1) {
             my $n = sysread($fh, $junk, 4096);
             last unless $n && $n > 0;
         }
-        syswrite($fh, "S1Z1FAN!AUTO\r\n");
+        syswrite($fh, "$cmd\r\n");
         $ascii_pending = 1;
         $ascii_send_time = time();
         $ascii_buf = '';
@@ -354,7 +364,8 @@ while (1) {
         log_event({
             event   => 'ascii',
             phase   => 'send',
-            command => 'S1Z1FAN!AUTO',
+            command => $cmd,
+            seq_idx => $ascii_cmd_idx,
             attempt => $attempt,
             idle_ms => int((time() - $last_idle_time) * 1000),
         });
@@ -373,20 +384,37 @@ while (1) {
             my $attempt = $stats{ascii_commands};
 
             if ($ascii_buf =~ /ACK/) {
-                $ascii_done = 1;
-                $ascii_post_start = time();
                 $stats{ascii_responses}++;
                 log_event({
                     event      => 'ascii',
                     phase      => 'response',
+                    command    => $ascii_commands[$ascii_cmd_idx],
+                    seq_idx    => $ascii_cmd_idx,
                     attempt    => $attempt,
                     response   => 'ACK',
                     latency_ms => int((time() - $ascii_send_time) * 1000),
                 });
+
+                $ascii_cmd_idx++;
+                if ($ascii_cmd_idx >= @ascii_commands) {
+                    $ascii_done = 1;
+                    log_event({ event => 'ascii', phase => 'sequence_complete' });
+                } else {
+                    $ascii_settling = 1;
+                    $ascii_settle_start = time();
+                    log_event({
+                        event        => 'ascii',
+                        phase        => 'settle',
+                        next_command => $ascii_commands[$ascii_cmd_idx],
+                        settle_sec   => $config->{ascii_settle_sec},
+                    });
+                }
             } elsif ($ascii_buf ne '') {
                 log_event({
                     event      => 'ascii',
                     phase      => 'response',
+                    command    => $ascii_commands[$ascii_cmd_idx],
+                    seq_idx    => $ascii_cmd_idx,
                     attempt    => $attempt,
                     response   => $ascii_buf,
                     latency_ms => int((time() - $ascii_send_time) * 1000),
@@ -398,9 +426,21 @@ while (1) {
             log_event({
                 event   => 'ascii',
                 phase   => 'timeout',
+                command => $ascii_commands[$ascii_cmd_idx],
+                seq_idx => $ascii_cmd_idx,
                 attempt => $stats{ascii_commands},
             });
         }
+    }
+
+    # --- ASCII settle phase check ---
+    if ($ascii_settling && time() - $ascii_settle_start >= $config->{ascii_settle_sec}) {
+        $ascii_settling = 0;
+        log_event({
+            event        => 'ascii',
+            phase        => 'settle_done',
+            next_command => $ascii_commands[$ascii_cmd_idx],
+        });
     }
 
     # --- Timeout cleanup ---

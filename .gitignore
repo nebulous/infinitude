@@ -1,3 +1,4 @@
+docs/*
 state/*
 tmp/*
 infinitude.json
@@ -7,3 +8,4 @@ infinity_status.txt
 *.swp
 *.swo
 CLAUDE.md
+AGENTS.md

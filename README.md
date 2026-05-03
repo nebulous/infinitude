@@ -96,13 +96,13 @@ with additional config items as ENV vars
 docker run --rm -v $PWD/state:/infinitude/state \
 -e APP_SECRET='YOUR_SECRET_HERE' \
 -e PASS_REQS='1020' \
--e MODE='Production' \
+-e MODE='production' \
 -p 3000:3000 \
 nebulous/infinitude
 ```
 
 or via the included [docker-compose file](https://github.com/nebulous/infinitude/blob/master/docker-compose.yaml).
-`docker-compose up`
+`docker compose up`
 
 
 #### Manual installation Requirements
@@ -111,17 +111,8 @@ The easiest way to run Infinitude is by running a published Docker image, but if
 
 ##### Software
  * Some flavor of UNIX. Both Linux and OSX are known to work and some have even used Strawberry Perl in Windows.
- * Perl with the following modules
-   * Mojolicious
-   * DateTime
-   * [IO::Termios](https://metacpan.org/module/IO::Termios) optional for RS485 serial monitoring
-   * Path::Tiny
-   * Try::Tiny
-   * JSON
-   
-##### Dependency Installation
-  * a cpanfile is provided which lists Infinitude's minimum dependencies.
-  * use your distribution's packaging system, your favorite cpan installer, or `sudo cpanm --installdeps .` to install
+ * Perl — dependencies are listed in the included `cpanfile`. Install them with `cpanm --installdeps .`
+   * `IO::Termios` and `Net::MQTT::Simple` are optional (for RS485 serial and MQTT respectively)
 
 ###### Raspbian-specific
 Many users opt to run Infinitude on a Raspberry Pi. This is also most easily accomplished using a Docker image, but
