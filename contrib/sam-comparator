@@ -1,0 +1,512 @@
+#!/usr/bin/env perl
+use lib 'lib';
+use strict;
+use warnings;
+use feature ':5.10';
+$| = 1;  # Autoflush STDOUT
+use CarBus;
+use CarBus::SAM;
+use CarBus::SAM::ASCII;
+use CarBus::Frame;
+use IO::Termios;
+use IO::Socket::IP;
+use Getopt::Long;
+use JSON;
+use POSIX qw(strftime);
+use Time::HiRes qw(time sleep);
+
+my $start_time = time();
+
+sub log_event {
+    my ($data) = @_;
+    $data->{ts} = strftime("%Y-%m-%dT%H:%M:%S", gmtime) . sprintf(".%03dZ", int(time() * 1000) % 1000);
+    $data->{elapsed} = sprintf("%.3f", time() - $start_time);
+    say encode_json($data);
+}
+
+my $config = {
+    network_bridge => '192.168.1.23:23',
+    serial_sam => '/dev/cu.usbserial-A7039O5G',
+    baud => '38400,8,n,1',
+    clone => 0,
+    serial_ascii => '/dev/cu.usbserial-211130',
+    ascii_baud => '9600,8,n,1',
+    ascii_idle_ms => 64,
+    ascii_zone => 1,
+    ascii_enabled => 1,
+    ascii_settle_sec => 25,
+    report_interval => 120,
+};
+
+GetOptions($config,
+    'network_bridge=s',
+    'serial_sam=s',
+    'baud=s',
+    'clone',
+    'serial_ascii=s',
+    'ascii_baud=s',
+    'ascii_idle_ms=i',
+    'ascii_zone=i',
+    'ascii_enabled!',
+    'ascii_settle_sec=i',
+    'report_interval=i',
+    'help',
+) or usage();
+
+usage() if $config->{help};
+
+#the goal is to be rid of the physical SAM, and the comparator script is intended to observe the physical SAM's behavior and compare its inputs and outputs to our emulator. emulator should be sent all frames that the real
+#sam is sent. the comparator script should also observe, compare and learn from, all frames sent from the SAM and from the emulator until they are comparable. frames sent from the emulator in this mode will not be sent to the bus, just
+#used for comparison.
+
+sub usage {
+    say "Usage: sam-comparator [options]";
+    say "";
+    say "Compares real SAM responses with emulated SAM responses.";
+    say "Outputs structured JSONL (JSON Lines) to STDOUT.";
+    say "Pipe to file: sam-comparator | tee log.jsonl";
+    say "";
+    say "ABCD Bus Options:";
+    say "  --network_bridge <host:port>  TCP bridge to real bus (default: 192.168.1.23:23)";
+    say "  --serial_sam <device>         Serial port with real SAM (default: /dev/cu.usbserial-A7039O5G)";
+    say "  --baud <rate>                 Baud rate (default: 38400,8,n,1)";
+    say "";
+    say "ASCII Stimulation Options:";
+    say "  --serial_ascii <device>       SAM RS-232 ASCII port (default: /dev/cu.usbserial-211130)";
+    say "  --ascii_baud <rate>           ASCII baud rate (default: 9600,8,n,1)";
+    say "  --ascii_idle_ms <ms>          Min bus idle ms before ASCII attempt (default: 64)";
+    say "  --ascii_zone <1-8>            Zone for ASCII commands (default: 1)";
+    say "  --noascii                     Disable ASCII stimulation";
+    say "  --ascii_settle_sec <sec>      Seconds to wait between sequence commands (default: 25)";
+    say "";
+    say "Other Options:";
+    say "  --report_interval <sec>       Stats report interval in seconds (default: 120)";
+    say "  --clone                       Emulator mimics real SAM identity for byte-for-byte comparison";
+    say "  --help                        Show this help";
+    say "";
+    say "Architecture:";
+    say "  Thermostat <--bus--> Network Bridge (192.168.1.23:23)";
+    say "                           |";
+    say "                           +--> This script bridges frames to/from Real SAM";
+    say "                           |      via /dev/cu.usbserial-A7039O5G (RS485, 38400 baud)";
+    say "                           |      SAM is NOT on the physical bus - we forward frames";
+    say "                           +--> Real SAM RS-232 ASCII (stimulation)";
+    say "                                  via /dev/cu.usbserial-211130 (9600 baud)";
+    say "                           +--> Emulated SAM (isolated, learning)";
+    exit;
+}
+
+# --- Connect to ABCD bus ---
+
+my ($host, $port) = split ':', $config->{network_bridge};
+my $net_bus = CarBus->new(
+    IO::Socket::IP->new(PeerHost => $host // 'localhost', PeerPort => $port // 23)
+);
+
+my $sam_bus;
+if (-e $config->{serial_sam}) {
+    $sam_bus = CarBus->new(
+        IO::Termios->open($config->{serial_sam}, $config->{baud})
+    );
+} else {
+    die "Serial SAM device not found: $config->{serial_sam}";
+}
+
+# Bridge between network and real SAM (emulator is NOT on bridge)
+my $bridge = CarBus::Bridge->new(buslist => [$net_bus, $sam_bus]);
+
+# --- Create emulated SAM with learning ---
+
+my $emulated_sam = CarBus::SAM->new(
+    bus => $net_bus,
+    store => CHI->new(driver => 'Memory', global => 0),
+    learn_mode => 1,
+);
+$emulated_sam->initialize_defaults();
+
+# --- ASCII stimulation ---
+
+my $ascii_sam;
+if ($config->{ascii_enabled} && $config->{serial_ascii} && -e $config->{serial_ascii}) {
+    $ascii_sam = eval {
+        CarBus::SAM::ASCII->new(
+            device => $config->{serial_ascii},
+            baud   => $config->{ascii_baud},
+            system => 1,
+            zone   => $config->{ascii_zone},
+        );
+    };
+}
+
+# --- Emit startup event ---
+
+log_event({
+    event => 'startup',
+    config => {
+        network_bridge => $config->{network_bridge},
+        serial_sam     => $config->{serial_sam},
+        baud           => $config->{baud},
+        clone          => $config->{clone},
+        ascii_enabled  => $config->{ascii_enabled},
+        ascii_baud     => $config->{ascii_baud},
+        ascii_zone     => $config->{ascii_zone},
+        ascii_idle_ms  => $config->{ascii_idle_ms},
+        ascii_settle_sec => $config->{ascii_settle_sec},
+        report_interval => $config->{report_interval},
+    },
+    ascii_connected     => ($ascii_sam ? 1 : 0),
+    known_registers     => [sort @{$emulated_sam->known_registers()}],
+    emulator_defaults_loaded => 1,
+    ascii_commands => ['S1Z1CLSP!73', 'S1Z1OTMR!00:30', 'S1Z1OTMR!00:00'],
+});
+
+# --- State tracking ---
+
+my $clone_mode = $config->{clone};
+my $real_device_identity;
+
+my %pending_queries;
+my %stats = (
+    total_frames => 0,
+    sam_queries => 0,
+    comparisons => 0,
+    matches => 0,
+    mismatches => 0,
+    emulator_only => 0,
+    ascii_commands => 0,
+    ascii_timeouts => 0,
+    ascii_responses => 0,
+    learned_registers => 0,
+);
+
+my %register_coverage;  # reg => { real_hits, emu_hits, mismatches }
+
+# ASCII stimulation state - command sequence for timed override investigation
+my @ascii_commands = ('S1Z1CLSP!73', 'S1Z1OTMR!00:30', 'S1Z1OTMR!00:00');
+my $ascii_cmd_idx = 0;
+my $sam_sync_count = 0;
+my $ASCII_SYNC_THRESHOLD = 10;
+my $ascii_done = 0;              # 1 when all commands in sequence complete
+my $last_frame_time = time();    # updated every frame
+my $last_idle_time = time();     # updated when no frames in a loop cycle
+my $ascii_pending = 0;           # 1 when awaiting ASCII response
+my $ascii_send_time = 0;         # when we last sent an ASCII command
+my $ascii_buf = '';              # buffer for ASCII response
+my $ASCII_RESP_TIMEOUT = 8;      # seconds to wait for ASCII response
+my $ascii_settling = 0;          # 1 when waiting for bus to settle between commands
+my $ascii_settle_start = 0;      # when settle phase began
+
+# --- Main loop ---
+
+while (1) {
+    my @frames = $bridge->drive;
+    $last_idle_time = time() unless @frames;
+
+    for my $frame (@frames) {
+        $stats{total_frames}++;
+        $last_frame_time = time();
+        my $fs = $frame->struct;
+        my $src = $fs->{src} // 'unknown';
+        my $dst = $fs->{dst} // 'unknown';
+        my $cmd = $fs->{cmd} // 'unknown';
+        my $reg = $fs->{reg_string} // '????';
+
+        # Derive short bus name from frame's busname
+        my $bus = ($frame->{busname} // '') =~ /Socket/ ? 'NET'
+                : ($frame->{busname} // '') =~ /Termios|usbserial/ ? 'SAM'
+                : ($frame->{busname} // 'unknown');
+
+        # Emit frame event for every bus frame
+        my $frame_event = {
+            event       => 'frame',
+            bus         => $bus,
+            src         => $src,
+            dst         => $dst,
+            cmd         => $cmd,
+            reg         => $reg,
+            reg_name    => $fs->{reg_name} // undef,
+            valid       => $fs->{valid} ? 1 : 0,
+            hex         => $fs->{as_hex},
+            payload_hex => $fs->{payload_hex},
+        };
+        $frame_event->{payload} = $fs->{payload} if $fs->{payload};
+        log_event($frame_event);
+
+        # Check for SAM queries (read or write to SAM)
+        if (($dst eq 'SAM' || $dst eq 'FakeSAM') && ($cmd eq 'read' || $cmd eq 'write')) {
+            $stats{sam_queries}++;
+            $register_coverage{$reg}{real_hits}++;
+
+            my $query_key = "$src:$reg:$cmd";
+
+            # Pass query to emulated SAM
+            my $emulated_response = $emulated_sam->handle_frame($frame);
+
+            if ($emulated_response) {
+                $pending_queries{$query_key} = {
+                    query_frame => $frame,
+                    emulated_response => $emulated_response,
+                    timestamp => time,
+                    compared => 0,
+                };
+            } else {
+                # Gap: emulator has no response
+                log_event({
+                    event    => 'comparison',
+                    reg      => $reg,
+                    reg_name => $fs->{reg_name} // undef,
+                    verdict  => 'gap',
+                    real_hex => unpack("H*", $fs->{payload_raw} // ''),
+                });
+                $stats{emulator_only}++;
+            }
+        }
+
+        # Check for SAM responses
+        if ($src eq 'SAM' && $cmd eq 'reply') {
+            my $reg = $fs->{reg_string};
+
+            # Clone mode: capture real SAM's device identity for 0104
+            if ($clone_mode && $reg && $reg eq '0104' && !$real_device_identity) {
+                my $parsed = $fs->{payload};
+                if ($parsed) {
+                    $real_device_identity = $parsed;
+                    $emulated_sam->set_device_identity($parsed);
+                    log_event({
+                        event  => 'clone',
+                        reg    => '0104',
+                        device => $parsed->{device} // 'unknown',
+                        model  => $parsed->{model} // 'unknown',
+                        serial => $parsed->{serial} // 'unknown',
+                    });
+                }
+            }
+
+            # Learn from real SAM responses for unknown registers
+            if (defined $reg && length($fs->{payload_raw}) > 3) {
+                my $raw_data = substr($fs->{payload_raw}, 3);
+                if ($emulated_sam->learn_register($reg, $raw_data)) {
+                    log_event({
+                        event    => 'learn',
+                        reg      => $reg,
+                        reg_name => $fs->{reg_name} // undef,
+                        bytes    => length($raw_data),
+                    });
+                    $stats{learned_registers}++;
+                }
+            }
+
+            # Find matching pending query for comparison
+            for my $key (keys %pending_queries) {
+                next if $pending_queries{$key}{compared};
+                next unless $key =~ /^([^:]+):$reg:/;
+
+                my $pending = $pending_queries{$key};
+                $stats{comparisons}++;
+                $register_coverage{$reg}{emu_hits}++;
+
+                # Compare raw payload bytes
+                my $real_data = $fs->{payload_raw} // '';
+                my $emu_data = $pending->{emulated_response}->struct->{payload_raw} // '';
+                my $match = $real_data eq $emu_data;
+
+                my $cmp_event = {
+                    event     => 'comparison',
+                    reg       => $reg,
+                    reg_name  => $fs->{reg_name} // undef,
+                    verdict   => $match ? 'match' : 'mismatch',
+                    real_hex  => unpack("H*", $real_data),
+                    emu_hex   => unpack("H*", $emu_data),
+                };
+                $cmp_event->{real_payload} = $fs->{payload} if $fs->{payload};
+                my $emu_parsed = $pending->{emulated_response}->struct->{payload};
+                $cmp_event->{emu_payload} = $emu_parsed if $emu_parsed;
+
+                log_event($cmp_event);
+
+                if ($match) {
+                    $stats{matches}++;
+                    $sam_sync_count++ unless $ascii_done;
+                } else {
+                    $stats{mismatches}++;
+                    $register_coverage{$reg}{mismatches}++;
+                }
+
+                $pending->{compared} = 1;
+                delete $pending_queries{$key};
+                last;
+            }
+        }
+    }
+
+    # --- ASCII command sequence (fire-and-forget per command) ---
+    if ($ascii_sam && !$ascii_done && !$ascii_pending && !$ascii_settling
+        && $ascii_cmd_idx < @ascii_commands
+        && $sam_sync_count >= $ASCII_SYNC_THRESHOLD
+        && (time() - $last_idle_time) >= ($config->{ascii_idle_ms} / 1000)) {
+
+        my $cmd = $ascii_commands[$ascii_cmd_idx];
+        $stats{ascii_commands}++;
+        my $attempt = $stats{ascii_commands};
+
+        my $fh = $ascii_sam->fh;
+        $fh->blocking(0);
+        while (1) {
+            my $junk;
+            my $n = sysread($fh, $junk, 4096);
+            last unless $n && $n > 0;
+        }
+        syswrite($fh, "$cmd\r\n");
+        $ascii_pending = 1;
+        $ascii_send_time = time();
+        $ascii_buf = '';
+
+        log_event({
+            event   => 'ascii',
+            phase   => 'send',
+            command => $cmd,
+            seq_idx => $ascii_cmd_idx,
+            attempt => $attempt,
+            idle_ms => int((time() - $last_idle_time) * 1000),
+        });
+    }
+
+    # --- ASCII response check (non-blocking) ---
+    if ($ascii_sam && $ascii_pending) {
+        my $fh = $ascii_sam->fh;
+        my $chunk;
+        my $n = sysread($fh, $chunk, 256);
+        $ascii_buf .= $chunk if $n && $n > 0;
+
+        if ($ascii_buf =~ /[\r\n]/) {
+            $ascii_buf =~ s/[\r\n]+$//;
+            $ascii_pending = 0;
+            my $attempt = $stats{ascii_commands};
+
+            if ($ascii_buf =~ /ACK/) {
+                $stats{ascii_responses}++;
+                log_event({
+                    event      => 'ascii',
+                    phase      => 'response',
+                    command    => $ascii_commands[$ascii_cmd_idx],
+                    seq_idx    => $ascii_cmd_idx,
+                    attempt    => $attempt,
+                    response   => 'ACK',
+                    latency_ms => int((time() - $ascii_send_time) * 1000),
+                });
+
+                $ascii_cmd_idx++;
+                if ($ascii_cmd_idx >= @ascii_commands) {
+                    $ascii_done = 1;
+                    log_event({ event => 'ascii', phase => 'sequence_complete' });
+                } else {
+                    $ascii_settling = 1;
+                    $ascii_settle_start = time();
+                    log_event({
+                        event        => 'ascii',
+                        phase        => 'settle',
+                        next_command => $ascii_commands[$ascii_cmd_idx],
+                        settle_sec   => $config->{ascii_settle_sec},
+                    });
+                }
+            } elsif ($ascii_buf ne '') {
+                log_event({
+                    event      => 'ascii',
+                    phase      => 'response',
+                    command    => $ascii_commands[$ascii_cmd_idx],
+                    seq_idx    => $ascii_cmd_idx,
+                    attempt    => $attempt,
+                    response   => $ascii_buf,
+                    latency_ms => int((time() - $ascii_send_time) * 1000),
+                });
+            }
+        } elsif (time() - $ascii_send_time > $ASCII_RESP_TIMEOUT) {
+            $ascii_pending = 0;
+            $stats{ascii_timeouts}++;
+            log_event({
+                event   => 'ascii',
+                phase   => 'timeout',
+                command => $ascii_commands[$ascii_cmd_idx],
+                seq_idx => $ascii_cmd_idx,
+                attempt => $stats{ascii_commands},
+            });
+        }
+    }
+
+    # --- ASCII settle phase check ---
+    if ($ascii_settling && time() - $ascii_settle_start >= $config->{ascii_settle_sec}) {
+        $ascii_settling = 0;
+        log_event({
+            event        => 'ascii',
+            phase        => 'settle_done',
+            next_command => $ascii_commands[$ascii_cmd_idx],
+        });
+    }
+
+    # --- Timeout cleanup ---
+    my $now = time;
+    for my $key (keys %pending_queries) {
+        if ($now - $pending_queries{$key}{timestamp} > 5) {
+            delete $pending_queries{$key};
+        }
+    }
+
+    # --- Periodic stats event ---
+    state $last_report_time = 0;
+    if (time - $last_report_time >= $config->{report_interval}) {
+        my %coverage_out;
+        for my $r (sort keys %register_coverage) {
+            my $cov = $register_coverage{$r};
+            $coverage_out{$r} = {
+                real       => $cov->{real_hits} // 0,
+                emu        => $cov->{emu_hits} // 0,
+                mismatches => $cov->{mismatches} // 0,
+            };
+        }
+        log_event({
+            event              => 'stats',
+            total_frames       => $stats{total_frames},
+            sam_queries        => $stats{sam_queries},
+            comparisons        => $stats{comparisons},
+            matches            => $stats{matches},
+            mismatches         => $stats{mismatches},
+            emulator_gaps      => $stats{emulator_only},
+            learned_registers  => $stats{learned_registers},
+            register_coverage  => \%coverage_out,
+            known_registers    => [sort @{$emulated_sam->known_registers()}],
+            ascii              => {
+                sent     => $stats{ascii_commands},
+                ok       => $stats{ascii_responses},
+                timeouts => $stats{ascii_timeouts},
+            },
+        });
+        $last_report_time = time;
+    }
+
+    select(undef, undef, undef, 0.01);
+}
+
+END {
+    return unless $emulated_sam && %stats;
+    my %coverage_out;
+    for my $r (sort keys %register_coverage) {
+        my $cov = $register_coverage{$r};
+        $coverage_out{$r} = {
+            real       => $cov->{real_hits} // 0,
+            emu        => $cov->{emu_hits} // 0,
+            mismatches => $cov->{mismatches} // 0,
+        };
+    }
+    log_event({
+        event              => 'shutdown',
+        total_frames       => $stats{total_frames},
+        sam_queries        => $stats{sam_queries},
+        comparisons        => $stats{comparisons},
+        matches            => $stats{matches},
+        mismatches         => $stats{mismatches},
+        emulator_gaps      => $stats{emulator_only},
+        learned_registers  => $stats{learned_registers},
+        register_coverage  => \%coverage_out,
+        known_registers    => [sort @{$emulated_sam->known_registers()}],
+    });
+}

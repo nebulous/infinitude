@@ -11,3 +11,4 @@ requires 'Data::ParseBinary';
 requires 'Digest::CRC';
 
 suggests 'IO::Termios';
+suggests 'Net::MQTT::Simple';

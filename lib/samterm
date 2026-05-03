@@ -1,0 +1,310 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use feature 'say';
+use IO::Termios;
+use IO::Select;
+use Getopt::Long;
+
+my $device = '/dev/cu.usbserial-21120';
+my $baud = '9600,8,n,1';
+my $system = 1;
+my $zone;
+my $help;
+my $debug;
+
+GetOptions(
+    'device=s' => \$device,
+    'baud=s'   => \$baud,
+    'system=i' => \$system,
+    'zone=i'   => \$zone,
+    'debug'    => \$debug,
+    'help'     => \$help,
+) or usage();
+
+usage() if $help;
+
+sub usage {
+    say "Usage: samterm [options] [command]";
+    say "";
+    say "Options:";
+    say "  --device <path>   Serial device (default: /dev/cu.usbserial-21120)";
+    say "  --baud <rate>     Baud rate (default: 9600,8,n,1)";
+    say "  --system <n>      System number 1-2 (default: 1)";
+    say "  --zone <n>        Zone number 1-8 for zone-specific commands";
+    say "  --debug           Show debug output";
+    say "  --help            Show this help";
+    say "";
+    say "Commands (if no command given, enters interactive mode):";
+    say "  Query commands (use ? suffix):";
+    say "    MODE, OAT, HUMID, DAY, TIME, ZONE, PER";
+    say "    BLIGHT, CFGEM, CFGAUTO, CFGTYPE, CFGDEAD, CFGCPH";
+    say "    FILTRLVL, UVLVL, HUMLVL";
+    say "    VACAT, VACDAYS, VACMINT, VACMAXT, VACMINH, VACMAXH, VACFAN";
+    say "    DEALER, DEALERPH";
+    say "";
+    say "  Zone commands (require --zone):";
+    say "    RT, RH, FAN, HOLD, UNOCC, HTSP, CLSP, RHTG, OVR, OTMR, NAME";
+    say "";
+    say "Examples:";
+    say "  samterm MODE?                    # Get system mode";
+    say "  samterm --zone 1 RT?             # Get zone 1 room temp";
+    say "  samterm 'MODE!AUTO'              # Set mode to AUTO";
+    say "  samterm --zone 2 'HTSP!70'       # Set zone 2 heat setpoint";
+    say "  samterm --debug MODE?            # Debug mode";
+    say "";
+    say "Interactive mode: Type commands, empty line sends S1BLIGHT?";
+    exit;
+}
+
+# Predefined queries for quick access
+my %quick_commands = (
+    # System status
+    'mode'    => 'MODE?',
+    'oat'     => 'OAT?',
+    'humid'   => 'HUMID?',
+    'day'     => 'DAY?',
+    'time'    => 'TIME?',
+    'zone'    => 'ZONE?',
+    'per'     => 'PER?',
+    # Configuration
+    'blight'  => 'BLIGHT?',
+    'units'   => 'CFGEM?',
+    'auto'    => 'CFGAUTO?',
+    'type'    => 'CFGTYPE?',
+    'deadband'=> 'CFGDEAD?',
+    'cph'     => 'CFGCPH?',
+    # Accessories
+    'filter'  => 'FILTRLVL?',
+    'uv'      => 'UVLVL?',
+    'humpad'  => 'HUMLVL?',
+    # Vacation
+    'vac'     => 'VACAT?',
+    'vacdays' => 'VACDAYS?',
+    'vacmint' => 'VACMINT?',
+    'vacmaxt' => 'VACMAXT?',
+    'vacminh' => 'VACMINH?',
+    'vacmaxh' => 'VACMAXH?',
+    'vacfan'  => 'VACFAN?',
+    # Dealer
+    'dealer'  => 'DEALER?',
+    'dealerph'=> 'DEALERPH?',
+    # Zone commands
+    'rt'      => 'RT?',
+    'rh'      => 'RH?',
+    'fan'     => 'FAN?',
+    'hold'    => 'HOLD?',
+    'unocc'   => 'UNOCC?',
+    'htsp'    => 'HTSP?',
+    'clsp'    => 'CLSP?',
+    'rhtg'    => 'RHTG?',
+    'ovr'     => 'OVR?',
+    'otmr'    => 'OTMR?',
+    'name'    => 'NAME?',
+);
+
+# Build command from arguments
+my $input = join(' ', @ARGV);
+
+if ($input) {
+    # Non-interactive mode
+    my $cmd = build_command($input);
+    my $ser = IO::Termios->open($device, $baud) or die "Cannot open $device: $!";
+    send_command($ser, $cmd);
+    exit;
+}
+
+# Interactive mode
+my $ser = IO::Termios->open($device, $baud) or die "Cannot open $device: $!";
+say "SAM Terminal connected to $device at $baud";
+say "System: $system" . (defined $zone ? ", Zone: $zone" : "");
+say "Type 'help' for commands, 'quit' to exit";
+say "";
+
+while (my $line = <STDIN>) {
+    chomp $line;
+    $line =~ s/^\s+|\s+$//g;  # trim
+
+    next if $line eq '';
+
+    if ($line eq 'quit' || $line eq 'exit') {
+        last;
+    }
+
+    if ($line eq 'help') {
+        show_help();
+        next;
+    }
+
+    if ($line eq 'status') {
+        show_status($ser);
+        next;
+    }
+
+    if ($line =~ /^sys\s*(\d)$/i) {
+        $system = $1;
+        say "System set to $system";
+        next;
+    }
+
+    if ($line =~ /^zone\s*(\d)$/i) {
+        $zone = $1;
+        say "Zone set to $zone";
+        next;
+    }
+
+    my $cmd = build_command($line);
+    send_command($ser, $cmd);
+}
+
+sub build_command {
+    my ($input) = @_;
+    my $cmd = $input;
+
+    # Check if it's a quick command alias
+    my $lc_input = lc($input);
+    if (exists $quick_commands{$lc_input}) {
+        $cmd = $quick_commands{$lc_input};
+    }
+
+    # Add zone prefix if needed for zone commands
+    if (defined $zone && $cmd !~ /^S\dZ\d/i && $cmd !~ /^S\d/i) {
+        # Check if this is a zone command
+        if ($cmd =~ /^(RT|RH|FAN|HOLD|UNOCC|HTSP|CLSP|RHTG|OVR|OTMR|NAME)/i) {
+            $cmd = "Z$zone$cmd";
+        }
+    }
+
+    # Add system prefix if not already present
+    if ($cmd !~ /^S\d/i) {
+        $cmd = "S$system$cmd";
+    }
+
+    return $cmd;
+}
+
+sub send_command {
+    my ($ser, $cmd) = @_;
+
+    my $max_retries = 4;
+    my $timeout = 8;  # Match samser.c timeout
+
+    # Use non-blocking IO with select for reliable reads
+    $ser->blocking(0);
+    my $sel = IO::Select->new($ser);
+
+    for my $attempt (1 .. $max_retries) {
+        say "> $cmd" . ($attempt > 1 ? " (attempt $attempt)" : "");
+
+        # Flush any pending data first
+        if ($debug) { say "[debug] Flushing input buffer..."; }
+        while ($sel->can_read(0.1)) {
+            sysread($ser, my $junk, 4096);
+        }
+
+        # Send command with CRLF
+        if ($debug) { say "[debug] Sending: " . join(" ", map { sprintf("%02X", ord($_)) } split //, $cmd) . " 0D 0A"; }
+        $ser->write($cmd . "\r\n");
+
+        # Read until we get a complete line (ending with \n) or timeout
+        my $response = '';
+        my $start = time();
+        my $read_count = 0;
+
+        while (time() - $start < $timeout) {
+            if ($sel->can_read(0.1)) {
+                my $chunk;
+                my $n = sysread($ser, $chunk, 256);
+                if ($n && $n > 0) {
+                    $read_count++;
+                    if ($debug) { say "[debug] Read $n bytes: " . join(" ", map { sprintf("%02X", ord($_)) } split //, $chunk); }
+                    $response .= $chunk;
+                    # Check if we have a complete response (ends with newline)
+                    last if $response =~ /\n/;
+                }
+            }
+        }
+
+        if ($debug) {
+            say "[debug] Total reads: $read_count, elapsed: " . sprintf("%.2f", time() - $start) . "s";
+        }
+
+        $response =~ s/[\r\n]+$//;
+
+        # Check for NAK - SAM device is unreliable and often returns NAK to valid commands
+        if ($response =~ /NAK/) {
+            if ($attempt < $max_retries) {
+                say "< $response (retrying...)" if $response;
+                sleep(1);  # Match samser.c delay between retries
+                next;
+            }
+        }
+
+        say "< $response" if $response;
+        return;  # Success or max retries exhausted
+    }
+}
+
+sub show_help {
+    say "Commands:";
+    say "  <command>?   Query a value (e.g., MODE?)";
+    say "  <command>!<value>  Set a value (e.g., MODE!AUTO)";
+    say "  sys <n>      Set system number (1-2)";
+    say "  zone <n>     Set zone number (1-8)";
+    say "  status       Show all common status values";
+    say "  quit         Exit";
+    say "";
+    say "Quick aliases: mode, oat, time, day, blight, units, filter, vac";
+    say "Zone aliases (requires zone set): rt, rh, fan, hold, htsp, clsp, name";
+}
+
+# Helper to send a single query with NAK retry (for show_status)
+sub _send_query {
+    my ($ser, $cmd, $label) = @_;
+    my $max_retries = 4;
+
+    for my $attempt (1 .. $max_retries) {
+        # Flush input buffer
+        $ser->blocking(0);
+        while ($ser->sysread(my $junk, 4096) > 0) {}
+
+        $ser->write($cmd . "\r\n");
+        select(undef, undef, undef, 0.1);
+
+        my $resp = '';
+        $ser->sysread($resp, 256);
+        $resp =~ s/[\r\n]+$//;
+
+        if ($resp =~ /NAK/ && $attempt < $max_retries) {
+            select(undef, undef, undef, 1);  # 1 second delay before retry
+            next;
+        }
+
+        say sprintf("%-10s %s", $label, $resp) if $resp;
+        select(undef, undef, undef, 0.1);
+        return;
+    }
+}
+
+sub show_status {
+    my ($ser) = @_;
+
+    say "--- System $system Status ---";
+
+    my @queries = qw(MODE? OAT? DAY? TIME? ZONE? BLIGHT?);
+
+    for my $q (@queries) {
+        my $cmd = "S$system$q";
+        _send_query($ser, $cmd, $q);
+    }
+
+    if (defined $zone) {
+        say "--- Zone $zone Status ---";
+        my @zone_queries = qw(RT? RH? FAN? HTSP? CLSP? HOLD?);
+
+        for my $q (@zone_queries) {
+            my $cmd = "S${system}Z${zone}$q";
+            _send_query($ser, $cmd, $q);
+        }
+    }
+}

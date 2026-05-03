@@ -16,6 +16,8 @@ use Path::Tiny;
 use Time::HiRes qw/time/;
 use Try::Tiny;
 use XML::Simple::Minded;
+use Infinitude::MQTT;
+use Infinitude;
 
 my $store = CHI->new(
     driver         => 'File',
@@ -51,10 +53,31 @@ $config->{serial_tty}    = $ENV{SERIAL_TTY}    || $config->{serial_tty};
 $config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
 $config->{app_secret}    = $ENV{APP_SECRET}    || $config->{app_secret};
 $config->{pass_reqs}     = $ENV{PASS_REQS}     || $config->{pass_reqs};
+$config->{emulate_sam}   = $ENV{EMULATE_SAM}   || $config->{emulate_sam};
+$config->{mqtt_broker}   = $ENV{MQTT_BROKER}   || $config->{mqtt_broker};
+$config->{mqtt_user}     = $ENV{MQTT_USER}     || $config->{mqtt_user};
+$config->{mqtt_pass}     = $ENV{MQTT_PASS}     || $config->{mqtt_pass};
+$config->{mqtt_prefix}   = $ENV{MQTT_PREFIX}   || $config->{mqtt_prefix};
+$config->{mqtt_topic}    = $ENV{MQTT_TOPIC}    || $config->{mqtt_topic};
 
 my $handle;
 my $carbus;
+my $sam;
+my $inf;
 my $init_attempt;
+my @ws_clients;
+my $busloop_id;
+my $scantab = 0;
+my $scanrow = 0;
+my $scansec = 0;
+my $lastframe = 0;
+my @sam_poll_regs = (
+    [0x01, 0x04], # Device info - clears thermostat's SAM comm fault flag
+    [0x30, 0x03], # Thermostat register
+    [0x30, 0x05], # Thermostat register
+);
+my $sam_poll_idx = 0;
+my $sam_poll_sec = 0;
 my $use_serial = ( (defined($config->{serial_tty})    and $config->{serial_tty})
                 or (defined($config->{serial_socket}) and $config->{serial_socket}) );
 
@@ -80,11 +103,151 @@ sub serial_init {
         $handle ||= IO::Socket::IP->new( PeerHost=>$host, PeerPort=>$port);
     }
     $carbus = CarBus->new($handle) if $handle;
+    if ($handle and $config->{emulate_sam}) {
+        require CarBus::SAM;
+        $sam = CarBus::SAM->new(bus => $carbus, emulated_src => 'SAM');
+        $sam->initialize_defaults();
+        $inf->{sam} = $sam if $inf;    # keep Infinitude module in sync after reconnect
+        warn "SAM emulation enabled\n";
+    }
+    bus_loop_start() if $carbus;
 }
+
+sub bus_loop_start {
+    return if $busloop_id;
+    $busloop_id = Mojo::IOLoop->recurring(0.0625 => sub {
+        serial_init() if (!$carbus or time>($lastframe+10));
+        # Active SAM polling - emulate real SAM querying thermostat registers
+        if ($sam and $carbus and time >= $sam_poll_sec + 3) {
+            $sam_poll_sec = time;
+            my $reg = $sam_poll_regs[$sam_poll_idx];
+            my $poll_frame = $sam->read_thermostat($reg->[0], $reg->[1]);
+            $sam_poll_idx = ($sam_poll_idx + 1) % scalar(@sam_poll_regs);
+        }
+        if (my $frame = $carbus->get_frame) {
+            return if (!$frame or !$frame->struct->{cmd});
+            if ($sam and my $reply = $sam->handle_frame($frame)) {
+                $carbus->write($reply);
+                my $rstruc = $reply->frame_hash;
+                $rstruc->{timestamp} = time;
+                $rstruc->{emulated} = 1;
+                $_->send({json => $rstruc}) for @ws_clients;
+            }
+            my $fstruc = $frame->frame_hash;
+            $fstruc->{timestamp} = $lastframe = time;
+            if ($fstruc->{cmd} eq 'reply') {
+                my $payf = $fstruc->{payload};
+                if ($payf) {
+                    if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
+                        $scanrow = $payf->{rows}+1;
+                    }
+                    $fstruc->{field} = { $fstruc->{reg_name}||'unknown' => $payf };
+                }
+            }
+
+            if ($ENV{SCAN_THERMOSTAT}) {
+                if (time>=$scansec+($ENV{SCAN_THERMOSTAT})) {
+                    $scansec = time;
+                    if ($scanrow > 0) {
+                        $scanrow--;
+                    }
+                    if ($scanrow == 0) {
+                        $scantab+=1;
+                        $scanrow=1;
+                        $scantab=0x01 if $scantab>0x51;
+                    }
+                    app->log->debug(sprintf("scanning table %02x row %02x", $scantab, $scanrow));
+                    $carbus->samreq($scantab, $scanrow);
+                }
+            }
+            $_->send({json => $fstruc}) for @ws_clients;
+        }
+    });
+    warn "Bus loop started: $busloop_id\n";
+}
+
 serial_init();
 
+# MQTT Discovery integration
+my $mqtt = Infinitude::MQTT->new(store => $store, config => $config);
+$inf = Infinitude->new(store => $store, mqtt => $mqtt, sam => $sam);
+
+# --- MQTT command wiring ---
+
+if ($mqtt->enabled) {
+    app->log->info("MQTT: Connecting to $config->{mqtt_broker}");
+
+    $mqtt->subscribe_commands(
+        on_set_mode => sub {
+            my ($mode) = @_;
+            $inf->set_system_mode($mode);
+            app->log->debug("MQTT: Set system mode to $mode");
+        },
+        on_set_temperature => sub {
+            my ($zone_id, $temp) = @_;
+            my $sys_mode = 'auto';
+            if (my $xml_str = $store->get('systems.xml')) {
+                my $xml = XML::Simple::Minded->new($xml_str);
+                $sys_mode = lc($xml->system->config->mode . '');
+            }
+            if ($sys_mode eq 'heat') {
+                $inf->set_zone_setpoint($zone_id, $temp, undef);
+            } elsif ($sys_mode eq 'cool') {
+                $inf->set_zone_setpoint($zone_id, undef, $temp);
+            } else {
+                $inf->set_zone_setpoint($zone_id, $temp, $temp);
+            }
+            app->log->debug("MQTT: Set zone $zone_id temperature to $temp");
+        },
+        on_set_temp_low => sub {
+            my ($zone_id, $temp) = @_;
+            $inf->set_zone_setpoint($zone_id, $temp, undef);
+            app->log->debug("MQTT: Set zone $zone_id heat setpoint to $temp");
+        },
+        on_set_temp_high => sub {
+            my ($zone_id, $temp) = @_;
+            $inf->set_zone_setpoint($zone_id, undef, $temp);
+            app->log->debug("MQTT: Set zone $zone_id cool setpoint to $temp");
+        },
+        on_set_fan => sub {
+            my ($zone_id, $fan) = @_;
+            $inf->set_zone_fan($zone_id, $fan);
+            app->log->debug("MQTT: Set zone $zone_id fan to $fan");
+        },
+        on_set_preset => sub {
+            my ($zone_id, $preset) = @_;
+            my ($hold, $activity, $until);
+            if ($preset eq 'none' || $preset eq 'schedule') {
+                ($hold, $activity, $until) = ('off', '', {});
+            } elsif ($preset =~ /^(home|away|sleep|wake)$/) {
+                ($hold, $activity, $until) = ('on', $preset, qtr_hr());
+            } elsif ($preset eq 'hold') {
+                ($hold, $activity, $until) = ('on', 'manual', 'forever');
+            } elsif ($preset eq 'hold_until') {
+                ($hold, $activity, $until) = ('on', 'manual', qtr_hr((localtime)[2] + 1));
+            }
+            $inf->set_zone_hold($zone_id, $hold, $activity, $until) if defined $hold;
+            app->log->debug("MQTT: Set zone $zone_id preset to $preset");
+        },
+    );
+
+    Mojo::IOLoop->timer(8 => sub {
+        $mqtt->publish_discovery;
+        $mqtt->publish_state;
+        app->log->info("MQTT: Discovery and state published");
+    });
+
+    Mojo::IOLoop->recurring(60 => sub {
+        $mqtt->publish_if_status_changed;
+    });
+
+    Mojo::IOLoop->recurring(1 => sub {
+        $mqtt->tick;
+    });
+}
+
 app->secrets([$config->{app_secret}]);
-push (@{app->static->paths}, ('development' eq ($ENV{MOJO_MODE}//'')) ? 'public/app' : 'public/dist');
+push (@{app->static->paths}, 'public');
 
 #app->plugin('leak_tracker', { ignore_mode=>1, loglevel=>'debug' });
 
@@ -166,37 +329,19 @@ sub qtr_hr {
 # 	but we want to ensure automation devices eg VeraLite will work first
 any '/api/:zone_id/hold' => sub {
 	my $c = shift;
-	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-
-	my $zone;
 	my $idx = $c->stash('zone_id')||1;
-	if ($idx eq 'wholeHouse') {
-		$zone = $xml->system->config->wholeHouse;
-	} else {
-		$idx--;
-		$zone = $xml->system->config->zones->zone->[$idx];
-	}
 
 	my $setting = {};
-
 	my $hold = $c->req->param('hold') || '';
 	$setting->{hold} = $hold eq 'off' ? 'off' : 'on';
-	$zone->hold([$setting->{hold}]);
 
 	my $activities = { home=>'home', away=>'away', sleep=>'sleep', wake=>'wake', manual=>'manual' };
 	$setting->{activity} = $activities->{lc($c->req->param('activity'))} || 'home';
-	$zone->holdActivity([$setting->{activity}]);
 
-	# default to about an hour from now
 	my $until = $c->req->param('until') || ((localtime)[2] + 1);
 	$setting->{until} = $until eq 'forever' ? {} : &qtr_hr($until);
-	$zone->otmr([$setting->{until}]);
 
-	$store->set('systems.xml',  $xml.'');
-	$store->set('systems.json', $xml->_as_json());
-	$store->set(changes => 'true');
-
-	#$c->render(text=>$xml, format=>'xml');
+	$inf->set_zone_hold($idx, $setting->{hold}, $setting->{activity}, $setting->{until});
 	$c->render(json=>$setting);
 };
 
@@ -225,26 +370,54 @@ get '/api/status/' => \&api_stat;
 
 any '/api/:zone_id/activity/:activity_id' => sub {
 	my $c = shift;
+	my $zone_id = $c->stash('zone_id')||1;
+	my $activity_id = $c->stash('activity_id');
+
+	my $htsp = $c->req->param('htsp');
+	my $clsp = $c->req->param('clsp');
+	my $fan  = $c->req->param('fan');
+
+	if (defined $htsp || defined $clsp || defined $fan) {
+	    if ($activity_id eq 'manual') {
+	        $inf->set_zone_setpoint($zone_id, $htsp, $clsp) if defined $htsp || defined $clsp;
+	        $inf->set_zone_fan($zone_id, $fan) if defined $fan;
+	    } else {
+	        $inf->modify_system(sub {
+	            my $xml = shift;
+	            my $zone = $xml->system->config->zones->zone->[$zone_id - 1];
+	            for my $activity (@{$zone->activities->activity}) {
+	                if ($activity->id eq $activity_id) {
+	                    $activity->htsp([$htsp]) if defined $htsp;
+	                    $activity->clsp([$clsp]) if defined $clsp;
+	                    $activity->fan([$fan]) if defined $fan;
+	                    last;
+	                }
+	            }
+	        });
+	        # Route changes through RS485 if SAM emulation is active
+	        if ($sam) {
+	            my $h = defined $htsp ? $htsp + 0 : undef;
+	            my $c = defined $clsp ? $clsp + 0 : undef;
+	            try { $sam->set_zone_setpoint($zone_id, $h, $c) if defined $h or defined $c }
+	            catch { warn "RS485 setpoint write failed: $_" };
+	            try { $sam->set_zone_fan($zone_id, $fan) if defined $fan }
+	            catch { warn "RS485 fan write failed: $_" };
+	        }
+	    }
+	}
+
 	my $xml = XML::Simple::Minded->new($store->get('systems.xml'));
-
-	my $idx = ($c->stash('zone_id')||1) - 1;
-	my $zone = $xml->system->config->zones->zone->[$idx];
-
+	my $zone = $xml->system->config->zones->zone->[$zone_id - 1];
 	my $setting = {};
-	foreach my $activity (@{$zone->activities->activity}) {
-		if ($activity->id eq $c->stash('activity_id')) {
-			foreach my $set (qw/clsp htsp fan/) {
-				$activity->$set([$c->req->param($set)]) if $c->req->param($set);
-			}
-			$setting = decode_json($activity->_as_json);
-			$store->set('systems.xml',  $xml.'');
-			$store->set('systems.json', $xml->_as_json());
-			$store->set(changes => 'true');
-			last;
-		}
+	for my $activity (@{$zone->activities->activity}) {
+	    if ($activity->id eq $activity_id) {
+	        $setting = decode_json($activity->_as_json);
+	        last;
+	    }
 	}
 	$c->render(json=>$setting);
 };
+
 
 get '/api/state_keys' => sub {
 	my $c = shift;
@@ -259,6 +432,47 @@ post '/api/samreq' => sub {
     my $frame = $carbus->samreq(hex($tab),hex($row));
     $c->log->debug("Making Virtual SAM request: register $reg table $tab and row $row\n".$frame->frame_hex);
     $c->render( json=>{ frame_hex=>$frame->frame_hex });
+};
+
+# Set system mode (heat/cool/auto/off)
+post '/api/mode' => sub {
+    my $c = shift;
+    my $mode = $c->req->param('mode');
+    unless ($mode && $mode =~ /^(heat|cool|auto|off)$/i) {
+        return $c->render(json => { error => 'mode must be heat, cool, auto, or off' }, status => 400);
+    }
+    $inf->set_system_mode($mode);
+    $c->render(json => { mode => $mode });
+};
+
+
+# Set zone hold timer via RS485 (minutes, 0 to cancel)
+post '/api/hold' => sub {
+    my $c = shift;
+    my $zone = $c->req->param('zone') // 1;
+    my $duration = $c->req->param('duration');
+    unless (defined $duration && $duration =~ /^\d+$/) {
+        return $c->render(json => { error => 'duration required (minutes, 0 to cancel)' }, status => 400);
+    }
+    if ($sam) {
+        try { $sam->set_zone_hold($zone + 0, $duration + 0) }
+        catch { warn "RS485 hold write failed: $_" };
+    }
+    $c->render(json => { zone => $zone, duration => $duration + 0 });
+};
+
+# Set backlight level via RS485
+post '/api/backlight' => sub {
+    my $c = shift;
+    my $level = $c->req->param('level');
+    unless (defined $level) {
+        return $c->render(json => { error => 'level required (on/off/2-8)' }, status => 400);
+    }
+    if ($sam) {
+        try { $sam->set_backlight($level) }
+        catch { warn "RS485 backlight write failed: $_" };
+    }
+    $c->render(json => { backlight => $level });
 };
 
 
@@ -295,6 +509,7 @@ any '/api/*variable_path' => sub {
 	} catch {
 		$setting->{status} = 'fail';
 	};
+
 
 	$c->render(json=>$setting);
 };
@@ -398,6 +613,7 @@ post '/systems/:system_id/status' => sub {
 	if ($changes) {
 	  $c->app->log->info("********** There are changes. ****************");
 	  $store->set(changes=>'');
+          $mqtt->publish_state if $mqtt;
 	}
 	$c->render(text=>$xml, format=>'xml');
 };
@@ -408,61 +624,22 @@ any '/systems/:system_id/:part' => sub {
 	$c->render(text=>'', format=>'txt');
 };
 
-my $scantab = 0;
-my $scanrow = 0;
-my $scansec = 0;
-my $lastframe = 0;
 websocket '/serial' => sub {
-	my $c = shift;
-	unless ($use_serial) {
-		$c->app->log->info("Websocket opened, but no streaming source is configured");
-		return;
-	}
-
-	my $socketloop_id = Mojo::IOLoop->recurring(0.0625 => sub {
-        my $loop = shift;
-        serial_init() if (!$carbus or time>($lastframe+10));
-		if (my $frame = $carbus->get_frame) { return if (!$frame or !$frame->struct->{cmd});
-			my $fstruc = $frame->frame_hash;
-			$fstruc->{timestamp} = $lastframe = time;
-            if ($fstruc->{cmd} eq 'reply') {
-                my $payf = $fstruc->{payload};
-                if ($payf) {
-                    if ($payf->{rows} and $ENV{SCAN_THERMOSTAT}) {
-                        $scanrow = $payf->{rows}+1;
-                        warn sprintf(">>>>>>>>>>> table %02x has %d rows <<<<<<<<<<<<<<<<<<<", $scantab, $payf->{rows});
-                    }
-                    $fstruc->{field} = { $fstruc->{reg_name}||'unknown' => $payf };
-                }
-            }
-
-            if ($ENV{SCAN_THERMOSTAT}) {
-                if (time>=$scansec+3) {
-                    $scansec = time;
-                    if ($scanrow > 0) {
-                        $scanrow--;
-                    }
-                    if ($scanrow == 0) {
-                        $scantab+=1;
-                        $scanrow=1;
-                        $scantab=0x01 if $scantab>0x51;
-                    }
-                    $c->log->debug(sprintf("scanning table %02x row %02x", $scantab, $scanrow));
-                    $carbus->samreq($scantab, $scanrow);
-                }
-            }
-            #warn $frame->frame_log;
-			$c->send({json=>$fstruc});
+		my $c = shift;
+		unless ($use_serial) {
+			$c->app->log->info("Websocket opened, but no streaming source is configured");
+			return;
 		}
-	});
-    $c->app->log->info("Websocket $socketloop_id Established");
 
-	$c->on('finish' => sub {
-		my ($c, $code) = @_;
-        Mojo::IOLoop->remove($socketloop_id);
-		$c->app->log->info("Websocket $socketloop_id Closed: $code");
-	});
-};
+		push @ws_clients, $c;
+		$c->app->log->info("Websocket client connected (" . scalar(@ws_clients) . " active)");
+
+		$c->on('finish' => sub {
+			my ($c, $code) = @_;
+			@ws_clients = grep { $_ != $c } @ws_clients;
+			$c->app->log->info("Websocket client disconnected: $code (" . scalar(@ws_clients) . " active)");
+		});
+	};
 
 any '/*catchall' => sub {
 	my $c = shift;

@@ -1,16 +1,24 @@
 package CarBus;
 use Moo;
 use CarBus::Frame;
+use CarBus::SAM;
 use Scalar::Util qw/blessed/;
+use IO::Select;
 
 has fh => (is=>'ro', isa=>sub{
     die 'fh must be an IO::Handle or subclass thereof' unless
         defined blessed($_[0]) and $_[0]->isa('IO::Handle');
 });
+has iosel => ( is=>'ro', lazy=>1, default=>sub{
+    my $self = shift;
+    return IO::Select->new($self->fh);
+});
 has buffer => (is=>'rw', default=>'');
 has name => (is=>'ro', lazy=>1, default => sub {
     return join('-',ref($_[0]->fh), int(rand()*9999));
 });
+has devices => (is=>'rw',default=>sub{{}});
+has handlers => (is=>'rw', default=>sub{[\&_track_registers]});
 
 use constant MIN_FRAME => 10;
 use constant MAX_FRAME => 266;
@@ -42,7 +50,7 @@ sub get_frame {
                 my $cbf = CarBus::Frame->new($frame_string);
                 if ($cbf->valid) {
                     $self->shift_stream($frame_len);
-                    $self->handlers($cbf);
+                    $self->run_handlers($cbf);
                     $cbf->{busname} = $self->name;
                     return $cbf;
                 }
@@ -57,6 +65,7 @@ sub get_frame {
 sub fh_fill {
     my $self = shift;
     return unless $self->fh;
+    return unless $self->iosel->can_read(0.05); #100 read checks per second
     my $buf = '';
     my $len = $self->fh->sysread($buf, MAX_BUFFER-$self->buflen);
     $self->push_stream($buf) if defined $len;
@@ -87,37 +96,72 @@ sub shift_stream {
 sub write {
     my $self = shift;
     my $frame = shift;
+    $frame->frame;  # ensure raw bytes are computed
     $self->fh->syswrite($frame->struct->{raw});
 }
 
+# Generic read - works for any device
+sub read_register {
+    my $self = shift;
+    my ($dst, $table, $row, $opt) = @_;
+    $opt //= {};
+    my $frame = CarBus::Frame->new(
+        src     => $opt->{src} // 'FakeSAM',
+        src_bus => $opt->{src_bus} // 1,
+        dst     => $dst,
+        dst_bus => $opt->{dst_bus} // 1,
+        cmd     => 'read',
+        payload_raw => pack("C*", 0, $table, $row),
+    );
+    $self->write($frame);
+    return $frame;
+}
+
+# Generic write - works for any device
+sub write_register {
+    my $self = shift;
+    my ($dst, $table, $row, $value, $opt) = @_;
+    $opt //= {};
+    my $frame = CarBus::Frame->new(
+        src     => $opt->{src} // 'FakeSAM',
+        src_bus => $opt->{src_bus} // 1,
+        dst     => $dst,
+        dst_bus => $opt->{dst_bus} // 1,
+        cmd     => 'write',
+        payload_raw => pack("C*", 0, $table, $row) . $value,
+    );
+    $self->write($frame);
+    return $frame;
+}
+
+# Legacy method - now uses read_register
+# Interrogates Thermostat registers
 sub samreq {
     my $self = shift;
     my ($table, $row, $frameopts) = @_;
-    $frameopts //= {};
-    my $samframe = CarBus::Frame->new(
-        src=>'FakeSAM', src_bus=>1,
-        dst=>'Thermostat', dst_bus=>1,
-        cmd=>'read',
-        payload_raw=>pack("C*", 0, $table, $row),
-        %$frameopts
-    );
-    $self->write($samframe);
-    return $samframe;
+    return $self->read_register('Thermostat', $table, $row, $frameopts);
 }
 
-has devices => (is=>'rw',default=>sub{{}});
-has registers => (is=>'rw',default=>sub{{}});
 
-sub handlers {
+sub device_names {return [keys %{shift->devices}] }
+
+# Default handler to track device registers
+sub _track_registers {
+    my ($self, $frame) = @_;
+    my $fs = $frame->struct;
+    $self->devices->{$fs->{src}}//={} ;
+    if ($fs->{payload_hex} ne '00'.($fs->{reg_string}||'')) {
+        $self->devices->{$fs->{src}}->{$fs->{reg_string}}//={  payload_hex=>$fs->{payload_hex} } if $fs->{reg_string};
+        $self->devices->{$fs->{src}}->{$fs->{reg_string}}->{payload} = $fs->{payload} if $fs->{payload};
+    }
+}
+
+sub run_handlers {
     my $self = shift;
     my $frame = shift;
-    my $fs = $frame->struct;
-    if (my $src = $fs->{src} and $fs->{cmd} eq 'reply') {
-        $self->devices->{$src}//={} ;
-        $self->devices->{$src}->{$fs->{reg_string}}//={  payload_hex=>$fs->{payload_hex} } if $fs->{reg_string};
-        $self->devices->{$src}->{$fs->{reg_string}}->{paylpad} = $fs->{payload} if $fs->{payload};
+    foreach my $handler (@{ $self->handlers }) {
+        $handler->($self, $frame);
     }
-    # mangle frame contents;
 }
 
 
@@ -133,9 +177,17 @@ sub drive {
     foreach my $srcbus (@{$self->buslist}) {
         if (my $frame = $srcbus->get_frame()) {
             push(@frames,$frame);
+            # Skip forwarding if both src and dst are on the source bus
+            next if exists $srcbus->devices->{ $frame->struct->{src} }
+                and exists $srcbus->devices->{ $frame->struct->{dst} };
             foreach my $dstbus (@{$self->buslist}) {
                 next if $srcbus == $dstbus;
-                $dstbus->write($frame);
+                my $write = 0;
+                $write ||= 'broadcast' if $frame->struct->{dst} eq 'Broadcast';
+                $write ||= 'device' if $dstbus->devices->{ $frame->struct->{dst} };
+                $write ||= 'new' unless scalar @{$dstbus->device_names};
+                #p $frame->struct if $write;
+                $dstbus->write($frame) if $write;
             }
         }
     }

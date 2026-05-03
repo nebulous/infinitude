@@ -11,21 +11,31 @@ use IO::Termios;
 use JSON;
 
 my $opt={ src=>'FakeSAM', dst=>'Thermostat', cmd=>'read', reg=>'0104', src_bus=>1, dst_bus=>1};
-GetOptions($opt, 'src=s', 'dst=s', 'reg=s', 'cmd=s' );
+GetOptions($opt, 'src=s', 'dst=s', 'reg=s', 'cmd=s', 'socket=s', 'tty=s', 'sam-tty=s');
 $opt->{payload_raw} ||= pack("H*","00".$opt->{reg});
 
 my $reqframe = CarBus::Frame->new($opt);
 print STDERR $reqframe->frame_log."\n";
 
-my $tcp = CarBus->new(IO::Socket::IP->new(PeerHost=>'192.168.1.23', PeerPort=>23)); #tcp
-my $sam = CarBus->new(IO::Termios->open("/dev/cu.usbserial-A7039O5G", "38400,8,n,1")); #serial
-#my $fil = CarBus->new(IO::File->new("<ccn.log"));
+my $bus;
+if    ($opt->{socket} && $opt->{'sam-tty'}) {
+    my $tcp = CarBus->new(open_conn($opt->{socket}));
+    my $sam = CarBus->new(open_conn($opt->{'sam-tty'}));
+    $bus = CarBus::Bridge->new(buslist=>[$tcp,$sam]);
+} elsif ($opt->{socket}) {
+    $bus = CarBus::Bridge->new(buslist=>[CarBus->new(open_conn($opt->{socket}))]);
+} elsif ($opt->{tty}) {
+    $bus = CarBus::Bridge->new(buslist=>[CarBus->new(open_conn($opt->{tty}))]);
+} else {
+    my $tcp = CarBus->new(IO::Socket::IP->new(PeerHost=>'192.168.1.23', PeerPort=>23));
+    my $sam = CarBus->new(IO::Termios->open("/dev/cu.usbserial-A7039O5G", "38400,8,n,1"));
+    $bus = CarBus::Bridge->new(buslist=>[$tcp,$sam]);
+}
 
-my $bridge = CarBus::Bridge->new(buslist=>[$tcp,$sam]);
 my $lastwrite=0;
 my $tries=8;
 while(1) {
-    foreach my $frame ($bridge->drive) {
+    foreach my $frame ($bus->drive) {
         next unless $frame;
         next unless ( $frame->struct->{dst} eq $reqframe->struct->{src}
                   and $frame->struct->{src} eq $reqframe->struct->{dst}
@@ -37,8 +47,17 @@ while(1) {
         exit;
     }
     if (time>$lastwrite) {
-        $bridge->write($reqframe);
+        $bus->write($reqframe);
         $lastwrite=time;
         die 'timeout' unless $tries--;
     }
+}
+
+sub open_conn {
+    my ($spec) = @_;
+    if ($spec =~ /:/) {
+        my ($host, $port) = split ':', $spec;
+        return IO::Socket::IP->new(PeerHost => $host, PeerPort => $port);
+    }
+    return IO::Termios->open($spec, "38400,8,n,1");
 }

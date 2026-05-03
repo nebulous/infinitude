@@ -5,7 +5,9 @@ use Digest::CRC 'crc16';
 use Try::Tiny;
 
 my %device_classes = (
-	SystemInit => 0x1F,
+	SystemInit => 0x1F,    # Thermostat re-addressed from 0x20 during bus discovery — perhaps
+	                       # to avoid reflected messages, prevent loops, or detect other
+	                       # thermostats already occupying 0x20/0x21/…
 	SAM => 0x92,
 	FakeSAM => 0x93,
 	Broadcast => 0xF1,
@@ -68,8 +70,6 @@ my $fp = Struct("CarFrame",
     $regname = $subp->{Name}."($regname)" if $subp;
     return $regname;
   })
-
-
 );
 
 around BUILDARGS => sub {
@@ -89,14 +89,18 @@ around BUILDARGS => sub {
     return $class->$orig({struct=>$struct});
 };
 
-has parser => (is=>'ro', default=> sub { $fp });
 has struct => (is=>'rw');
 
 sub valid { shift->struct->{valid} }
 
 sub frame {
     my $self = shift;
-    return undef unless $self->struct->{valid};
+    my $changes = shift // {};
+    return undef unless $self->struct->{valid} or keys %$changes;
+
+    foreach my $change (keys %$changes) {
+        $self->struct->{$change} = $changes->{$change};
+    }
 
     my $struct = $self->struct;
     $struct->{length} = length($struct->{payload_raw});
@@ -141,7 +145,7 @@ my @schedchunk = (
     Value("time", sub { sprintf("%02d:%02d", int($_->ctx->{min15s}/4), 15*int($_->ctx->{min15s}%4)) }),
     );
 
-my $parsers = {
+our $parsers = {
     '01' => Struct('tabledef',
         UBInt16('type'),
         String('name', 8),
@@ -150,7 +154,7 @@ my $parsers = {
         Array(sub { $_->ctx->{rows} },
             Struct("rowdef",
                 Byte("size"),
-                Enum(Byte("flags"), 'read'=>1, 'write'=>2,'read/write'=>3, _default_ => $DefaultPass)
+                Enum(Byte("access"), 'read'=>1, 'write'=>2,'read/write'=>3, _default_ => $DefaultPass)
             )
         )
     ),
@@ -160,88 +164,13 @@ my $parsers = {
         PaddedString('location', 24, paddir=>'right'),
         PaddedString('software', 16, paddir=>'right'),
         PaddedString('model', 20, paddir=>'right'),
-        PaddedString('serial', 12, paddir=>'right'),
-        PaddedString('reference', 24, paddir=>'right'),
+        PaddedString('reference', 12, paddir=>'right'),
+        PaddedString('serial', 24, paddir=>'right'),
     ),
 
-    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>6, Saturday=>6)),
+    '0202' => Struct('time', Byte('hour'), Byte('minute'), Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>5, Saturday=>6)),
 
     '0203' => Struct('date', Byte('day'), Byte('month'), Byte('20xx'), Value('year', sub { 2000+int($_->ctx->{'20xx'}) })),
-
-
-    # SAMINFO
-    '3B02' => Struct('sam_state',
-        Byte('active_zones'),
-        Padding(2),
-        Array(8, Byte('temperature')),
-        Array(8, Byte('humidity')),
-        Padding(1),
-        Byte('oat'),
-        BitStruct('zones_unoccupied',
-            Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
-            Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
-        ),
-        BitStruct('stagmode',
-            Nibble('stage'),
-            Enum(Nibble('mode'), heat=>0, cool=>1, auto=>2, eheat=>3, off=>4)
-        ),
-        Array(2, Byte('unknown')),
-        Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>6, Saturday=>6),
-        UBInt16('minutes_since_midnight'),
-        Byte('displayed_zone')
-    ),
-
-    '3B03' => Struct('sam_zones',
-        Byte('active_zones'),
-        Padding(2),
-        Array(8, Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0 )),
-        BitStruct('zones_holding',
-            Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
-            Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
-        ),
-        Array(8, Byte('heat_setpoint')),
-        Array(8, Byte('cool_setpoint')),
-        Array(8, Byte('humidity_setpoint')),
-        Byte('speed_controlled_fan'),
-        Byte('hold_timer'),
-        Array(8, UBInt16('hold_duration')),
-        Array(8, Field('zone_name', 12))
-    ),
-
-    '3B04' => Struct('sam_vacation',
-        Byte('active'),
-        UBInt16('hours'),
-        Byte('min_temp'),
-        Byte('max_temp'),
-        Byte('min_humidity'),
-        Byte('max_humidity'),
-        Byte('fan_mode')
-    ),
-
-    '3B05' => Struct('sam_accessories',
-        Padding(3),
-        Byte('filter_consumption'),
-        Byte('uv_consumption'),
-        Byte('humidifier_consumption'),
-
-        Enum(Byte('filter_reminders'), off=>0, on=>1),
-        Enum(Byte('uv_reminders'), off=>0, on=>1),
-        Enum(Byte('humidifier_reminders'), off=>0, on=>1),
-    ),
-
-
-    '3B06' => Struct('sam_dealer',
-        Byte('backlight'),
-        Byte('auto_mode'),
-        Padding(1),
-        Byte('deadband'),
-        Byte('cycles_per_hour'),
-        Byte('schedule_periods'),
-        Byte('programs_enabled'),
-        Byte('temp_units'),
-        Pointer(15,CString('dealer_name')),
-        Pointer(35,CString('dealer_phone')),
-    ),
 
     # zone 1
     '4002' => Struct('schedule',
@@ -262,16 +191,42 @@ my $parsers = {
 
     # MISC1
     '4608' => Struct('insecurity',
-        Pointer(7,CString('mac_address')),
-        Pointer(27,CString('ssid')),
-        Pointer(73,CString('password')),
-        Pointer(142,CString('token?')),
+        Pointer(4,CString('mac_address')),
+        Pointer(24,CString('ssid')),
+        Pointer(70,CString('password')),
+        Pointer(139,CString('hostname')),
     ),
 
     '4609' => Struct('server',
-        Pointer(3,CString('cloud_host')),
-        Pointer(70,CString('device_ip')),
-    )
+        Pointer(0,CString('cloud_host')),
+        Pointer(67,CString('proxy_server')),
+    ),
+
+    '460A' => Struct('dealer',
+        Pointer(0,CString('dealer_name')),
+        Pointer(50,CString('dealer_brand')),
+        Pointer(70,CString('dealer_url')),
+    ),
+
+    '460B' => Struct('wifi_profiles',
+        Array(4, Struct('profile',
+            PaddedString('ssid', 32, paddir => 'right'),
+            Byte('unknown'),
+            Byte('flag'),
+            Byte('channel'),
+            Byte('rssi'),
+        )),
+    ),
+
+    '460C' => Struct('wifi_scan',
+        Array(4, Struct('ap',
+            PaddedString('ssid', 32, paddir => 'right'),
+            Byte('unknown'),
+            Byte('flag'),
+            Byte('channel'),
+            Byte('rssi'),
+        )),
+    ),
 
 };
 
@@ -283,6 +238,12 @@ sub subparser {
     }
 
     return Value("unknown",undef);
+}
+
+# Allow device modules to add their parsers
+sub add_parser {
+    my ($class, $reg_pattern, $parser) = @_;
+    $parsers->{$reg_pattern} = $parser;
 }
 
 1;
