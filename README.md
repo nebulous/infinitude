@@ -151,6 +151,7 @@ least, access to a public API!
 
 ### See Also
 
+- [InfinitESP hardware-based SAM emulator](https://github.com/nebulous/infinitesp)
 - [Infinitude Home Assistant Integration](https://github.com/MizterB/homeassistant-infinitude-beyond)
 - [Infinitive project for RS485 control of non-touch thermostats](https://github.com/acd/infinitive)
 - [Anantha modifies thermostat firmware to intercept AWS IoT control traffic](https://github.com/anupcshan/anantha)
