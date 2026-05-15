@@ -177,12 +177,26 @@ our $parsers = {
         Array(7, Array(5, Struct('chunk',@schedchunk)))
     ),
     # zone 1
+    # Comfort profiles: 5 activities × 7 bytes each
+    # Byte 3: (rhtg << 4) | rclg — dehumidify reheat heating/cooling setpoint indices
+    # Byte 4: humidifier/ventilation mode flags (bitfield, exact mapping TBD)
+    # Bytes 5-6: unknown (always 0x1E on observed system)
     '400A' => Struct('comfort_profile',
-        Struct('home', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
-        Struct('away', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
-        Struct('sleep', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
-        Struct('wake', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
-        Struct('manual', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3), Array(4,Byte('unknown'))),
+        Struct('home', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3),
+            BitStruct('dehumidify', Nibble('rhtg'), Nibble('rclg')),
+            Byte('hum_vent_flags'), Array(2, Byte('unknown'))),
+        Struct('away', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3),
+            BitStruct('dehumidify', Nibble('rhtg'), Nibble('rclg')),
+            Byte('hum_vent_flags'), Array(2, Byte('unknown'))),
+        Struct('sleep', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3),
+            BitStruct('dehumidify', Nibble('rhtg'), Nibble('rclg')),
+            Byte('hum_vent_flags'), Array(2, Byte('unknown'))),
+        Struct('wake', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3),
+            BitStruct('dehumidify', Nibble('rhtg'), Nibble('rclg')),
+            Byte('hum_vent_flags'), Array(2, Byte('unknown'))),
+        Struct('manual', Byte('heat'), Byte('cool'), Enum(Byte('fan'), off=>0, low=>1, med=>2, high=>3),
+            BitStruct('dehumidify', Nibble('rhtg'), Nibble('rclg')),
+            Byte('hum_vent_flags'), Array(2, Byte('unknown'))),
     ),
     # zone 1
     '4012' => Struct('vacation_settings',
@@ -225,6 +239,50 @@ our $parsers = {
             Byte('flag'),
             Byte('channel'),
             Byte('rssi'),
+        )),
+    ),
+
+    # LASTTEN fault history (thermostat table 0x42)
+    # Row 2 (72 bytes, R/W): 10 fault entries of 7 bytes each.
+    # Cross-referenced against equipment_events XML which provides the same data
+    # with human-readable descriptions, timestamps, and source labels.
+    #
+    # Record structure (7 bytes per entry):
+    #   Byte 0:   Fault code (decimal, e.g. 12, 68, 186)
+    #   Byte 1:   Source device (0x20=UI/thermostat, 0x40=furnace/IDU, 0x52=AC/ODU)
+    #   Byte 2:   Hour (0-23)
+    #   Byte 3:   Minute (0-59)
+    #   Byte 4-5: Days since 2013-01-01 (big-endian 16-bit).
+    #             Why 2013-01-01? Nobody knows. The thermostat firmware apparently
+    #             chose this epoch and it matches all observed data perfectly.
+    #             A truly bizarre choice — not a standard Unix epoch, not a Carrier
+    #             product launch date, not a round number. It just is.
+    #   Byte 6:   Bit 7 = active flag (0=active/on, 1=cleared/off)
+    #             Bits 0-6 = occurrence count (0-127)
+    #             Note: for active faults, occurrence count may differ from the
+    #             equipment_events XML value — the thermostat may update it independently.
+    '4202' => Struct('lastten',
+        Array(10, Struct('fault',
+            Byte('code'),
+            Enum(Byte('source'),
+                UI       => 0x20,
+                furnace  => 0x40,
+                AC       => 0x52,
+                _default_ => $DefaultPass,
+            ),
+            Byte('hour'),
+            Byte('minute'),
+            UBInt16('days'),    # days since 2013-01-01
+            BitStruct('status',
+                Flag('active'),    # 0=active, 1=cleared (inverted sense)
+                Flag('occ6'), Flag('occ5'), Flag('occ4'),
+                Flag('occ3'), Flag('occ2'), Flag('occ1'), Flag('occ0'),
+            ),
+            Value('occurrences', sub {
+                my $s = $_->ctx->{status};
+                ($s->{occ6}<<6) | ($s->{occ5}<<5) | ($s->{occ4}<<4) |
+                ($s->{occ3}<<3) | ($s->{occ2}<<2) | ($s->{occ1}<<1) | $s->{occ0}
+            }),
         )),
     ),
 
