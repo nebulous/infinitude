@@ -136,7 +136,9 @@
           var act = this.getCurrentActivity(zi);
           if (!act) return;
           var val = parseFloat(act[field][0]) || 0;
-          act[field][0] = (val + delta).toFixed(0);
+          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
+          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
+          act[field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
           this.markDirty();
         },
 
@@ -166,11 +168,15 @@
 
         getZoneTemp: function(zone) {
           if (!zone || !zone.rt || typeof zone.rt[0] !== 'string') return '--';
-          return parseFloat(zone.rt[0]).toFixed(0);
+          var cfgem = this.status && this.status.cfgem && this.status.cfgem[0];
+          var dec = (cfgem && cfgem.toLowerCase() === 'c') ? 1 : 0;
+          return parseFloat(zone.rt[0]).toFixed(dec);
         },
 
         fmtSp: function(val) {
-          return parseFloat(val).toFixed(0);
+          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
+          var dec = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 1 : 0;
+          return parseFloat(val).toFixed(dec);
         },
 
         isoToLocal: function(iso) {
