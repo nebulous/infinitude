@@ -306,7 +306,7 @@
           <div class="home-topbar">
             <div class="home-topbar-item">
               <i class="bi bi-cloud-sun"></i>
-              <span x-text="parseFloat(carbus.outsideTemp || (status.oat && status.oat[0]) || 0).toFixed(0) + '\u00B0'"></span>
+              <span x-text="(carbus.outsideTemp ? busToDisplay(carbus.outsideTemp) : parseFloat(status.oat && status.oat[0] || 0)).toFixed(tempDecimals()) + '\u00B0'"></span>
             </div>
             <div class="home-topbar-item" x-show="status.zones[0].zone[0].rh">
               <i class="bi bi-droplet"></i>
