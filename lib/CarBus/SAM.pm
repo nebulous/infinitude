@@ -2,21 +2,21 @@ package CarBus::SAM;
 use Moo;
 use Data::ParseBinary;
 use CarBus::Frame;
-use CHI;
+use CarBus::Device;
 use Time::HiRes qw(time);
 
-has bus => (is => 'ro', required => 1);
-has store => (is => 'ro', default => sub {
-    CHI->new(driver => 'File', root_dir => 'state/sam-emulator', depth => 0)
-});
-has handlers => (is => 'ro', default => sub { {} });
-has emulated_src => (is => 'ro', default => 'FakeSAM');
+extends 'CarBus::Device';
+
+has '+src_name' => (default => 'FakeSAM');
 
 # Device identity configuration - customize how the emulator identifies itself
 # Set clone_mode => 1 to copy real SAM's device info for exact byte-for-byte comparison
 has clone_mode => (is => 'ro', default => 0);
 has learn_mode => (is => 'ro', default => 0);
 has activity_log => (is => 'rw', default => sub { [] });
+
+# Legacy alias — old code and main app use emulated_src
+has emulated_src => (is => 'ro', default => 'FakeSAM');
 
 # Custom device identity (used when clone_mode is 0)
 # Override these to customize the emulated SAM's identity
@@ -40,41 +40,55 @@ sub set_device_identity {
     $self->set_register('0104', $device_info_parser->build($identity));
 }
 
-# Register storage - backed by CHI store
-sub registers {
-    my $self = shift;
-    return $self->store->get('registers') // {};
-}
+# Override handle_frame to accept both SAM and FakeSAM as dst
+# (main app creates SAM with emulated_src => 'SAM' which may differ from src_name)
+# A SAM emulator must respond to both its configured src_name and the real SAM address.
+around handle_frame => sub {
+    my ($orig, $self, $frame) = @_;
+    my $fs = $frame->struct;
 
-sub set_register {
-    my ($self, $key, $value) = @_;
-    my $regs = $self->registers;
-    $regs->{$key} = $value;
-    $self->store->set('registers', $regs);
-}
+    return unless defined $fs->{dst};
+    return unless $fs->{dst} eq $self->src_name
+                || $fs->{dst} eq $self->emulated_src
+                || $fs->{dst} eq 'SAM'
+                || $fs->{dst} eq 'FakeSAM';
 
-sub get_register {
-    my ($self, $key) = @_;
-    return $self->registers->{$key};
-}
-
-# Learn a register value from observed real SAM traffic
-sub learn_register {
-    my ($self, $reg_key, $raw_data) = @_;
-    $reg_key = lc($reg_key);
-    my $existing = $self->get_register($reg_key);
-    if (!defined $existing) {
-        $self->set_register($reg_key, $raw_data);
-        return 1;  # Learned new register
+    if ($fs->{cmd} eq 'read') {
+        return $self->_handle_read($frame);
     }
-    return 0;  # Already known
-}
+    elsif ($fs->{cmd} eq 'write') {
+        return $self->_handle_write($frame);
+    }
+    return;
+};
 
-# Return list of registers the emulator knows about
-sub known_registers {
-    my ($self) = @_;
-    return [keys %{$self->registers}];
-}
+# Override _reply and _exception_reply to use emulated_src when set differently
+around _reply => sub {
+    my ($orig, $self, $frame, $payload) = @_;
+    my $fs = $frame->struct;
+    return CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => $fs->{dst_bus},
+        dst     => $fs->{src},
+        dst_bus => $fs->{src_bus},
+        cmd     => 'reply',
+        payload_raw => $payload,
+    );
+};
+
+around _exception_reply => sub {
+    my ($orig, $self, $frame, $code) = @_;
+    my $fs = $frame->struct;
+    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
+    return CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => $fs->{dst_bus},
+        dst     => $fs->{src},
+        dst_bus => $fs->{src_bus},
+        cmd     => 'exception',
+        payload_raw => pack("C*", 0, $table, $row, $code),
+    );
+};
 
 # Initialize default register values if store is empty
 sub initialize_defaults {
@@ -221,7 +235,9 @@ sub initialize_defaults {
 # Direct CarBus writes to SAM registers do NOT trigger this notification flow.
 # The SAM may store the value but does not notify the thermostat.
 
-# Register SAM parsers with Frame.pm on module load
+# Register SAM parsers — registered globally via add_parser.
+# SAM registers (3Bxx, 030D) don't collide with other devices today.
+# Future: migrate to add_device_parser('FakeSAM', ...) if needed.
 
 # 0104 - Device info register (read-only, 120 bytes)
 # Standard device identification: device name, software version, model, serial
@@ -379,108 +395,16 @@ CarBus::Frame->add_parser('0420', Struct('sam_sync',
     Array(20, Byte('data')),  # All zeros observed
 ));
 
-# Set up callback handlers for emulation
-sub on_read {
-    my ($self, $reg, $handler) = @_;
-    $self->handlers->{$reg}->{read} = $handler;
-}
-
-sub on_write {
-    my ($self, $reg, $handler) = @_;
-    $self->handlers->{$reg}->{write} = $handler;
-}
-
-# Handle incoming frame addressed to SAM
-sub handle_frame {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-
-    unless (defined $fs->{dst} && ($fs->{dst} eq 'SAM' || $fs->{dst} eq 'FakeSAM')) {
-        return;
-    }
-
-    if ($fs->{cmd} eq 'read') {
-        return $self->_handle_read($frame);
-    }
-    elsif ($fs->{cmd} eq 'write') {
-        return $self->_handle_write($frame);
-    }
-    return;
-}
-
-sub _handle_read {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
-
-    my $handler = $self->handlers->{$reg_key}->{read};
-    my $data = $handler ? $handler->() : $self->get_register($reg_key);
-
-    if (defined $data) {
-        return CarBus::Frame->new(
-            src     => $self->emulated_src,
-            src_bus => $fs->{dst_bus},
-            dst     => $fs->{src},
-            dst_bus => $fs->{src_bus},
-            cmd     => 'reply',
-            payload_raw => pack("C*", 0, $table, $row) . $data,
-        );
-    }
-
-    return $self->_exception_reply($frame, 0x04);
-}
-
-sub _handle_write {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    my $value = substr($fs->{payload_raw}, 3);
-    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
-
-    my $handler = $self->handlers->{$reg_key}->{write};
-    if ($handler) {
-        $handler->($value);
-    } else {
-        $self->set_register($reg_key, $value);
-    }
-
-    # Send ack reply
-    return CarBus::Frame->new(
-        src     => $self->emulated_src,
-        src_bus => $fs->{dst_bus},
-        dst     => $fs->{src},
-        dst_bus => $fs->{src_bus},
-        cmd     => 'reply',
-        payload_raw => $fs->{payload_raw},
-    );
-}
-
-sub _exception_reply {
-    my ($self, $frame, $code) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    return CarBus::Frame->new(
-        src     => $self->emulated_src,
-        src_bus => $fs->{dst_bus},
-        dst     => $fs->{src},
-        dst_bus => $fs->{src_bus},
-        cmd     => 'exception',
-        payload_raw => pack("C*", 0, $table, $row, $code),
-    );
-}
-
-# Convenience: read from thermostat
+# Convenience: read from thermostat (legacy API)
 sub read_thermostat {
     my ($self, $table, $row) = @_;
-    return $self->bus->read_register('Thermostat', $table, $row, {src => $self->emulated_src});
+    return $self->read_device('Thermostat', $table, $row);
 }
 
-# Convenience: write to thermostat
+# Convenience: write to thermostat (legacy API)
 sub write_thermostat {
     my ($self, $table, $row, $value) = @_;
-    my $frame = $self->bus->write_register('Thermostat', $table, $row, $value, {src => $self->emulated_src});
-    return $frame;
+    return $self->write_device('Thermostat', $table, $row, $value);
 }
 
 # Domain method: set heat and cool setpoints for a zone

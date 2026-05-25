@@ -58,14 +58,14 @@ my $fp = Struct("CarFrame",
   Value("payload", sub {
       return undef unless $_->ctx->{valid};
       return undef if length($_->ctx->{payload_raw})<=3;
-      my $sp = subparser($_->ctx->{reg_string});
+      my $sp = subparser($_->ctx->{reg_string}, $_->ctx->{src});
       try { $sp->parse(substr($_->ctx->{payload_raw},3)) } || undef;
   }),
   Value("payload_hex", sub { unpack("H*", $_->ctx->{payload_raw}) }),
 
   Value("reg_name", sub {
     my $fh = $_->ctx;
-    my $subp = subparser($fh->{reg_string});
+    my $subp = subparser($fh->{reg_string}, $fh->{src});
     my $regname = $fh->{reg_string} // '';
     $regname = $subp->{Name}."($regname)" if $subp;
     return $regname;
@@ -288,9 +288,20 @@ our $parsers = {
 
 };
 
+our %device_parsers;              # keyed by device class name
+
 sub subparser {
-    my $reg = shift;
+    my ($reg, $src) = @_;
     $reg = uc($reg//'');
+
+    # Device-specific first
+    if (defined $src && exists $device_parsers{$src}) {
+        for my $key (keys %{$device_parsers{$src}}) {
+            return $device_parsers{$src}{$key} if $reg =~ /$key$/i;
+        }
+    }
+
+    # Fall back to global
     foreach my $key (keys %$parsers) {
         return $parsers->{$key} if $reg =~ /$key$/i;
     }
@@ -298,10 +309,16 @@ sub subparser {
     return Value("unknown",undef);
 }
 
-# Allow device modules to add their parsers
+# Allow device modules to add their parsers (global scope)
 sub add_parser {
     my ($class, $reg_pattern, $parser) = @_;
     $parsers->{$reg_pattern} = $parser;
+}
+
+# Allow device modules to add device-scoped parsers
+sub add_device_parser {
+    my ($class, $device_class, $reg_pattern, $parser) = @_;
+    $device_parsers{$device_class}{$reg_pattern} = $parser;
 }
 
 1;
