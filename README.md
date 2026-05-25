@@ -53,15 +53,11 @@ RS485 stream monitoring example video:
 
 [![Real time RS485 monitoring](http://img.youtube.com/vi/ybjCumDG_d8/0.jpg)](https://www.youtube.com/watch?v=ybjCumDG_d8)
 
-Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive)
+Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive). Infinitude also provides experimental RS485 serial monitoring and SAM emulation for direct bus control — see the serial configuration options below.
 
 ## Installation
 
-### Please note: Infinitude is not compatible with certain newer thermostat firmware versions.
-
-For Carrier/Bryant/ICP ION thermostats, it seems that the latest working firmware version is 4.05. Some users have held off
-upgrading to a newer version or have successfully downgraded to a previous version.
-See [issues/148](https://github.com/nebulous/infinitude/issues/148) for a discussion and more information about this issue.
+### ⚠️ Firmware compatibility: Infinitude is not compatible with all thermostat firmware versions. See the [Compatibility Matrix](https://github.com/nebulous/infinitude/wiki/Infinitude-Compatibility-Matrix) for known-working combinations — and add yours if it works for you. If your thermostat has auto-updated past a supported version, see [issues/148](https://github.com/nebulous/infinitude/issues/148) for discussion.
 
 #### Docker - Recommended
 Prebuilt Docker containers are available for multiple architectures on [DockerHub](https://hub.docker.com/r/nebulous/infinitude), or you can build a container manually with the included Dockerfile.

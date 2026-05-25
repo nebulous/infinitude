@@ -11,7 +11,7 @@ Infinitude is an alternative web service for Carrier Infinity Touch and compatib
 
 Infinitude also optionally monitors and writes to the Carrier/Bryant RS485 (ABCD) bus to obtain higher resolution access to thermostat, air handler, heat pump, and other device registers. Serial data can be monitored via an attached serial port or networked serial bridge.
 
-**Important:** Infinitude is not compatible with thermostat firmware versions newer than 4.05.
+**Important:** Infinitude is not compatible with all thermostat firmware versions. See the [Compatibility Matrix](https://github.com/nebulous/infinitude/wiki/Infinitude-Compatibility-Matrix) for known-working combinations.
 
 ## Architecture
 
