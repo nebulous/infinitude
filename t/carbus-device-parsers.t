@@ -143,10 +143,10 @@ subtest 'OutdoorUnit 0604 compressor speed' => sub {
     ok($p, 'parser found for OutdoorUnit/0604');
     is($p->{Name}, 'odu_compressor_speed', 'parser name');
 
-    my $data = pack("n*", 3600, 3600);
+    my $data = pack("n*", 3600, 3612);
     my $r = $p->parse($data);
-    is($r->{current_rpm}, 3600, 'current compressor RPM');
-    is($r->{target_rpm},  3600, 'target compressor RPM');
+    is($r->{target_rpm},  3600, 'target compressor RPM (round number)');
+    is($r->{current_rpm}, 3612, 'current compressor RPM (fluctuating)');
 };
 
 # ============================================================================

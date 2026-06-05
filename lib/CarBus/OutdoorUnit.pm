@@ -140,16 +140,14 @@ CarBus::Frame->add_device_parser('OutdoorUnit', '0304',
 
 # Register 0604 — Compressor speed
 #
-# Pairs of uint16 BE values. First pair = current RPM / target RPM.
-# Variable-length register; additional pairs may follow on
-# multi-stage or variable-speed systems.
-#
-# Consumers should read current_rpm and target_rpm directly.
-# For additional pairs, parse the raw register data manually.
+# Pairs of uint16 BE values: (target_rpm, actual_rpm) per operating stage.
+# Target is the round commanded value; actual fluctuates around it.
+# Variable-length register — first pair is the primary compressor.
+# Additional pairs may follow on multi-stage or variable-speed systems.
 CarBus::Frame->add_device_parser('OutdoorUnit', '0604',
     Struct('odu_compressor_speed',
-        UBInt16('current_rpm'),
         UBInt16('target_rpm'),
+        UBInt16('current_rpm'),
     )
 );
 
