@@ -9,18 +9,28 @@ use CarBus::Device;
 
 extends 'CarBus::Device';
 
-# Reusable 4-byte key-value entry for cycle/runtime registers
+# Zone Controller key mapping for cycle/runtime registers
 # Format: 1-byte key + 3-byte big-endian unsigned value
-my $KVEntry = Struct('entry',
+my %zc_key_names = (
+    0x38 => 'unknown_0x38',  0x39 => 'unknown_0x39',
+    0x3A => 'unknown_0x3A',  0x3B => 'unknown_0x3B',
+    0x2B => 'poweron_cycles', 0x2C => 'poweron_hours',
+);
+
+my $ZC_KVEntry = Struct('entry',
     Byte('key'),
     Byte('b1'), Byte('b2'), Byte('b3'),
     Value('value', sub {
         my $c = $_->ctx;
         ($c->{b1} << 16) | ($c->{b2} << 8) | $c->{b3}
     }),
+    Value('name', sub {
+        my $k = $_->ctx->{key};
+        $zc_key_names{$k} // sprintf("unknown_0x%02X", $k)
+    }),
 );
 
-my $GreedyKV = sub {
+my $GreedyZCKV = sub {
     my ($name) = @_;
     Struct($name,
         Array(sub {
@@ -31,7 +41,7 @@ my $GreedyKV = sub {
             my $remaining = $len - $pos;
             return 0 unless $remaining >= 4;
             return int($remaining / 4);
-        }, $KVEntry),
+        }, $ZC_KVEntry),
     );
 };
 
@@ -151,7 +161,7 @@ CarBus::Frame->add_device_parser('ZoneControl', '3404',
 #   2b 00007c = 124 power-on cycles
 #
 # Source: https://github.com/nebulous/infinitude/discussions/215
-CarBus::Frame->add_device_parser('ZoneControl', '0310', $GreedyKV->('zc_cycle_counters'));
+CarBus::Frame->add_device_parser('ZoneControl', '0310', $GreedyZCKV->('zc_cycle_counters'));
 
 # Register 0311 — Runtime hours
 #
@@ -159,7 +169,7 @@ CarBus::Frame->add_device_parser('ZoneControl', '0310', $GreedyKV->('zc_cycle_co
 #   3a 000000 = 0 unknown
 #   3b 000000 = 0 unknown
 #   2c 007e77 = 32375 power-on hours
-CarBus::Frame->add_device_parser('ZoneControl', '0311', $GreedyKV->('zc_runtime_hours'));
+CarBus::Frame->add_device_parser('ZoneControl', '0311', $GreedyZCKV->('zc_runtime_hours'));
 
 # --- Register initialization ---
 

@@ -8,35 +8,48 @@ use CarBus::Frame;
 # IndoorUnit (IDU) register parsers — read-only monitoring, no emulation.
 #
 # Register layout observed from Carrier/Bryant furnace/air handler indoor units
-# on the RS485 (ABCD) bus. Data confirmed against thermostat service menu values.
+# on the RS485 (ABCD) bus. Data confirmed against thermostat service menu values
+# and cross-referenced with InfinitESP passive snoop captures.
+#
+# Source: https://github.com/nebulous/infinitude/discussions/215
+
+# --- Cycle / runtime counter registers (0310, 0311) ---
 #
 # Data format: each register is a sequence of 4-byte key-value chunks:
 #   Byte 0:   Key (metric identifier, see table below)
 #   Bytes 1-3: Value (24-bit big-endian unsigned integer)
 #
-# Known keys for IndoorUnit:
-#   0x23 = Low heat cycles      0x25 = Low heat hours
-#   0x24 = High heat cycles     0x26 = High heat hours
-#   0x48 = Medium heat cycles   0x49 = Medium heat hours
-#   0x2B = Power-on cycles      0x2C = Power-on hours
-#   0x2D = Blower cycles        0x2E = Blower hours
-#   0x27 = Unknown (matches cool count?)   0x29 = Unknown (matches cool hours?)
-#   0x28 = Unknown (0 on observed system)
-#
-# Source: https://github.com/nebulous/infinitude/discussions/215
+# IDU key mapping:
+#   0x23 = low_heat_cycles    0x25 = low_heat_hours
+#   0x24 = high_heat_cycles   0x26 = high_heat_hours
+#   0x48 = med_heat_cycles    0x49 = med_heat_hours
+#   0x2B = poweron_cycles     0x2C = poweron_hours
+#   0x2D = blower_cycles      0x2E = blower_hours
 
-# Reusable 4-byte key-value entry: 1-byte key + 3-byte big-endian value
-my $KVEntry = Struct('entry',
+my %idu_key_names = (
+    0x23 => 'low_heat_cycles',  0x25 => 'low_heat_hours',
+    0x24 => 'high_heat_cycles', 0x26 => 'high_heat_hours',
+    0x48 => 'med_heat_cycles',  0x49 => 'med_heat_hours',
+    0x2B => 'poweron_cycles',   0x2C => 'poweron_hours',
+    0x2D => 'blower_cycles',    0x2E => 'blower_hours',
+    0x27 => 'unknown_0x27',     0x29 => 'unknown_0x29',
+    0x28 => 'unknown_0x28',     0x2A => 'unknown_0x2A',
+);
+
+my $IDU_KVEntry = Struct('entry',
     Byte('key'),
     Byte('b1'), Byte('b2'), Byte('b3'),
     Value('value', sub {
         my $c = $_->ctx;
         ($c->{b1} << 16) | ($c->{b2} << 8) | $c->{b3}
     }),
+    Value('name', sub {
+        my $k = $_->ctx->{key};
+        $idu_key_names{$k} // sprintf("unknown_0x%02X", $k)
+    }),
 );
 
-# Greedy array — reads until stream is exhausted, 4 bytes at a time
-my $GreedyKV = sub {
+my $GreedyIDUKV = sub {
     my ($name) = @_;
     Struct($name,
         Array(sub {
@@ -47,7 +60,7 @@ my $GreedyKV = sub {
             my $remaining = $len - $pos;
             return 0 unless $remaining >= 4;
             return int($remaining / 4);
-        }, $KVEntry),
+        }, $IDU_KVEntry),
     );
 };
 
@@ -61,7 +74,7 @@ my $GreedyKV = sub {
 #   2b 000085 = 133 power-on cycles
 #   2d 0037b0 = 14256 blower cycles
 #   48 0000a0 = 160 medium heat cycles
-CarBus::Frame->add_device_parser('IndoorUnit', '0310', $GreedyKV->('idu_cycle_counters'));
+CarBus::Frame->add_device_parser('IndoorUnit', '0310', $GreedyIDUKV->('idu_cycle_counters'));
 
 # Register 0311 — Runtime hours
 #
@@ -73,6 +86,44 @@ CarBus::Frame->add_device_parser('IndoorUnit', '0310', $GreedyKV->('idu_cycle_co
 #   2e 006567 = 25959 blower hours
 #   2c 007df7 = 32247 power-on hours
 #   49 00005b = 91 medium heat hours
-CarBus::Frame->add_device_parser('IndoorUnit', '0311', $GreedyKV->('idu_runtime_hours'));
+CarBus::Frame->add_device_parser('IndoorUnit', '0311', $GreedyIDUKV->('idu_runtime_hours'));
+
+# --- Status registers (passively snooped) ---
+
+# Register 0306 — Blower / operating status (10 bytes)
+#
+#   data[0]       = status flags
+#   data[1..2]    = blower RPM (uint16 BE)
+#   data[3..9]    = undocumented (operating mode, stage, etc.)
+#
+# Cross-referenced with InfinitESP REG_IDU_STATUS decoding.
+CarBus::Frame->add_device_parser('IndoorUnit', '0306',
+    Struct('idu_status',
+        Byte('status_flags'),
+        UBInt16('blower_rpm'),
+        Array(7, Byte('data')),
+    )
+);
+
+# Register 0316 — Airflow configuration (14 bytes)
+#
+#   data[0] & 0x03 = electric heat present (boolean)
+#   data[4..5]     = airflow CFM (uint16 BE)
+#   data[6..7]     = electric heat CFM (uint16 BE)
+#   Other fields TBD.
+#
+# Cross-referenced with InfinitESP REG_IDU_CONFIG decoding.
+CarBus::Frame->add_device_parser('IndoorUnit', '0316',
+    Struct('idu_config',
+        Byte('flags'),
+        Value('electric_heat', sub { $_->ctx->{flags} & 0x03 ? 1 : 0 }),
+        Byte('unknown1'),
+        Byte('unknown2'),
+        Byte('unknown3'),
+        UBInt16('airflow_cfm'),
+        UBInt16('elec_heat_cfm'),
+        Array(4, Byte('data')),
+    )
+);
 
 1;
