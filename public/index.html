@@ -959,8 +959,12 @@
                       </div>
                       <button x-show="firstDisabledPeriod(day) !== null"
                               class="schedule-add-btn"
-                              @click="activeSchedulePeriods[zi + '-' + di] = firstDisabledPeriod(day); enablePeriod(day, activeSchedulePeriods[zi + '-' + di])"
+                              @click="activeSchedulePeriods[zi + '-' + di] = firstDisabledPeriod(day); enablePeriod(day, activeSchedulePeriods[zi + '-' + di]); sortDayPeriods(day, zi, di)"
                               title="Add period"><i class="bi bi-plus"></i></button>
+                      <button class="schedule-add-btn"
+                              :style="activeScheduleCopy === zi + '-' + di ? 'background:var(--h-accent);color:#fff;border-color:var(--h-accent)' : ''"
+                              @click="activeScheduleCopy = activeScheduleCopy === zi + '-' + di ? null : zi + '-' + di"
+                              title="Copy schedule to other days"><i class="bi bi-clipboard"></i></button>
                     </div>
                     <div class="schedule-edit" x-show="activeSchedulePeriods[zi + '-' + di] != null" x-transition>
                       <div class="d-flex gap-1 align-items-center flex-wrap">
@@ -973,12 +977,31 @@
                           </button>
                         </template>
                         <button class="schedule-activity-pill schedule-disable-btn"
-                                @click="day.period[activeSchedulePeriods[zi + '-' + di]].enabled = ['off']; activeSchedulePeriods[zi + '-' + di] = null; markDirty()"
+                                @click="day.period[activeSchedulePeriods[zi + '-' + di]].enabled = ['off']; sortDayPeriods(day, zi, di); activeSchedulePeriods[zi + '-' + di] = null; markDirty()"
                                 title="Disable this period"><i class="bi bi-x-lg"></i></button>
                       </div>
                       <input type="time" step="900" :value="day.period[activeSchedulePeriods[zi + '-' + di]]?.time?.[0]"
-                             @change="day.period[activeSchedulePeriods[zi + '-' + di]].time = [snapTime($event.target.value)]; markDirty()"
+                             @change="day.period[activeSchedulePeriods[zi + '-' + di]].time = [snapTime($event.target.value)]; sortDayPeriods(day, zi, di); markDirty()"
                              class="form-control form-control-sm">
+                    </div>
+                    <!-- Copy-to panel -->
+                    <div class="schedule-edit" x-show="activeScheduleCopy === zi + '-' + di" x-transition>
+                      <div class="d-flex gap-1 align-items-center flex-wrap">
+                        <span style="font-size:0.75rem;color:var(--h-muted);white-space:nowrap">Copy to:</span>
+                        <button class="schedule-activity-pill" style="font-size:0.72rem;padding:0.2rem 0.55rem"
+                                @click="copyScheduleToDays(zone, di, [0,1,2,3,4])">Weekdays</button>
+                        <button class="schedule-activity-pill" style="font-size:0.72rem;padding:0.2rem 0.55rem"
+                                @click="copyScheduleToDays(zone, di, [5,6])">Weekends</button>
+                        <button class="schedule-activity-pill" style="font-size:0.72rem;padding:0.2rem 0.55rem"
+                                @click="copyScheduleToDays(zone, di, [0,1,2,3,4,5,6])">All days</button>
+                        <span style="width:1px;height:18px;background:var(--h-border)"></span>
+                        <template x-for="(td, tdi) in zone.program[0].day" :key="'copy-' + tdi">
+                          <button class="schedule-activity-pill" style="font-size:0.72rem;padding:0.2rem 0.45rem"
+                                  :style="tdi === di ? 'opacity:0.3;pointer-events:none' : ''"
+                                  @click="copyScheduleDay(zone, di, tdi)"
+                                  x-text="td.id.substring(0,3)"></button>
+                        </template>
+                      </div>
                     </div>
                   </div>
                 </template>

@@ -73,6 +73,7 @@
         systemsEdited: null,  // null=never copied, false=clean copy, true=dirty
         selectedZone: 0,
         activeSchedulePeriods: {},  // "zi-di" -> period index or null
+        activeScheduleCopy: null,    // "zi-di" or null
 
         // UI state
         darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -652,6 +653,56 @@
             }
           }
           return items;
+        },
+
+        // Sort enabled periods by time ascending, disabled to end, reassign slot IDs.
+        // Optional zi/di to update activeSchedulePeriods index after sort.
+        sortDayPeriods: function(day, zi, di) {
+          if (!day || !day.period || day.period.length === 0) return;
+          var self = this;
+          var key = (zi !== undefined && di !== undefined) ? zi + '-' + di : null;
+          var activeIdx = key ? self.activeSchedulePeriods[key] : null;
+          var activePeriod = (activeIdx != null && activeIdx < day.period.length) ? day.period[activeIdx] : null;
+
+          var sorted = day.period.slice().sort(function(a, b) {
+            var aOn = a.enabled[0] === 'on';
+            var bOn = b.enabled[0] === 'on';
+            if (aOn !== bOn) return aOn ? -1 : 1;
+            if (!aOn) return 0;
+            return self.timeToMinutes(a.time[0]) - self.timeToMinutes(b.time[0]);
+          });
+
+          // Reassign slot IDs to match the new order
+          for (var i = 0; i < sorted.length; i++) {
+            sorted[i].id = [String(i + 1)];
+          }
+
+          day.period = sorted;
+
+          // Track the active period to its new index
+          if (activePeriod) {
+            for (var j = 0; j < day.period.length; j++) {
+              if (day.period[j] === activePeriod) {
+                self.activeSchedulePeriods[key] = j;
+                break;
+              }
+            }
+          }
+        },
+
+        copyScheduleDay: function(zone, sourceDi, targetDi) {
+          if (sourceDi === targetDi) return;
+          var sourceDay = zone.program[0].day[sourceDi];
+          zone.program[0].day[targetDi].period = JSON.parse(JSON.stringify(sourceDay.period));
+          this.sortDayPeriods(zone.program[0].day[targetDi]);
+          this.markDirty();
+        },
+
+        copyScheduleToDays: function(zone, sourceDi, dayIndices) {
+          var self = this;
+          dayIndices.forEach(function(di) {
+            if (di !== sourceDi) self.copyScheduleDay(zone, sourceDi, di);
+          });
         }
       };
     });
