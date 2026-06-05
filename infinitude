@@ -103,6 +103,12 @@ sub serial_init {
         $handle ||= IO::Socket::IP->new( PeerHost=>$host, PeerPort=>$port);
     }
     $carbus = CarBus->new($handle) if $handle;
+    if ($carbus) {
+        # Load device register parsers for bus monitoring
+        require CarBus::OutdoorUnit;
+        require CarBus::IndoorUnit;
+        require CarBus::ZoneController;
+    }
     if ($handle and $config->{emulate_sam}) {
         require CarBus::SAM;
         $sam = CarBus::SAM->new(bus => $carbus, emulated_src => 'SAM');

@@ -294,10 +294,12 @@ sub subparser {
     my ($reg, $src) = @_;
     $reg = uc($reg//'');
 
-    # Device-specific first
-    if (defined $src && exists $device_parsers{$src}) {
-        for my $key (keys %{$device_parsers{$src}}) {
-            return $device_parsers{$src}{$key} if $reg =~ /$key$/i;
+    # Device-specific first (exact match, then base class)
+    # e.g. "OutdoorUnit2" checks OutdoorUnit2, then OutdoorUnit
+    for my $device ($src // (), (defined $src && $src =~ /^(.+?)\d+$/ ? $1 : ())) {
+        if (exists $device_parsers{$device}) {
+            my $p = $device_parsers{$device}{$reg};
+            return $p if $p;
         }
     }
 
