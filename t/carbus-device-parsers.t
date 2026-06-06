@@ -72,14 +72,14 @@ subtest 'OutdoorUnit 0302 temperatures' => sub {
     ok($p, 'parser found for OutdoorUnit/0302');
     is($p->{Name}, 'odu_temperatures', 'parser name');
 
-    # Simulate 75.0°F outdoor, 45.5°F coil, 48.25°F suction, 110.0°F liquid,
+    # Simulate 75.0°F outdoor, 45.5°F coil, 48.25°F suction, 14°F subcooling,
     # 55.75°F indoor coil, 165.5°F discharge
     # int16 values = °F × 16
     my $data = pack("n*",
         0x04B0, 75.0 * 16,     # outdoor threshold, temp
         0x02B0, 45.5 * 16,     # coil threshold, temp
         0x0300, 48.25 * 16,    # suction threshold, temp
-        0x06E0, 110.0 * 16,    # liquid threshold, temp
+        0x06E0, 14.0 * 16,     # subcooling threshold, value
         0x0380, 55.75 * 16,    # indoor coil threshold, temp
         0x0A60, 165.5 * 16,    # discharge threshold, temp
     );
@@ -89,7 +89,7 @@ subtest 'OutdoorUnit 0302 temperatures' => sub {
     is($r->{outdoor_temp},     1200, 'outdoor temp raw (75.0°F × 16)');
     is($r->{coil_temp},         728, 'coil temp raw (45.5°F × 16)');
     is($r->{suction_temp},      772, 'suction temp raw (48.25°F × 16)');
-    is($r->{liquid_temp},      1760, 'liquid temp raw (110.0°F × 16)');
+    is($r->{subcooling_degf_int}, 224, 'subcooling raw (14.0°F × 16)');
     is($r->{indoor_coil_temp},  892, 'indoor coil temp raw (55.75°F × 16)');
     is($r->{discharge_temp},   2648, 'discharge temp raw (165.5°F × 16)');
 };

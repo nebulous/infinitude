@@ -95,7 +95,7 @@ CarBus::Frame->add_device_parser('OutdoorUnit', '0311', $GreedyODUKV->('odu_runt
 #   8..9    suction_threshold    constant
 #   10..11  suction_temp         suction line temperature
 #   12..13  liquid_threshold     constant
-#   14..15  liquid_temp          liquid line temperature
+#   14..15  subcooling_degf_int  subcooling ΔT (integer °F, not absolute temperature)
 #   16..17  indoor_coil_thresh   constant
 #   18..19  indoor_coil_temp     indoor coil temperature
 #   20..21  discharge_threshold  constant
@@ -107,7 +107,7 @@ CarBus::Frame->add_device_parser('OutdoorUnit', '0302',
         SBInt16('outdoor_threshold'),   SBInt16('outdoor_temp'),
         SBInt16('coil_threshold'),      SBInt16('coil_temp'),
         SBInt16('suction_threshold'),   SBInt16('suction_temp'),
-        SBInt16('liquid_threshold'),    SBInt16('liquid_temp'),
+        SBInt16('liquid_threshold'),    SBInt16('subcooling_degf_int'),
         SBInt16('indoor_coil_thresh'),  SBInt16('indoor_coil_temp'),
         SBInt16('discharge_threshold'), SBInt16('discharge_temp'),
     )
