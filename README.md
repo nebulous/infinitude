@@ -29,7 +29,7 @@ Infinitude can also optionally monitor the Carrier/Bryant RS485(ABCD) bus to obt
 Infinitude provides a serial monitor which keeps track of the current state of registers on the serial bus, and highlights changing bytes to aid in protocol analysis.
 Serial data can be monitored via an attached serial port or via a networked serial bridge.
 
-With SAM emulation enabled (`EMULATE_SAM=1`), Infinitude can also write setpoints, mode, fan speed, and hold settings directly to the RS485 bus. **SAM emulation is experimental and, like all of Infinitude, use at your own risk.**
+With SAM emulation enabled (`EMULATE_SAM=1`), Infinitude can also write setpoints, mode, fan speed, and hold settings directly to the RS485 bus. **SAM emulation is experimental. If Infinitude stops, the thermostat continues operating with a communication error.**
 
 <img width="1121" height="665" alt="image" src="https://github.com/user-attachments/assets/b6634bda-af9d-4e2f-8fd2-036c31a2cbe7" />
 
@@ -55,6 +55,19 @@ RS485 stream monitoring example video:
 
 Serial-based control of some older _non-touch_ thermostats is provided by the [Infinitive project](https://github.com/acd/infinitive). Infinitude also provides experimental RS485 serial monitoring and SAM emulation for direct bus control — see the serial configuration options below.
 
+## ⚠️ Safety Notice
+
+**This software communicates with and may control HVAC equipment.** It is experimental and not a replacement for OEM hardware. Improper use could result in property damage, equipment damage, or hazardous conditions including frozen pipes, overheating, or loss of heating/cooling. Use is entirely at your own risk. See [NOTICE](NOTICE) for additional disclaimer.
+
+Emulation features carry additional risk:
+
+| Feature | Risk if Infinitude stops |
+|---------|------------------------|
+| SAM emulation | Low — thermostat continues with a communication error |
+| ZC emulation | **High — conditioning may stop entirely** |
+
+Zone Controller emulation should not be used in the critical HVAC control loop. It is provided for protocol development and testing. See [docs/ZC-Emulation-Roadmap.md](docs/ZC-Emulation-Roadmap.md) for details.
+
 ## Installation
 
 ### ⚠️ Firmware compatibility: Infinitude is not compatible with all thermostat firmware versions. See the [Compatibility Matrix](https://github.com/nebulous/infinitude/wiki/Infinitude-Compatibility-Matrix) for known-working combinations — and add yours if it works for you. If your thermostat has auto-updated past a supported version, see [issues/148](https://github.com/nebulous/infinitude/issues/148) for discussion.
@@ -75,6 +88,7 @@ Infinitude configuration parameters can be passed through environment variables 
 | LOGLEVEL | optional [minimum severity of log messages to print](https://docs.mojolicious.org/Mojo/Log#level) |
 | SCAN_THERMOSTAT | truthy values on systems with serial connectivity cause Infinitude to continuously scan each Thermostat table |
 | EMULATE_SAM | Enable SAM emulation for RS485 bus writes (1 = enabled) |
+| EMULATE_ZC | Enable Zone Controller emulation (**⚠️ high risk, see Safety Notice**) |
 | MQTT_BROKER | MQTT broker address (e.g., `192.168.1.3:1883`). Enables Home Assistant MQTT Discovery. |
 | MQTT_USER | Optional MQTT broker username |
 | MQTT_PASS | Optional MQTT broker password |
@@ -139,10 +153,9 @@ Or to listen on port 80:
 
 See ./infinitude <command> --help for additional options
 
-With any luck, Carrier will allow the owners of these devices and data direct access rather
-than this ridiculous work around. If you have one of these thermostats, tell
-Carrier you'd like direct network access to your thermostat, or at the very
-least, access to a public API!
+Infinitude exists because device owners like their Infinity systems and deserve local access
+to their own equipment and data. We hope manufacturers will continue to expand official
+local API options for these systems.
 
 
 ### See Also

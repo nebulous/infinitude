@@ -54,6 +54,7 @@ $config->{serial_socket} = $ENV{SERIAL_SOCKET} || $config->{serial_socket};
 $config->{app_secret}    = $ENV{APP_SECRET}    || $config->{app_secret};
 $config->{pass_reqs}     = $ENV{PASS_REQS}     || $config->{pass_reqs};
 $config->{emulate_sam}   = $ENV{EMULATE_SAM}   || $config->{emulate_sam};
+$config->{emulate_zc}    = $ENV{EMULATE_ZC}    || $config->{emulate_zc};
 $config->{mqtt_broker}   = $ENV{MQTT_BROKER}   || $config->{mqtt_broker};
 $config->{mqtt_user}     = $ENV{MQTT_USER}     || $config->{mqtt_user};
 $config->{mqtt_pass}     = $ENV{MQTT_PASS}     || $config->{mqtt_pass};
@@ -63,6 +64,7 @@ $config->{mqtt_topic}    = $ENV{MQTT_TOPIC}    || $config->{mqtt_topic};
 my $handle;
 my $carbus;
 my $sam;
+my $zc;
 my $inf;
 my $init_attempt;
 my @ws_clients;
@@ -116,6 +118,13 @@ sub serial_init {
         $inf->{sam} = $sam if $inf;    # keep Infinitude module in sync after reconnect
         warn "SAM emulation enabled\n";
     }
+    if ($handle and $config->{emulate_zc}) {
+        $zc = CarBus::ZoneController->new(bus => $carbus);
+        warn "Zone Controller emulation enabled\n";
+        warn "WARNING: ZC emulation is riskier than SAM emulation.\n";
+        warn "WARNING: If this process stops, conditioning may stop entirely.\n";
+        warn "WARNING: Not a replacement for OEM hardware. Experimental, AS IS, use at your own risk.\n";
+    }
     bus_loop_start() if $carbus;
 }
 
@@ -133,6 +142,13 @@ sub bus_loop_start {
         if (my $frame = $carbus->get_frame) {
             return if (!$frame or !$frame->struct->{cmd});
             if ($sam and my $reply = $sam->handle_frame($frame)) {
+                $carbus->write($reply);
+                my $rstruc = $reply->frame_hash;
+                $rstruc->{timestamp} = time;
+                $rstruc->{emulated} = 1;
+                $_->send({json => $rstruc}) for @ws_clients;
+            }
+            if ($zc and my $reply = $zc->handle_frame($frame)) {
                 $carbus->write($reply);
                 my $rstruc = $reply->frame_hash;
                 $rstruc->{timestamp} = time;
@@ -175,7 +191,7 @@ sub bus_loop_start {
 serial_init();
 
 # MQTT Discovery integration
-my $mqtt = Infinitude::MQTT->new(store => $store, config => $config);
+my $mqtt = Infinitude::MQTT->new(store => $store, config => $config, zc => $zc);
 $inf = Infinitude->new(store => $store, mqtt => $mqtt, sam => $sam);
 
 # --- MQTT command wiring ---
@@ -249,6 +265,49 @@ if ($mqtt->enabled) {
 
     Mojo::IOLoop->recurring(1 => sub {
         $mqtt->tick;
+    });
+}
+
+# ZC zone sensor wash-in (Phase 0).
+#
+# For each enabled ZC zone (2-4), check if a fresh external sensor value
+# exists in the ZC's CHI store. If fresh, feed it to the ZC. If expired or
+# never set, fall back to the primary zone's current temperature from
+# status.json. This ensures zones always report a sane temperature.
+#
+# Runs every 60 seconds, independent of MQTT.
+if ($zc) {
+    Mojo::IOLoop->recurring(60 => sub {
+        my $status_json = $store->get('status.json');
+        return unless $status_json;
+        my $status = decode_json($status_json);
+        my $sys    = $status->{status}[0] or return;
+        my $zones  = $sys->{zones}[0]{zone} // [];
+
+        # Unwrap single-element arrays from XML->JSON mapping
+        my $unwrap = sub {
+            my $val = shift;
+            return '' unless defined $val;
+            $val = $val->[0] if ref($val) eq 'ARRAY' && @$val == 1;
+            return '' if ref($val) eq 'HASH' && !keys %$val;
+            return $val // '';
+        };
+
+        # Primary zone (zone 1) real temperature — the fallback target
+        my $primary_rt = $unwrap->($zones->[0]{rt});
+        return unless defined $primary_rt && $primary_rt =~ /^[\d.]+$/;
+
+        my $zc_store = $zc->store;
+        for my $i (1 .. $#$zones) {
+            my $zone = $zones->[$i];
+            my $zid  = $i + 1;
+            next unless lc($unwrap->($zone->{enabled})) eq 'on';
+            next if $zid < 2 || $zid > 4;
+
+            my $fresh = $zc_store->get("zone_${zid}_temp");
+            my $temp = defined $fresh ? $fresh : $primary_rt;
+            $zc->update_zone_reading($zid, $temp);
+        }
     });
 }
 
@@ -437,6 +496,17 @@ post '/api/samreq' => sub {
     my ($tab,$row) = $reg =~ m/([0-9a-fA-F]{2})\s*([0-9a-fA-F]{2})$/;
     my $frame = $carbus->samreq(hex($tab),hex($row));
     $c->log->debug("Making Virtual SAM request: register $reg table $tab and row $row\n".$frame->frame_hex);
+    $c->render( json=>{ frame_hex=>$frame->frame_hex });
+};
+
+post '/api/samwrite' => sub {
+    my $c = shift;
+    my $body = $c->req->json;
+    my $reg = $body->{register};
+    my ($tab,$row) = $reg =~ m/([0-9a-fA-F]{2})\s*([0-9a-fA-F]{2})$/;
+    my $data = pack("H*", $body->{data});
+    my $frame = $carbus->write_register('Thermostat', hex($tab), hex($row), $data);
+    $c->log->debug("SAM write: register $reg data $body->{data}\n".$frame->frame_hex);
     $c->render( json=>{ frame_hex=>$frame->frame_hex });
 };
 

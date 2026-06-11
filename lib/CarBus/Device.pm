@@ -17,7 +17,7 @@ has src_bus  => (is => 'ro', default => 1);
 # --- Register Storage ---
 has store => (is => 'ro', default => sub {
     my $self = shift;
-    CHI->new(driver => 'File', root_dir => 'state/' . lc($self->src_name) . '-emulator', depth => 0);
+    CHI->new(driver => 'File', root_dir => 'state', namespace => lc($self->src_name));
 });
 has handlers => (is => 'ro', default => sub { {} });
 

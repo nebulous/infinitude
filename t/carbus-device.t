@@ -270,12 +270,16 @@ subtest 'ZoneController: initialize_defaults' => sub {
     ok(defined $zc->get_register('0319'), '0319 initialized');
     ok(defined $zc->get_register('030d'), '030d initialized');
     ok(defined $zc->get_register('3404'), '3404 initialized');
+    ok(defined $zc->get_register('3405'), '3405 initialized');
+    ok(defined $zc->get_register('0310'), '0310 initialized');
+    ok(defined $zc->get_register('0311'), '0311 initialized');
 
     # Check 0104 device info parses
     my $info_parser = CarBus::Frame::subparser('0104');
     my $info = $info_parser->parse($zc->get_register('0104'));
-    is($info->{model}, 'SYSTXCC4ZC01', 'device_info model correct');
-    is($info->{software}, 'INFD-ZC-01', 'device_info software correct');
+    like($info->{model}, qr/^SYSTXCC4ZC01/, 'device_info model correct');
+    # software has trailing spaces from real ZC padding
+    like($info->{software}, qr/^INFD-ZC-01/, 'device_info software correct');
 
     # Check 0302 is 24 bytes
     is(length($zc->get_register('0302')), 24, '0302 is 24 bytes');
@@ -285,6 +289,15 @@ subtest 'ZoneController: initialize_defaults' => sub {
 
     # Check 030d is 7 zero bytes
     is($zc->get_register('030d'), "\x00" x 7, '030d is 7 zeros');
+
+    # Check 3405 is 3 bytes (presence probe)
+    is(length($zc->get_register('3405')), 3, '3405 is 3 bytes');
+
+    # Check 0310 is 12 bytes (3 entries × 4 bytes)
+    is(length($zc->get_register('0310')), 12, '0310 is 12 bytes');
+
+    # Check 0311 is 12 bytes (3 entries × 4 bytes)
+    is(length($zc->get_register('0311')), 12, '0311 is 12 bytes');
 };
 
 subtest 'ZoneController: initialize_defaults is idempotent' => sub {
@@ -385,7 +398,7 @@ subtest 'ZoneController: write/ACK cycle for 3404' => sub {
        'read returns written value');
 };
 
-subtest 'ZoneController: set_zone_reading' => sub {
+subtest 'ZoneController: handle_frame read 3405 (discovery probe)' => sub {
     my $td = tempdir(CLEANUP => 1);
     my $bus = MockBus->new;
     my $zc = CarBus::ZoneController->new(
@@ -394,27 +407,110 @@ subtest 'ZoneController: set_zone_reading' => sub {
     );
     $zc->initialize_defaults();
 
-    # Default zone 2 reading is 0x4E (78)
+    my $frame = CarBus::Frame->new(
+        src => 'Thermostat', src_bus => 1,
+        dst => 'ZoneControl', dst_bus => 1,
+        cmd => 'read',
+        payload_raw => "\x00\x34\x05",
+    );
+    my $reply = $zc->handle_frame($frame);
+    ok(defined $reply, 'got reply for 3405 read');
+    $reply->frame;
+    is($reply->struct->{cmd}, 'reply', 'reply cmd');
+    is($reply->struct->{src}, 'ZoneControl', 'reply src');
+    is($reply->struct->{reg_string}, '3405', 'reg_string is 3405');
+    # Response: register prefix (00 34 05) + 3-byte data
+    is(length($reply->struct->{payload_raw}), 6, 'reply payload is 6 bytes (3+3)');
+};
+
+subtest 'ZoneController: handle_frame read 0310 (cycle counters)' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $bus = MockBus->new;
+    my $zc = CarBus::ZoneController->new(
+        bus   => $bus,
+        store => CHI->new(driver => 'File', root_dir => $td),
+    );
+    $zc->initialize_defaults();
+
+    my $frame = CarBus::Frame->new(
+        src => 'Thermostat', src_bus => 1,
+        dst => 'ZoneControl', dst_bus => 1,
+        cmd => 'read',
+        payload_raw => "\x00\x03\x10",
+    );
+    my $reply = $zc->handle_frame($frame);
+    ok(defined $reply, 'got reply for 0310 read');
+    $reply->frame;
+    is($reply->struct->{cmd}, 'reply', 'reply cmd');
+    # Response: register prefix (00 03 10) + 12 bytes (3 key-value entries)
+    is(length($reply->struct->{payload_raw}), 15, 'reply payload is 15 bytes (3+12)');
+
+    # Verify parsed structure
+    my $parser = CarBus::Frame::subparser('0310', 'ZoneControl');
+    my $data = substr($reply->struct->{payload_raw}, 3);
+    my $parsed = $parser->parse($data);
+    is(scalar @{$parsed->{entry}}, 3, '3 cycle counter entries');
+    is($parsed->{entry}[2]{name}, 'poweron_cycles', 'third entry is poweron_cycles');
+};
+
+subtest 'ZoneController: handle_frame read 0311 (runtime hours)' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $bus = MockBus->new;
+    my $zc = CarBus::ZoneController->new(
+        bus   => $bus,
+        store => CHI->new(driver => 'File', root_dir => $td),
+    );
+    $zc->initialize_defaults();
+
+    my $frame = CarBus::Frame->new(
+        src => 'Thermostat', src_bus => 1,
+        dst => 'ZoneControl', dst_bus => 1,
+        cmd => 'read',
+        payload_raw => "\x00\x03\x11",
+    );
+    my $reply = $zc->handle_frame($frame);
+    ok(defined $reply, 'got reply for 0311 read');
+    $reply->frame;
+    is($reply->struct->{cmd}, 'reply', 'reply cmd');
+    is(length($reply->struct->{payload_raw}), 15, 'reply payload is 15 bytes (3+12)');
+
+    my $parser = CarBus::Frame::subparser('0311', 'ZoneControl');
+    my $data = substr($reply->struct->{payload_raw}, 3);
+    my $parsed = $parser->parse($data);
+    is(scalar @{$parsed->{entry}}, 3, '3 runtime entries');
+    is($parsed->{entry}[2]{name}, 'poweron_hours', 'third entry is poweron_hours');
+};
+
+subtest 'ZoneController: update_zone_reading' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $bus = MockBus->new;
+    my $zc = CarBus::ZoneController->new(
+        bus   => $bus,
+        store => CHI->new(driver => 'File', root_dir => $td),
+    );
+    $zc->initialize_defaults();
+
+    # Default zone 2 is 73°F = (73-64)*16 = 144 = 0x90
     my $parser = CarBus::Frame::subparser('0302', 'ZoneControl');
     my $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone2}{value}, 0x4E, 'zone 2 starts at 78');
+    is($parsed->{zone2}{value}, 0x90, 'zone 2 starts at 0x90 (73°F)');
 
-    $zc->set_zone_reading(2, 85);
+    $zc->update_zone_reading(2, 69);  # 69°F = (69-64)*16 = 80 = 0x50
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone2}{value}, 85, 'zone 2 updated to 85');
+    is($parsed->{zone2}{value}, 0x50, 'zone 2 updated to 0x50 (69°F)');
 
-    $zc->set_zone_reading(3, 72);
+    $zc->update_zone_reading(3, 72);  # 72°F = (72-64)*16 = 128 = 0x80
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone3}{value}, 72, 'zone 3 updated to 72');
+    is($parsed->{zone3}{value}, 0x80, 'zone 3 updated to 0x80 (72°F)');
 
-    $zc->set_zone_reading(4, 65);
+    $zc->update_zone_reading(4, 65);  # 65°F = (65-64)*16 = 16 = 0x10
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone4}{value}, 65, 'zone 4 updated to 65');
+    is($parsed->{zone4}{value}, 0x10, 'zone 4 updated to 0x10 (65°F)');
 
     # Zone 1 is not allowed (no sensor)
-    $zc->set_zone_reading(1, 80);
+    $zc->update_zone_reading(1, 80);
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone2}{value}, 85,
+    is($parsed->{zone2}{value}, 0x50,
        'zone 1 update rejected, zone 2 unchanged');
 };
 
@@ -487,9 +583,9 @@ subtest 'ZC parser: 0302 zone readings round-trip' => sub {
 
     my $parsed = $parser->parse($raw);
     is($parsed->{zone_count}, 4, 'zone_count is 4');
-    is($parsed->{zone2}{value}, 78, 'zone 2 reading is 78');
-    is($parsed->{zone3}{value}, 78, 'zone 3 reading is 78');
-    is($parsed->{zone4}{value}, 78, 'zone 4 reading is 78');
+    is($parsed->{zone2}{value}, 0x90, 'zone 2 reading is 0x90 (73°F)');
+    is($parsed->{zone3}{value}, 0x90, 'zone 3 reading is 0x90 (73°F)');
+    is($parsed->{zone4}{value}, 0x90, 'zone 4 reading is 0x90 (73°F)');
     is($parsed->{zone2}{id}, 2, 'zone 2 id is 2');
     is($parsed->{sysval1}{index}, 0x14, 'sysval1 index is 20');
     is($parsed->{sysval2}{index}, 0x1C, 'sysval2 index is 28');
@@ -499,7 +595,7 @@ subtest 'ZC parser: 0302 zone readings round-trip' => sub {
     is($rebuilt, $raw, 'build(parse(raw)) round-trips');
 };
 
-subtest 'ZC parser: 0319 zone config round-trip' => sub {
+subtest 'ZC parser: 0319 damper state round-trip' => sub {
     my $td = tempdir(CLEANUP => 1);
     my $bus = MockBus->new;
     my $zc = CarBus::ZoneController->new(
@@ -513,10 +609,14 @@ subtest 'ZC parser: 0319 zone config round-trip' => sub {
 
     my $parser = CarBus::Frame::subparser('0319', 'ZoneControl');
     ok($parser, 'device-scoped 0319 parser found');
+    isnt($parser->{Name}, 'unknown', 'parser is not unknown');
 
     my $parsed = $parser->parse($raw);
-    is($parsed->{config_byte1}, 0, 'config_byte1 is 0');
-    is_deeply($parsed->{zone_slots}, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF], 'unused slots are 0xFF');
+    is($parsed->{zone1}, 0x0F, 'zone 1 damper open');
+    is($parsed->{zone2}, 0x00, 'zone 2 damper closed');
+    is($parsed->{zone3}, 0x00, 'zone 3 damper closed');
+    is($parsed->{zone4}, 0x0F, 'zone 4 damper open');
+    is_deeply($parsed->{unused}, [0xFF, 0xFF, 0xFF, 0xFF], 'unused slots are 0xFF');
 
     my $rebuilt = $parser->build($parsed);
     is($rebuilt, $raw, 'build(parse(raw)) round-trips');
@@ -546,7 +646,7 @@ subtest 'ZC parser: 0302 parsed via frame auto-parse' => sub {
     ok($payload, 'payload auto-parsed');
     is(ref($payload), 'HASH', 'payload is a hash (not unknown)');
     is($payload->{zone_count}, 4, 'auto-parsed zone_count');
-    is($payload->{zone2}{value}, 78, 'auto-parsed zone 2 reading');
+    is($payload->{zone2}{value}, 0x90, 'auto-parsed zone 2 reading is 0x90 (73°F)');
 };
 
 done_testing;
