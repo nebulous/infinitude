@@ -66,7 +66,7 @@ Emulation features carry additional risk:
 | SAM emulation | Low — thermostat continues with a communication error |
 | ZC emulation | **High — conditioning may stop entirely** |
 
-Zone Controller emulation should not be used in the critical HVAC control loop. It is provided for protocol development and testing. See [docs/ZC-Emulation-Roadmap.md](docs/ZC-Emulation-Roadmap.md) for details.
+Zone Controller emulation should not be used in the critical HVAC control loop. It is provided for experimentation and testing.
 
 ## Installation
 

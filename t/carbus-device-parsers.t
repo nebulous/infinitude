@@ -417,17 +417,17 @@ subtest 'ODU 0302 vs ZC 0302 data isolation' => sub {
     my $r = $odu_p->parse($odu_data);
     is($r->{outdoor_temp}, 1200, 'ODU 0302 parses temperature');
 
-    # ZC data (24 bytes TLV format)
+    # ZC data (24 bytes TLV format, uint16 temps)
     my $zc_data = pack("C*",
         0x04, 0x01, 0x00, 0x00,
-        0x01, 0x02, 0x04, 0x4E,
+        0x01, 0x02, 0x04, 0x4E,  # zone 2: 0x044E = 1102 / 16 = 68.875°F
         0x01, 0x03, 0x04, 0x4E,
         0x01, 0x04, 0x04, 0x4E,
         0x04, 0x14, 0x00, 0x00,
         0x04, 0x1C, 0x00, 0x00,
     );
     $r = $zc_p->parse($zc_data);
-    is($r->{zone2}{value}, 0x4E, 'ZC 0302 parses zone reading');
+    is($r->{zone2}{value}, 1102, 'ZC 0302 parses zone reading');
 };
 
 done_testing();

@@ -490,28 +490,37 @@ subtest 'ZoneController: update_zone_reading' => sub {
     );
     $zc->initialize_defaults();
 
-    # Default zone 2 is 73°F = (73-64)*16 = 144 = 0x90
+    # Default zone 2 is 73°F = 73*16 = 1168 = 0x0490
     my $parser = CarBus::Frame::subparser('0302', 'ZoneControl');
     my $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone2}{value}, 0x90, 'zone 2 starts at 0x90 (73°F)');
+    is($parsed->{zone2}{value}, 1168, 'zone 2 starts at 1168 (73°F)');
 
-    $zc->update_zone_reading(2, 69);  # 69°F = (69-64)*16 = 80 = 0x50
+    $zc->update_zone_reading(2, 69);  # 69°F = 69*16 = 1104
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone2}{value}, 0x50, 'zone 2 updated to 0x50 (69°F)');
+    is($parsed->{zone2}{value}, 1104, 'zone 2 updated to 1104 (69°F)');
 
-    $zc->update_zone_reading(3, 72);  # 72°F = (72-64)*16 = 128 = 0x80
+    $zc->update_zone_reading(3, 72);  # 72°F = 72*16 = 1152
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone3}{value}, 0x80, 'zone 3 updated to 0x80 (72°F)');
+    is($parsed->{zone3}{value}, 1152, 'zone 3 updated to 1152 (72°F)');
 
-    $zc->update_zone_reading(4, 65);  # 65°F = (65-64)*16 = 16 = 0x10
+    $zc->update_zone_reading(4, 65);  # 65°F = 65*16 = 1040
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone4}{value}, 0x10, 'zone 4 updated to 0x10 (65°F)');
+    is($parsed->{zone4}{value}, 1040, 'zone 4 updated to 1040 (65°F)');
 
     # Zone 1 is not allowed (no sensor)
     $zc->update_zone_reading(1, 80);
     $parsed = $parser->parse($zc->get_register('0302'));
-    is($parsed->{zone2}{value}, 0x50,
+    is($parsed->{zone2}{value}, 1104,
        'zone 1 update rejected, zone 2 unchanged');
+
+    # Sub-64°F values exercise the full uint16 range
+    $zc->update_zone_reading(2, 32);  # 32°F = 512 = 0x0200
+    $parsed = $parser->parse($zc->get_register('0302'));
+    is($parsed->{zone2}{value}, 512, 'zone 2 at 32°F = 512 (0x0200)');
+
+    $zc->update_zone_reading(3, 0);   # 0°F = 0 = 0x0000
+    $parsed = $parser->parse($zc->get_register('0302'));
+    is($parsed->{zone3}{value}, 0, 'zone 3 at 0°F = 0 (0x0000)');
 };
 
 subtest 'ZoneController: ignores frames to other devices' => sub {
@@ -583,9 +592,9 @@ subtest 'ZC parser: 0302 zone readings round-trip' => sub {
 
     my $parsed = $parser->parse($raw);
     is($parsed->{zone_count}, 4, 'zone_count is 4');
-    is($parsed->{zone2}{value}, 0x90, 'zone 2 reading is 0x90 (73°F)');
-    is($parsed->{zone3}{value}, 0x90, 'zone 3 reading is 0x90 (73°F)');
-    is($parsed->{zone4}{value}, 0x90, 'zone 4 reading is 0x90 (73°F)');
+    is($parsed->{zone2}{value}, 1168, 'zone 2 reading is 1168 (73°F)');
+    is($parsed->{zone3}{value}, 1168, 'zone 3 reading is 1168 (73°F)');
+    is($parsed->{zone4}{value}, 1168, 'zone 4 reading is 1168 (73°F)');
     is($parsed->{zone2}{id}, 2, 'zone 2 id is 2');
     is($parsed->{sysval1}{index}, 0x14, 'sysval1 index is 20');
     is($parsed->{sysval2}{index}, 0x1C, 'sysval2 index is 28');
@@ -646,7 +655,7 @@ subtest 'ZC parser: 0302 parsed via frame auto-parse' => sub {
     ok($payload, 'payload auto-parsed');
     is(ref($payload), 'HASH', 'payload is a hash (not unknown)');
     is($payload->{zone_count}, 4, 'auto-parsed zone_count');
-    is($payload->{zone2}{value}, 0x90, 'auto-parsed zone 2 reading is 0x90 (73°F)');
+    is($payload->{zone2}{value}, 1168, 'auto-parsed zone 2 reading is 1168 (73°F)');
 };
 
 done_testing;

@@ -85,7 +85,7 @@ has system_values => (is => 'ro', default => sub { [0x14, 0x1c] });
 has damper_positions => (is => 'rw', default => sub { [0, 0, 0, 0] });
 
 # Zone temperatures in °F (index 0 unused, zones 2-4).
-# Converted to raw values for register 0302 via _f_to_raw().
+# Converted to 16ths of a degree F for register 0302.
 has zone_temps_f => (is => 'rw', default => sub { [0, 73, 73, 73] });
 
 # Baseline temperatures (what zone_temps_f reverts to when dampers close)
@@ -131,27 +131,8 @@ has current_0319 => (is => 'rw', default => sub { [0x0F, 0x00, 0x00, 0x0F] });
 # Startup time for initial zone discovery sequence
 has startup_time => (is => 'rw', default => sub { time });
 
-# --- Zone sensor value encoding (register 0302) ---
-#
-#   value = (°F - 64) × 16
-#   °F = value / 16 + 64
-#
-# Range: 64.0°F (value=0) to 79.9°F (value=255)
-# Resolution: 1/16 = 0.0625°F
-
-sub _f_to_raw {
-    my ($self, $temp_f) = @_;
-    my $raw = int(($temp_f - 64) * 16 + 0.5);
-    $raw = 0   if $raw < 0;
-    $raw = 255 if $raw > 255;
-    return $raw;
-}
-
-sub _raw_to_f {
-    my ($self, $raw) = @_;
-    return undef if !defined $raw;
-    return $raw / 16 + 64;
-}
+# Zone sensor temps are uint16 BE expressed as 16ths of a degree F,
+# same encoding as ODU outdoor_temp and IDU register 0306.
 
 sub BUILD {
     my $self = shift;
@@ -166,9 +147,9 @@ sub BUILD {
         return $parser->build({
             zone_count    => 4,
             zone1_present => 1,
-            zone2 => { tag => 0x01, id => 2, reading_tag => 0x04, value => $self->_f_to_raw($t->[1]) },
-            zone3 => { tag => 0x01, id => 3, reading_tag => 0x04, value => $self->_f_to_raw($t->[2]) },
-            zone4 => { tag => 0x01, id => 4, reading_tag => 0x04, value => $self->_f_to_raw($t->[3]) },
+            zone2 => { tag => 0x01, id => 2, value => int($t->[1] * 16 + 0.5) },
+            zone3 => { tag => 0x01, id => 3, value => int($t->[2] * 16 + 0.5) },
+            zone4 => { tag => 0x01, id => 4, value => int($t->[3] * 16 + 0.5) },
             sysval1 => { tag => 0x04, index => $sv->[0], val_hi => 0, val_lo => 0 },
             sysval2 => { tag => 0x04, index => $sv->[1], val_hi => 0, val_lo => 0 },
         });
@@ -260,9 +241,9 @@ CarBus::Frame->add_device_parser('ZoneControl', '0302',
         Byte('zone_count'),
         Byte('zone1_present'),
         Padding(2),
-        Struct('zone2', Byte('tag'), Byte('id'), Byte('reading_tag'), Byte('value')),
-        Struct('zone3', Byte('tag'), Byte('id'), Byte('reading_tag'), Byte('value')),
-        Struct('zone4', Byte('tag'), Byte('id'), Byte('reading_tag'), Byte('value')),
+        Struct('zone2', Byte('tag'), Byte('id'), UBInt16('value')),
+        Struct('zone3', Byte('tag'), Byte('id'), UBInt16('value')),
+        Struct('zone4', Byte('tag'), Byte('id'), UBInt16('value')),
         Struct('sysval1', Byte('tag'), Byte('index'), Byte('val_hi'), Byte('val_lo')),
         Struct('sysval2', Byte('tag'), Byte('index'), Byte('val_hi'), Byte('val_lo')),
     )
@@ -362,9 +343,9 @@ sub _build_0302 {
     return $parser->build({
         zone_count    => 4,
         zone1_present => 1,
-        zone2 => { tag => 0x01, id => 2, reading_tag => 0x04, value => $self->_f_to_raw($t->[1]) },
-        zone3 => { tag => 0x01, id => 3, reading_tag => 0x04, value => $self->_f_to_raw($t->[2]) },
-        zone4 => { tag => 0x01, id => 4, reading_tag => 0x04, value => $self->_f_to_raw($t->[3]) },
+        zone2 => { tag => 0x01, id => 2, value => int($t->[1] * 16 + 0.5) },
+        zone3 => { tag => 0x01, id => 3, value => int($t->[2] * 16 + 0.5) },
+        zone4 => { tag => 0x01, id => 4, value => int($t->[3] * 16 + 0.5) },
         sysval1 => { tag => 0x04, index => $sv->[0], val_hi => 0, val_lo => 0 },
         sysval2 => { tag => 0x04, index => $sv->[1], val_hi => 0, val_lo => 0 },
     });
