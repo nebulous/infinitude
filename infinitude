@@ -272,18 +272,15 @@ if ($mqtt->enabled) {
 #
 # For each enabled ZC zone (2-4), check if a fresh external sensor value
 # exists in the ZC's CHI store. If fresh, feed it to the ZC. If expired or
-# never set, fall back to the primary zone's current temperature from
-# status.json. This ensures zones always report a sane temperature.
+# never set, fall back to the primary zone's current temperature.
+#
+# Fallback source priority:
+#   1. SAM 3B02 zone 1 temperature (bus, ~3s poll cycle, freshest)
+#   2. status.json zone 1 rt (HTTP poll, secondary)
 #
 # Runs every 60 seconds, independent of MQTT.
 if ($zc) {
     Mojo::IOLoop->recurring(60 => sub {
-        my $status_json = $store->get('status.json');
-        return unless $status_json;
-        my $status = decode_json($status_json);
-        my $sys    = $status->{status}[0] or return;
-        my $zones  = $sys->{zones}[0]{zone} // [];
-
         # Unwrap single-element arrays from XML->JSON mapping
         my $unwrap = sub {
             my $val = shift;
@@ -293,9 +290,29 @@ if ($zc) {
             return $val // '';
         };
 
-        # Primary zone (zone 1) real temperature — the fallback target
-        my $primary_rt = $unwrap->($zones->[0]{rt});
-        return unless defined $primary_rt && $primary_rt =~ /^[\d.]+$/;
+        my $status_json = $store->get('status.json');
+        return unless $status_json;
+        my $status = decode_json($status_json);
+        my $sys    = $status->{status}[0] or return;
+        my $zones  = $sys->{zones}[0]{zone} // [];
+
+        # Resolve fallback temperature for stale zones:
+        #   1. Thermostat 3B02 zone 1 from bus traffic (freshest)
+        #   2. status.json zone 1 rt
+        my $primary_rt;
+        if ($carbus) {
+            my $tstat_data = $carbus->devices->{Thermostat}{'3b02'}{payload_hex};
+            if ($tstat_data) {
+                my $parser = CarBus::Frame::subparser('3B02');
+                my $parsed = eval { $parser->parse(pack('H*', $tstat_data)) };
+                $primary_rt = $parsed->{temperature}[0]
+                    if $parsed && defined $parsed->{temperature}[0];
+            }
+        }
+        if (!defined $primary_rt) {
+            my $rt = $unwrap->($zones->[0]{rt});
+            $primary_rt = $rt if defined $rt && $rt =~ /^[\d.]+$/;
+        }
 
         my $zc_store = $zc->store;
         for my $i (1 .. $#$zones) {
@@ -304,9 +321,8 @@ if ($zc) {
             next unless lc($unwrap->($zone->{enabled})) eq 'on';
             next if $zid < 2 || $zid > 4;
 
-            my $fresh = $zc_store->get("zone_${zid}_temp");
-            my $temp = defined $fresh ? $fresh : $primary_rt;
-            $zc->update_zone_reading($zid, $temp);
+            my $temp = $zc_store->get("zone_${zid}_temp") // $primary_rt;
+            $zc->update_zone_reading($zid, $temp) if defined $temp;
         }
     });
 }

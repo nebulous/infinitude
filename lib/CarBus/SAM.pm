@@ -436,7 +436,7 @@ sub _int_to_change_flags {
 # Shared read-modify-write for register 3B03.
 # $flags = bitmask of what changed, $mutate = sub { my ($parsed, $idx) = @_; ... }
 sub _write_3b03 {
-    my ($self, $flags, $mutate) = @_;
+    my ($self, $zone, $flags, $mutate) = @_;
     return unless $flags;
 
     my $data = $self->get_register('3b03');
@@ -449,7 +449,9 @@ sub _write_3b03 {
     $mutate->($parsed);
 
     # Set write-mode values for the 3-byte header
-    $parsed->{active_zones} = 0;
+    # active_zones is a zero-based zone index (not a bitmask).
+    # Real SAM sends zone-1: 0x00, zone-2: 0x01, zone-4: 0x03.
+    $parsed->{active_zones} = $zone - 1;
     $parsed->{reserved} = 0;
     $parsed->{change_flags} = $self->_int_to_change_flags($flags);
 
@@ -482,7 +484,7 @@ sub set_zone_setpoint {
     $flags |= 0x08 if defined $cool_sp;
 
     my $idx = $zone - 1;
-    return $self->_write_3b03($flags, sub {
+    return $self->_write_3b03($zone, $flags, sub {
         my ($parsed) = @_;
         $parsed->{heat_setpoint}[$idx] = $heat_sp if defined $heat_sp;
         $parsed->{cool_setpoint}[$idx] = $cool_sp if defined $cool_sp;
@@ -498,7 +500,7 @@ sub set_zone_fan {
     $fan_mode = $fan_map{lc($fan_mode)} // lc($fan_mode);
 
     my $idx = $zone - 1;
-    return $self->_write_3b03(0x01, sub {
+    return $self->_write_3b03($zone, 0x01, sub {
         my ($parsed) = @_;
         $parsed->{fan_mode}[$idx] = $fan_mode;
     });
@@ -513,7 +515,7 @@ sub set_zone_hold {
     $duration //= 0;
 
     my $idx = $zone - 1;
-    return $self->_write_3b03(0x80, sub {
+    return $self->_write_3b03($zone, 0x80, sub {
         my ($parsed) = @_;
         $parsed->{hold_duration}[$idx] = $duration;
     });
