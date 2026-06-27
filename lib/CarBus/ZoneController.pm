@@ -368,9 +368,6 @@ sub update_zone_reading {
     $self->set_register('0302', $self->_build_0302());
 }
 
-# Legacy alias
-sub set_zone_temp { shift->update_zone_reading(@_) }
-
 # Handle writes to register 0308 (damper positions) and 3404 (heartbeat).
 #
 # Real ZC behavior (from feisley-install.jsonl):

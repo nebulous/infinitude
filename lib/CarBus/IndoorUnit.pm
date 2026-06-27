@@ -11,9 +11,16 @@ use CarBus::Frame;
 # on the RS485 (ABCD) bus. Data confirmed against thermostat service menu values
 # and cross-referenced with InfinitESP passive snoop captures.
 #
+# IDU tables (from device self-described 0xXX01 tabledefs):
+#   0x01 DEVCONFG  device configuration (holds device_info at 0104)
+#   0x02 SYSTIME  system time/date (thermostat-owned)
+#   0x03 RLCSMAIN main controller, RLCS (Residential & Light Commercial Systems) product family - IDU-side sensors/state
+#   0x04 VARSPEED variable-speed ECM blower drive (300 bytes, 17 rows)
+# Tables 0x05-0x0F return FUNC 0x15 (not present on observed hardware).
+#
 # Source: https://github.com/nebulous/infinitude/discussions/215
 
-# --- Cycle / runtime counter registers (0310, 0311) ---
+# --- Table 0x03 RLCSMAIN: cycle / runtime counter registers (0310, 0311) ---
 #
 # Data format: each register is a sequence of 4-byte key-value chunks:
 #   Byte 0:   Key (metric identifier, see table below)

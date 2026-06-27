@@ -73,14 +73,14 @@ subtest 'OutdoorUnit 0302 temperatures' => sub {
     is($p->{Name}, 'odu_temperatures', 'parser name');
 
     # Simulate 75.0°F outdoor, 45.5°F coil, 48.25°F suction, 14°F subcooling,
-    # 55.75°F indoor coil, 165.5°F discharge
+    # 55.75°F indoor ambient, 165.5°F discharge
     # int16 values = °F × 16
     my $data = pack("n*",
         0x04B0, 75.0 * 16,     # outdoor threshold, temp
         0x02B0, 45.5 * 16,     # coil threshold, temp
         0x0300, 48.25 * 16,    # suction threshold, temp
         0x06E0, 14.0 * 16,     # subcooling threshold, value
-        0x0380, 55.75 * 16,    # indoor coil threshold, temp
+        0x0380, 55.75 * 16,    # indoor ambient threshold, temp
         0x0A60, 165.5 * 16,    # discharge threshold, temp
     );
 
@@ -90,7 +90,7 @@ subtest 'OutdoorUnit 0302 temperatures' => sub {
     is($r->{coil_temp},         728, 'coil temp raw (45.5°F × 16)');
     is($r->{suction_temp},      772, 'suction temp raw (48.25°F × 16)');
     is($r->{subcooling_degf_int}, 224, 'subcooling raw (14.0°F × 16)');
-    is($r->{indoor_coil_temp},  892, 'indoor coil temp raw (55.75°F × 16)');
+    is($r->{indoor_ambient},  892, 'indoor ambient raw (55.75°F × 16)');
     is($r->{discharge_temp},   2648, 'discharge temp raw (165.5°F × 16)');
 };
 
@@ -112,11 +112,13 @@ subtest 'OutdoorUnit 0303 short status' => sub {
     ok($p, 'parser found for OutdoorUnit/0303');
     is($p->{Name}, 'odu_short_status', 'parser name');
 
-    # Stage 3 = data[0] >> 1 = 3, so raw byte = 6
-    my $data = pack("C*", 0x06, 0x01, 0x00, 0x00);
+    # status0=0x01 (run flag), status1=0x30, suction pressure 114.0 PSIG = 114*16 = 1824
+    my $data = pack("C*", 0x01, 0x30, 0x07, 0x20);
     my $r = $p->parse($data);
-    is($r->{compressor_stage}, 3, 'compressor stage decoded');
-    is($r->{raw_stage}, 6, 'raw stage byte preserved');
+    is($r->{status0},              1,    'status0 run flag');
+    is($r->{status1},              0x30, 'status1 constant');
+    is($r->{suction_pressure_psi_x16}, 1824, 'suction pressure raw (114 PSIG x 16)');
+    is($r->{suction_pressure_psi},  114,  'suction pressure PSIG (derived)');
 };
 
 # ============================================================================
@@ -128,10 +130,12 @@ subtest 'OutdoorUnit 0304 status' => sub {
     ok($p, 'parser found for OutdoorUnit/0304');
     is($p->{Name}, 'odu_status', 'parser name');
 
-    my $data = pack("C*", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02);
+    # byte 7 = line voltage (e.g. 243V)
+    my $data = pack("C*", 0,0,0,0,0,0,0, 243, 0,0,0,0,0,0,0,0);
     my $r = $p->parse($data);
-    is($r->{operating_mode}, 2, 'operating mode');
-    is(scalar @{$r->{data}}, 10, '10 data bytes');
+    is($r->{line_voltage}, 243, 'line voltage at byte 7');
+    is(scalar @{$r->{data}}, 7, '7 prefix data bytes');
+    is(scalar @{$r->{tail}}, 8, '8 tail bytes');
 };
 
 # ============================================================================
@@ -153,16 +157,17 @@ subtest 'OutdoorUnit 0604 compressor speed' => sub {
 # ODU: Register 0608 — Demand/stage/modulation
 # ============================================================================
 
-subtest 'OutdoorUnit 0608 demand' => sub {
+subtest 'OutdoorUnit 0608 compressor drive frequency' => sub {
     my $p = CarBus::Frame::subparser('0608', 'OutdoorUnit');
     ok($p, 'parser found for OutdoorUnit/0608');
     is($p->{Name}, 'odu_demand', 'parser name');
 
-    my $data = pack("C*", 0x00, 0x00, 0x00, 100, 0x00, 2, 75);
+    # saturation=100 at byte 2; frequency 92.0 Hz = 920 = 0x0398 at bytes 5-6
+    my $data = pack("C*", 0x00, 0x00, 100, 0x00, 0x00, 0x03, 0x98);
     my $r = $p->parse($data);
-    is($r->{demand},     100, 'demand percent');
-    is($r->{stage},      2,   'stage');
-    is($r->{modulation}, 75,  'modulation');
+    is($r->{saturation},                100,  'saturation flag (100 when running)');
+    is($r->{compressor_frequency_hz_x10}, 920, 'frequency raw (92.0 Hz x 10)');
+    is($r->{compressor_frequency_hz},  92,   'frequency Hz (derived)');
 };
 
 # ============================================================================
@@ -206,7 +211,7 @@ subtest 'OutdoorUnit 061F floats' => sub {
     ok(abs($r->{superheat_actual} - 10.0) < 0.01,  'superheat actual ~10.0');
     ok(abs($r->{subcooling_target} - 14.0) < 0.01, 'subcooling target ~14.0');
     ok(abs($r->{subcooling_actual} - 12.0) < 0.01, 'subcooling actual ~12.0');
-    ok(abs($r->{discharge_superheat} - (-5.25)) < 0.01, 'discharge superheat ~-5.25');
+    ok(abs($r->{discharge_delta} - (-5.25)) < 0.01, 'discharge delta ~-5.25');
     ok(abs($r->{unknown_constant} - 0.039) < 0.001, 'unknown constant ~0.039');
 };
 

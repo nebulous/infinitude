@@ -241,9 +241,10 @@ subtest 'SAM handle_frame read/write' => sub {
 
     # --- Write: write to 3B06
     my $new_dealer = CarBus::Frame::subparser('3B06')->build({
-        backlight => 2, auto_mode => 1, unknown1 => 0, deadband => 3,
+        backlight => 2, metric_units => 'english', unknown1 => 0, deadband => 3,
         cycles_per_hour => 4, schedule_periods => 4, programs_enabled => 1,
-        temp_units => ord('F'), unknown2 => 0xFF, unknown_padding => [1, 0, 0],
+        unknown2 => 0xFF, unknown3 => 0xFF, programs_enabled_2 => 1,
+        metric_units_2 => 'english', unknown4 => 0,
         dealer_name => "TestDealer\0\0\0\0\0\0\0\0\0\0",
         dealer_phone => "555-1212\0\0\0\0\0\0\0\0\0\0\0\0",
     });

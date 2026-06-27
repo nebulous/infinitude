@@ -146,12 +146,43 @@ my @schedchunk = (
     );
 
 our $parsers = {
+    # Table-definition register (every table's 0xNN01). Describes the table's
+    # name, total NVRAM allocation, row count, and one (size, access) pair per
+    # register address slot. Verified across the thermostat, IDU, and ODU by
+    # probing live devices and cross-referencing the bus-logger capture:
+    #
+    #   [0]      0x00
+    #   [1]      small flags/counter byte (0x20/0x21/0x30/0x31 observed); NOT
+    #            an ASCII revision — semantics undetermined.
+    #   [2..9]   8-char table name, NUL/space-padded
+    #            (DEVCONFG, SYSTIME, RLCSMAIN, VARSPEED, VAR COMP, LINESET, ...)
+    #   [10..11] total table allocation (u16 BE) = self_size + Σ(every slot's
+    #            size byte). Gaps count as 222 (0xDE); empty slots as 0.
+    #   [12]     rows = total address-slot count, INCLUDING this 0xNN01 register.
+    #            So the number of (size,access) pairs below is rows-1.
+    #   [13]     self_size = byte length of THIS tabledef register.
+    #   [14]     0x01 = descriptor-list flag.
+    #   [15..]   one (size, access) pair per slot, addresses running NN02, NN03, ...
+    #            (0xDE, 0xDE) = absent slot (returns exception if read)
+    #            (0x00, 0x00) = empty slot
+    #
+    # access is a 2-bit permission flag, proven at register level on the live bus:
+    #   bit0 = readable, bit1 = writable.
+    #   0x01 read-only   — readable; never written in 1.4M captured frames.
+    #   0x02 write-only  — write is acked; READ RETURNS AN EXCEPTION (proven on
+    #                      thermostat register 3131). Table-level only on the
+    #                      IDU/ODU (SYSTIME), but present at register level on
+    #                      the thermostat (INGDATA 0x31).
+    #   0x03 read/write  — write is acked (proven on ODU 0610), also readable.
     '01' => Struct('tabledef',
-        UBInt16('type'),
+        Byte('zero'),
+        Byte('flags'),
         String('name', 8),
-        UBInt16('size'),
+        UBInt16('total_allocation'),
         Byte('rows'),
-        Array(sub { $_->ctx->{rows} },
+        Byte('self_size'),
+        Byte('descriptor_flag'),
+        Array(sub { ($_->ctx->{rows}) - 1 },
             Struct("rowdef",
                 Byte("size"),
                 Enum(Byte("access"), 'read'=>1, 'write'=>2,'read/write'=>3, _default_ => $DefaultPass)
@@ -284,6 +315,91 @@ our $parsers = {
                 ($s->{occ3}<<3) | ($s->{occ2}<<2) | ($s->{occ1}<<1) | $s->{occ0}
             }),
         )),
+    ),
+
+    # --- Thermostat tables 0x31 INGDATA and 0x41 TEMP ---
+    # Float-bearing registers identified by probing live and correlating against
+    # ODU/IDU values. Where bytes hold confirmed or clean IEEE754 float32 values
+    # they are declared as BFloat32 (even when their physical identity is unknown)
+    # so the bytes decode rather than staying undefined.
+
+    # 3107 — High-precision zone ambient temperatures, float32 °F.
+    # The float counterpart of 3b02 bytes[3:7] (which carry integer RT).
+    '3107' => Struct('zone_temps_float',
+        BFloat32('zone1'), BFloat32('zone2'), BFloat32('zone3'), BFloat32('zone4'),
+        Array(16, Byte('reserved')),
+    ),
+
+    # 310d — 21 float32 values. First 7 (~0.09) and 4 (~0.20) are nonzero;
+    # identity unknown but clean IEEE754 (likely PID/filter coefficients).
+    '310d' => Struct('ingdata_310d',
+        Array(21, BFloat32('value')),
+    ),
+
+    # 3117 — Rolling time-series / control buffer. Two small float32 deltas at
+    # the head (~0.27), a float32 near the tail (~0.89), mixed byte history
+    # between. Changes between reads.
+    '3117' => Struct('ingdata_3117',
+        BFloat32('delta1'),
+        BFloat32('delta2'),
+        Array(60, Byte('history')),     # bytes 8..67
+        BFloat32('tail_float'),         # byte 68
+        Array(2, Byte('reserved')),
+    ),
+
+    # 3123 — Cached blower CFM at float32 byte 12 (matches IDU 0306 airflow_cfm).
+    # Remaining bytes are integer/flag data of unknown layout.
+    '3123' => Struct('ingdata_3123',
+        Array(12, Byte('header')),      # bytes 0..11
+        BFloat32('blower_cfm'),         # byte 12 — confirmed vs IDU airflow_cfm
+        Array(72, Byte('data')),
+    ),
+
+    # 4102 (TEMP) — Zone ambient temperatures (float32 °F) at bytes 10..25,
+    # preceded by a 10-byte preamble and followed by flags + live float32
+    # deltas (bytes 50..65) of unknown identity. Same zone temps as 3107.
+    '4102' => Struct('temp_status',
+        Array(10, Byte('preamble')),                              # bytes 0..9
+        BFloat32('zone1'), BFloat32('zone2'), BFloat32('zone3'), BFloat32('zone4'),   # 10..25
+        Array(16, Byte('reserved')),                             # bytes 26..41
+        Array(4, Byte('flags')),                                 # bytes 42..45 (observed 01 01 01 01)
+        Array(4, Byte('pad')),                                   # bytes 46..49
+        BFloat32('delta1'), BFloat32('delta2'), BFloat32('delta3'), BFloat32('delta4'),   # 50..65 (live, unknown)
+        Array(19, Byte('tail')),                                 # bytes 66..84
+    ),
+
+    # --- Thermostat tables 0x49 SYSCTRL and 0x4A MISC2 ---
+    # Float-bearing registers found by a systematic float scan of all tables.
+    # Floats are declared even where identity is unknown so the bytes decode.
+
+    # 4903 — Temperature setpoints/limits, two float32 arrays of eight
+    # (67/68/60/60/50/50/50/50 and 74/74/77/78/90/90/90/90). Clean °F values,
+    # identity unconfirmed. 32-byte zero gap between the two arrays.
+    '4903' => Struct('sysctrl_4903',
+        Array(8, BFloat32('setpoint1')),                          # bytes 0..31
+        Array(32, Byte('reserved')),                             # bytes 32..63 (zero gap)
+        Array(8, BFloat32('setpoint2')),                          # bytes 64..95
+    ),
+
+    # 490b — Two small float32 values at the head (29.27, 11.12), identity
+    # unknown. Rest is integer/flag data.
+    '490b' => Struct('sysctrl_490b',
+        BFloat32('f0'),
+        BFloat32('f1'),
+        Array(56, Byte('reserved')),                             # 8..63
+        BFloat32('f2'),                                          # 64 (55268 — possibly a counter)
+        Array(28, Byte('tail')),                                 # 68..95
+    ),
+
+    # 4a04 — Blower/compressor stage curve. Six float32 values
+    # (1800/2340/3240/3780/4500/4680 — RPM-like) followed by four float32
+    # CFM-like values (904/904/940/940). Pairs of compressor RPM stage points
+    # and their corresponding airflow.
+    '4a04' => Struct('stage_curve',
+        BFloat32('rpm1'), BFloat32('rpm2'), BFloat32('rpm3'),
+        BFloat32('rpm4'), BFloat32('rpm5'), BFloat32('rpm6'),    # 0..23
+        BFloat32('cfm1'), BFloat32('cfm2'), BFloat32('cfm3'), BFloat32('cfm4'),   # 24..39
+        Array(16, Byte('reserved')),                             # 40..55
     ),
 
 };

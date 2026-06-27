@@ -339,39 +339,6 @@ sub _handle_preset {
     $self->{on_set_preset}->($zone, lc($msg)) if $self->{on_set_preset};
 }
 
-# ZC zone sensor wash-in (Phase 0).
-#
-# For each enabled ZC zone, check if a fresh MQTT sensor value exists
-# in the ZC's CHI store. If fresh, feed it to the ZC. If expired or
-# never set, fall back to the primary zone's current temperature from
-# status.json. This ensures zones always report a sane temperature.
-#
-# Called from the existing 60-second recurring timer alongside publish_if_status_changed.
-sub wash_zc_zones {
-    my ($self) = @_;
-    return unless $self->{enabled};
-    return unless $self->{zc};
-
-    my $status = decode_json($self->{store}->get('status.json') || '{}');
-    my $zones  = $status->{status}[0]{zones}[0]{zone} // [];
-
-    # Primary zone (zone 1) real temperature — the fallback target
-    my $primary_rt = _v($zones->[0]{rt});
-    return unless defined $primary_rt && $primary_rt =~ /^[\d.]+$/;
-
-    my $zc_store = $self->{zc}->store;
-    for my $i (1 .. $#$zones) {
-        my $zone = $zones->[$i];
-        my $zid  = $i + 1;
-        next unless lc(_v($zone->{enabled})) eq 'on';
-        next if $zid < 2 || $zid > 4;  # ZC handles zones 2-4
-
-        my $fresh = $zc_store->get("zone_${zid}_temp");
-        my $temp = defined $fresh ? $fresh : $primary_rt;
-        $self->{zc}->update_zone_reading($zid, $temp);
-    }
-}
-
 sub tick {
     my ($self) = @_;
     return unless $self->{enabled};
