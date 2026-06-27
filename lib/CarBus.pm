@@ -19,7 +19,7 @@ has name => (is=>'ro', lazy=>1, default => sub {
     return join('-',ref($_[0]->fh), int(rand()*9999));
 });
 has devices => (is=>'rw',default=>sub{{}});
-has handlers => (is=>'rw', default=>sub{[]});
+has handlers => (is=>'rw', default=>sub{[\&_track_registers]});
 
 use constant MIN_FRAME => 10;
 use constant MAX_FRAME => 266;
@@ -146,24 +146,20 @@ sub samreq {
 
 sub device_names {return [keys %{shift->devices}] }
 
-sub run_handlers {
-    my $self = shift;
-    my $frame = shift;
+# Default handler to track device registers
+sub _track_registers {
+    my ($self, $frame) = @_;
     my $fs = $frame->struct;
     $self->devices->{$fs->{src}}//={} ;
     if ($fs->{payload_hex} ne '00'.($fs->{reg_string}||'')) {
         $self->devices->{$fs->{src}}->{$fs->{reg_string}}//={  payload_hex=>$fs->{payload_hex} } if $fs->{reg_string};
         $self->devices->{$fs->{src}}->{$fs->{reg_string}}->{payload} = $fs->{payload} if $fs->{payload};
     }
+}
 
-    if ($fs->{src} eq 'SAM' and $fs->{cmd} eq 'reply' and $fs->{reg_string} eq '0104') {
-        my $infop = CarBus::Frame::subparser($fs->{reg_string});
-        my $data = { %{$fs->{payload}//{}} };
-        $data->{location} = 'github/nebulous';
-        $data->{model} = 'INFINITUDE01';
-        $data->{software} = 'infinitude';
-        $frame->frame({ payload_raw=>pack("H*","000104").$infop->build($data) });
-    }
+sub run_handlers {
+    my $self = shift;
+    my $frame = shift;
     foreach my $handler (@{ $self->handlers }) {
         $handler->($self, $frame);
     }
@@ -176,22 +172,21 @@ use Moo;
 
 has buslist => (is=>'ro');
 
-use DDP;
-my $c = {};
-
 sub drive {
     my $self = shift;
     my @frames = ();
     foreach my $srcbus (@{$self->buslist}) {
         if (my $frame = $srcbus->get_frame()) {
             push(@frames,$frame);
-            next if exists $srcbus->devices->{ $frame->struct->{src} } and exists $srcbus->devices->{ $frame->struct->{dst} };
+            # Skip forwarding if both src and dst are on the source bus
+            next if exists $srcbus->devices->{ $frame->struct->{src} }
+                and exists $srcbus->devices->{ $frame->struct->{dst} };
             foreach my $dstbus (@{$self->buslist}) {
                 next if $srcbus == $dstbus;
                 my $write = 0;
                 $write ||= 'broadcast' if $frame->struct->{dst} eq 'Broadcast';
                 $write ||= 'device' if $dstbus->devices->{ $frame->struct->{dst} };
-                $write ||= 'new' unless scalar $dstbus->device_names;
+                $write ||= 'new' unless scalar @{$dstbus->device_names};
                 #p $frame->struct if $write;
                 $dstbus->write($frame) if $write;
             }

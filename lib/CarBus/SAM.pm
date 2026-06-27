@@ -1,4 +1,7 @@
 package CarBus::SAM;
+use strict;
+use warnings;
+use feature ':5.10';
 use Moo;
 use Data::ParseBinary;
 use CarBus::Frame;
