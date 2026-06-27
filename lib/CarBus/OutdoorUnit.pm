@@ -201,6 +201,18 @@ CarBus::Frame->add_device_parser('OutdoorUnit', '0608',
     )
 );
 
+# Register 0605 — Commanded compressor stage (4 bytes, write-only)
+#
+# float32 BE at [0..3]: 0.0 = off, 1.0..5.0 = commanded stage. Write-only
+# (thermostat→ODU); the ODU never replies to this register, so it only
+# appears in passive write captures, not poll replies. Drives the actual
+# stage reported on 060e with a ~15s lag.
+CarBus::Frame->add_device_parser('OutdoorUnit', '0605',
+    Struct('odu_commanded_stage',
+        BFloat32('commanded_stage'),
+    )
+);
+
 # Register 060E — Variable-speed stage info (125 bytes)
 #
 # byte 0 = stage index: {0=off, 1..5=stage}. Contiguous integers,
@@ -216,16 +228,18 @@ CarBus::Frame->add_device_parser('OutdoorUnit', '060E',
     )
 );
 
-# Register 060B — Target temperature setpoint
+# Register 060B — Variable target value (write-only, thermostat→ODU)
 #
-# data[4] = target temperature in °F (whole degrees).
-# Preceding bytes are mode/zone context.
+# data[2] = target value, native °F whole degrees. Offset fix: was data[4]
+#           (always 0); data[2] carries the value (verified in InfinitESP).
+#           Range 25-115°F, varies independently of OAT and zone setpoints.
+#           NOT confirmed to be a cooling setpoint — the thermostat does not
+#           tell the ODU an indoor setpoint; likely a refrigerant-loop
+#           coil/discharge control target. Label kept pending further decode.
 CarBus::Frame->add_device_parser('OutdoorUnit', '060B',
     Struct('odu_setpoint',
         Byte('unknown0'),
         Byte('unknown1'),
-        Byte('unknown2'),
-        Byte('unknown3'),
         Byte('setpoint_f'),
     )
 );

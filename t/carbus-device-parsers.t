@@ -171,6 +171,26 @@ subtest 'OutdoorUnit 0608 compressor drive frequency' => sub {
 };
 
 # ============================================================================
+# ODU: Register 0605 — Commanded compressor stage (write-only float32)
+# ============================================================================
+
+subtest 'OutdoorUnit 0605 commanded stage' => sub {
+    my $p = CarBus::Frame::subparser('0605', 'OutdoorUnit');
+    ok($p, 'parser found for OutdoorUnit/0605');
+    is($p->{Name}, 'odu_commanded_stage', 'parser name');
+
+    # float32 BE at [0..3]: 3.0 = 0x40400000
+    my $data = pack("N", unpack("L", pack("f", 3.0)));
+    my $r = $p->parse($data);
+    ok(abs($r->{commanded_stage} - 3.0) < 0.001, 'commanded stage 3.0');
+
+    # off = 0.0
+    $data = pack("N", 0x00000000);
+    $r = $p->parse($data);
+    ok(abs($r->{commanded_stage} - 0.0) < 0.001, 'commanded stage 0.0 (off)');
+};
+
+# ============================================================================
 # ODU: Register 060B — Target setpoint
 # ============================================================================
 
@@ -179,9 +199,10 @@ subtest 'OutdoorUnit 060B setpoint' => sub {
     ok($p, 'parser found for OutdoorUnit/060B');
     is($p->{Name}, 'odu_setpoint', 'parser name');
 
-    my $data = pack("C*", 0x00, 0x00, 0x00, 0x00, 72);
+    # data[2] carries the value (offset fix: was data[4], always 0)
+    my $data = pack("C*", 0x00, 0x00, 72);
     my $r = $p->parse($data);
-    is($r->{setpoint_f}, 72, 'target setpoint 72°F');
+    is($r->{setpoint_f}, 72, 'target value 72°F at byte 2');
 };
 
 # ============================================================================
