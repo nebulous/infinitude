@@ -80,14 +80,24 @@ sub publish_discovery {
 
     for my $i (0 .. $#$zones) {
         my $zone = $zones->[$i];
-        next unless lc(_v($zone->{enabled})) eq 'on';
+        my $zid  = $i + 1;
+        my $disc = $self->_disc('climate', "infinitude_zone_${zid}", 'config');
 
-        my $zid   = $i + 1;
+        # Clear stale retained discovery for any zone that is not currently
+        # enabled. A zero-byte retained message on the config topic tells Home
+        # Assistant to delete the entity; without this, a zone that was ever
+        # enabled (e.g. a now-disabled 4th zone) leaves a ghost climate device
+        # forever, because retained messages never expire on their own.
+        if (lc(_v($zone->{enabled})) ne 'on') {
+            push @topics, $disc => '';
+            next;
+        }
+
         my $name  = _v($zone->{name}) || "Zone $zid";
         my $zbase = $self->_topic('zone', $zid);
 
         push @topics,
-            $self->_disc('climate', "infinitude_zone_${zid}", 'config') =>
+            $disc =>
             _json({
                 unique_id              => "infinitude_zone_${zid}",
                 name                   => $name,
