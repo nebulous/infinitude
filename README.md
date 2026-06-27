@@ -164,3 +164,4 @@ local API options for these systems.
 - [Infinitude Home Assistant Integration](https://github.com/MizterB/homeassistant-infinitude-beyond)
 - [Infinitive project for RS485 control of non-touch thermostats](https://github.com/acd/infinitive)
 - [Anantha modifies thermostat firmware to intercept AWS IoT control traffic](https://github.com/anupcshan/anantha)
+- [ha_carrier - cloud-based Carrier API option](https://github.com/dahlb/ha_carrier)
