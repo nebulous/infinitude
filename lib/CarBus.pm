@@ -1,6 +1,7 @@
 package CarBus;
 use Moo;
 use CarBus::Frame;
+use CarBus::Device;
 use CarBus::SAM;
 use Scalar::Util qw/blessed/;
 use IO::Select;

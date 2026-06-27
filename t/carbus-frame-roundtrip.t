@@ -61,7 +61,7 @@ subtest 'register 0104 device_info round-trip' => sub {
         software  => 'CESR131379-03',
         model     => 'SYSTXCCSAM01',
         serial    => '1009N182206-',
-        reference => '1009N182206-------------',
+        reference => '1009N182206-',
     };
 
     # Build binary from hash
@@ -93,7 +93,7 @@ subtest 'full 0104 reply frame round-trip' => sub {
         software  => 'CESR131379-03',
         model     => 'SYSTXCCSAM01',
         serial    => '1009N182206-',
-        reference => '1009N182206-------------',
+        reference => '1009N182206-',
     };
 
     # Build reply payload: 3-byte prefix + register data
@@ -118,7 +118,7 @@ subtest 'full 0104 reply frame round-trip' => sub {
     is($payload->{device},    'SYSTEM ACCESS MODULE', 'device correct');
     is($payload->{software},  'CESR131379-03',       'software correct');
     is($payload->{serial},    '1009N182206-',        'serial correct');
-    is($payload->{reference}, '1009N182206-------------', 'reference correct (24 bytes)');
+    is($payload->{reference}, '1009N182206-', 'reference correct (12 bytes)');
 
     # Verify round-trip
     is($f->frame_hex, $hex, 'reply frame round-trips');
@@ -139,7 +139,7 @@ subtest 'emulated response format matches real SAM' => sub {
         software  => 'CESR131379-03',
         model     => 'SYSTXCCSAM01',
         serial    => '1009N182206-',
-        reference => '1009N182206-------------',
+        reference => '1009N182206-',
     };
 
     # This is what _handle_read builds:

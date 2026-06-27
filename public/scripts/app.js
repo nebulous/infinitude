@@ -73,6 +73,7 @@
         systemsEdited: null,  // null=never copied, false=clean copy, true=dirty
         selectedZone: 0,
         activeSchedulePeriods: {},  // "zi-di" -> period index or null
+        activeScheduleCopy: null,    // "zi-di" or null
 
         // UI state
         darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -136,7 +137,7 @@
           var act = this.getCurrentActivity(zi);
           if (!act) return;
           var val = parseFloat(act[field][0]) || 0;
-          act[field][0] = (val + delta).toFixed(0);
+          act[field][0] = (val + delta * this.tempStep()).toFixed(this.tempDecimals());
           this.markDirty();
         },
 
@@ -149,28 +150,34 @@
 
         adjustActivitySp: function(activity, field, delta) {
           if (!activity) return;
-          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
-          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
           var val = parseFloat(activity[field][0]) || 0;
-          activity[field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
+          activity[field][0] = (val + delta * this.tempStep()).toFixed(this.tempDecimals());
           this.markDirty();
         },
 
         adjustVacSp: function(field, delta) {
-          var cfgem = this.systemsEdit && this.systemsEdit.config[0].cfgem;
-          var step = (cfgem && cfgem[0] && cfgem[0].toLowerCase() === 'c') ? 0.5 : 1;
           var val = parseFloat(this.systemsEdit.config[0][field][0]) || 0;
-          this.systemsEdit.config[0][field][0] = (val + delta * step).toFixed(step === 0.5 ? 1 : 0);
+          this.systemsEdit.config[0][field][0] = (val + delta * this.tempStep()).toFixed(this.tempDecimals());
           this.markDirty();
         },
 
+        isCelsius: function() {
+          var cfgem = this.status && this.status.cfgem;
+          return cfgem && cfgem[0] === 'C';
+        },
+        tempDecimals: function() { return this.isCelsius() ? 1 : 0; },
+        tempStep:     function() { return this.isCelsius() ? 0.5 : 1; },
+        // Convert raw °F from CarBus to display units. Do NOT use for API values
+        // (status.oat, zone.rt, etc.) which are already in the user's unit.
+        busToDisplay: function(f) { return this.isCelsius() ? (f - 32) * 5 / 9 : f; },
+
         getZoneTemp: function(zone) {
           if (!zone || !zone.rt || typeof zone.rt[0] !== 'string') return '--';
-          return parseFloat(zone.rt[0]).toFixed(0);
+          return parseFloat(zone.rt[0]).toFixed(this.tempDecimals());
         },
 
         fmtSp: function(val) {
-          return parseFloat(val).toFixed(0);
+          return parseFloat(val).toFixed(this.tempDecimals());
         },
 
         isoToLocal: function(iso) {
@@ -281,7 +288,7 @@
 
         // --- Gauge rendering (canvas-gauges) ---
 
-        gaugeTypes: {
+        _gaugeTypes: {
           temperature: {
             cls: 'LinearGauge',
             width: 80, height: 220,
@@ -338,6 +345,19 @@
           }
         },
 
+        gaugeType: function(name) {
+          var t = this._gaugeTypes[name];
+          if (!t) return {};
+          if (name === 'temperature' && this.isCelsius()) {
+            return Object.assign({}, t, {
+              minValue: -1, maxValue: 45,
+              majorTicks: [-1, 5, 10, 15, 20, 25, 30, 35, 40, 45],
+              valueDec: 1
+            });
+          }
+          return t;
+        },
+
         gaugeTheme: function() {
           return this.darkMode
             ? { plateColor: '#1a1a2e', colorPlate: '#1a1a2e', colorMajorTicks: '#aaa', colorMinorTicks: '#555', colorTitle: '#ccc', colorUnits: '#888', colorNumbers: '#aaa', colorValueText: '#eee', colorValueBoxBackground: '#0c1520', colorValueBoxShadow: false, colorNeedle: '#ddd', colorNeedleEnd: '#999', colorBarStroke: '#333' }
@@ -346,7 +366,7 @@
 
         renderGauge: function(el, value, typeName, overrides) {
           if (!el) return;
-          var preset = this.gaugeTypes[typeName] || {};
+          var preset = this.gaugeType(typeName);
           var opts = Object.assign({}, preset, overrides || {}, this.gaugeTheme());
           if (!el._gauge) {
             var canvas = document.createElement('canvas');
@@ -390,8 +410,8 @@
           if (s.zones[0].zone[0].rh)
             this.renderGauge(this.$refs.gaugeHumidity, s.zones[0].zone[0].rh[0], 'percentage', { title:'Humidity' });
           if (s.oat && (s.oat[0] || cb.outsideTemp)) {
-            var oval = cb.outsideTemp || s.oat[0];
-            if (s.cfgem && s.cfgem[0] === 'C') oval = (oval - 32) * 5 / 9;
+            // cb.outsideTemp is raw °F from CarBus; s.oat[0] is from API in user's unit
+            var oval = cb.outsideTemp ? this.busToDisplay(cb.outsideTemp) : s.oat[0];
             this.renderGauge(this.$refs.gaugeOutside, oval, 'temperature', { title:'Outside' });
           }
           if (s.odu && s.odu[0].type[0].includes('proteus'))
@@ -399,7 +419,7 @@
           if (s.idu && s.idu[0].type[0].includes('electric'))
             this.renderGauge(this.$refs.gaugeEHtStage, Number(s.idu[0].opstat[0].replace('off','0').replace('low','1').replace('med','2').replace('high','3')), 'ehStage', { title:'E. Ht. Stage' });
           if (cb.coilTemp)
-            this.renderGauge(this.$refs.gaugeCoil, cb.coilTemp, 'temperature', { title:'Coil' });
+            this.renderGauge(this.$refs.gaugeCoil, this.busToDisplay(cb.coilTemp), 'temperature', { title:'Coil' });
           if (cb.airflowCFM || (s.idu && s.idu[0].cfm[0]))
             this.renderGauge(this.$refs.gaugeAirflow, cb.airflowCFM || s.idu[0].cfm[0], 'cfm', { title:'Airflow', maxValue: Number(this.systems.config[0].systemCFM[0]) });
           if (cb.blowerRPM)
@@ -414,9 +434,9 @@
           if (!this.status || !this.status.zones) return;
           var zone = this.status.zones[0].zone[zi];
           if (!zone || zone.enabled[0] !== 'on') return;
-          this.renderGauge(this.$refs['gaugeZoneInside_' + zi], zone.rt[0], 'temperature', { title:'Inside' });
-          this.renderGauge(this.$refs['gaugeZoneHeat_' + zi], zone.htsp[0], 'temperature', { title:'Heat Setpoint' });
-          this.renderGauge(this.$refs['gaugeZoneCool_' + zi], zone.clsp[0], 'temperature', { title:'Cool Setpoint' });
+          this.renderGauge(this.$refs['gaugeZoneInside_' + zi], Number(zone.rt[0]), 'temperature', { title:'Inside' });
+          this.renderGauge(this.$refs['gaugeZoneHeat_' + zi], Number(zone.htsp[0]), 'temperature', { title:'Heat Setpoint' });
+          this.renderGauge(this.$refs['gaugeZoneCool_' + zi], Number(zone.clsp[0]), 'temperature', { title:'Cool Setpoint' });
           if (this.systems && this.systems.config[0].cfgzoning[0] === 'on' && zone.damperposition)
             this.renderGauge(this.$refs['gaugeZoneDamper_' + zi], zone.damperposition[0], 'damper', { title:'Dmpr. Pos.' });
         },
@@ -633,6 +653,56 @@
             }
           }
           return items;
+        },
+
+        // Sort enabled periods by time ascending, disabled to end, reassign slot IDs.
+        // Optional zi/di to update activeSchedulePeriods index after sort.
+        sortDayPeriods: function(day, zi, di) {
+          if (!day || !day.period || day.period.length === 0) return;
+          var self = this;
+          var key = (zi !== undefined && di !== undefined) ? zi + '-' + di : null;
+          var activeIdx = key ? self.activeSchedulePeriods[key] : null;
+          var activePeriod = (activeIdx != null && activeIdx < day.period.length) ? day.period[activeIdx] : null;
+
+          var sorted = day.period.slice().sort(function(a, b) {
+            var aOn = a.enabled[0] === 'on';
+            var bOn = b.enabled[0] === 'on';
+            if (aOn !== bOn) return aOn ? -1 : 1;
+            if (!aOn) return 0;
+            return self.timeToMinutes(a.time[0]) - self.timeToMinutes(b.time[0]);
+          });
+
+          // Reassign slot IDs to match the new order
+          for (var i = 0; i < sorted.length; i++) {
+            sorted[i].id = [String(i + 1)];
+          }
+
+          day.period = sorted;
+
+          // Track the active period to its new index
+          if (activePeriod) {
+            for (var j = 0; j < day.period.length; j++) {
+              if (day.period[j] === activePeriod) {
+                self.activeSchedulePeriods[key] = j;
+                break;
+              }
+            }
+          }
+        },
+
+        copyScheduleDay: function(zone, sourceDi, targetDi) {
+          if (sourceDi === targetDi) return;
+          var sourceDay = zone.program[0].day[sourceDi];
+          zone.program[0].day[targetDi].period = JSON.parse(JSON.stringify(sourceDay.period));
+          this.sortDayPeriods(zone.program[0].day[targetDi]);
+          this.markDirty();
+        },
+
+        copyScheduleToDays: function(zone, sourceDi, dayIndices) {
+          var self = this;
+          dayIndices.forEach(function(di) {
+            if (di !== sourceDi) self.copyScheduleDay(zone, sourceDi, di);
+          });
         }
       };
     });

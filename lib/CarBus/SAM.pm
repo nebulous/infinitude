@@ -5,21 +5,21 @@ use feature ':5.10';
 use Moo;
 use Data::ParseBinary;
 use CarBus::Frame;
-use CHI;
+use CarBus::Device;
 use Time::HiRes qw(time);
 
-has bus => (is => 'ro', required => 1);
-has store => (is => 'ro', default => sub {
-    CHI->new(driver => 'File', root_dir => 'state/sam-emulator', depth => 0)
-});
-has handlers => (is => 'ro', default => sub { {} });
-has emulated_src => (is => 'ro', default => 'FakeSAM');
+extends 'CarBus::Device';
+
+has '+src_name' => (default => 'FakeSAM');
 
 # Device identity configuration - customize how the emulator identifies itself
 # Set clone_mode => 1 to copy real SAM's device info for exact byte-for-byte comparison
 has clone_mode => (is => 'ro', default => 0);
 has learn_mode => (is => 'ro', default => 0);
 has activity_log => (is => 'rw', default => sub { [] });
+
+# Legacy alias — old code and main app use emulated_src
+has emulated_src => (is => 'ro', default => 'FakeSAM');
 
 # Custom device identity (used when clone_mode is 0)
 # Override these to customize the emulated SAM's identity
@@ -43,41 +43,55 @@ sub set_device_identity {
     $self->set_register('0104', $device_info_parser->build($identity));
 }
 
-# Register storage - backed by CHI store
-sub registers {
-    my $self = shift;
-    return $self->store->get('registers') // {};
-}
+# Override handle_frame to accept both SAM and FakeSAM as dst
+# (main app creates SAM with emulated_src => 'SAM' which may differ from src_name)
+# A SAM emulator must respond to both its configured src_name and the real SAM address.
+around handle_frame => sub {
+    my ($orig, $self, $frame) = @_;
+    my $fs = $frame->struct;
 
-sub set_register {
-    my ($self, $key, $value) = @_;
-    my $regs = $self->registers;
-    $regs->{$key} = $value;
-    $self->store->set('registers', $regs);
-}
+    return unless defined $fs->{dst};
+    return unless $fs->{dst} eq $self->src_name
+                || $fs->{dst} eq $self->emulated_src
+                || $fs->{dst} eq 'SAM'
+                || $fs->{dst} eq 'FakeSAM';
 
-sub get_register {
-    my ($self, $key) = @_;
-    return $self->registers->{$key};
-}
-
-# Learn a register value from observed real SAM traffic
-sub learn_register {
-    my ($self, $reg_key, $raw_data) = @_;
-    $reg_key = lc($reg_key);
-    my $existing = $self->get_register($reg_key);
-    if (!defined $existing) {
-        $self->set_register($reg_key, $raw_data);
-        return 1;  # Learned new register
+    if ($fs->{cmd} eq 'read') {
+        return $self->_handle_read($frame);
     }
-    return 0;  # Already known
-}
+    elsif ($fs->{cmd} eq 'write') {
+        return $self->_handle_write($frame);
+    }
+    return;
+};
 
-# Return list of registers the emulator knows about
-sub known_registers {
-    my ($self) = @_;
-    return [keys %{$self->registers}];
-}
+# Override _reply and _exception_reply to use emulated_src when set differently
+around _reply => sub {
+    my ($orig, $self, $frame, $payload) = @_;
+    my $fs = $frame->struct;
+    return CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => $fs->{dst_bus},
+        dst     => $fs->{src},
+        dst_bus => $fs->{src_bus},
+        cmd     => 'reply',
+        payload_raw => $payload,
+    );
+};
+
+around _exception_reply => sub {
+    my ($orig, $self, $frame, $code) = @_;
+    my $fs = $frame->struct;
+    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
+    return CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => $fs->{dst_bus},
+        dst     => $fs->{src},
+        dst_bus => $fs->{src_bus},
+        cmd     => 'exception',
+        payload_raw => pack("C*", 0, $table, $row, $code),
+    );
+};
 
 # Initialize default register values if store is empty
 sub initialize_defaults {
@@ -104,6 +118,7 @@ sub initialize_defaults {
     # Register 3B02 - System state
     $self->set_register('3b02', $state_parser->build({
         active_zones => 0x01,
+        metric_units => 'english',
         temperature => [(70) x 8],
         humidity => [(50) x 8],
         oat => 70,
@@ -121,7 +136,7 @@ sub initialize_defaults {
     # Register 3B03 - Zone settings
     $self->set_register('3b03', $zones_parser->build({
         active_zones => 0x01,
-        reserved => 0,
+        metric_units => 'english',
         change_flags => {
             override_timer => 0, unknown_bit6 => 0, unknown_bit5 => 0,
             system_mode => 0, cool_setpoint => 0, heat_setpoint => 0,
@@ -145,7 +160,7 @@ sub initialize_defaults {
     my $vacation_parser = CarBus::Frame::subparser('3B04');
     $self->set_register('3b04', $vacation_parser->build({
         active => 0,
-        hours => 0,
+        metric_units => 'english',
         min_temp => 60,
         max_temp => 85,
         min_humidity => 0,
@@ -156,6 +171,8 @@ sub initialize_defaults {
     # Register 3B05 - Accessory life and reminders (default: all new/reset)
     my $accessories_parser = CarBus::Frame::subparser('3B05');
     $self->set_register('3b05', $accessories_parser->build({
+        active => 0,
+        metric_units => 'english',
         filter_consumption => 0,
         uv_consumption => 0,
         humidifier_consumption => 0,
@@ -167,18 +184,23 @@ sub initialize_defaults {
     }));
 
     # Register 3B06 - Dealer info and configuration
+    # NOTE: metric_units defaults to english (0). See the 3B06 parser comment —
+    # the unit flag is data[1] (with a mirror at data[10]); the old 'temp_units'
+    # field name was a wrong decode (that byte is 0xFF on Touch).
     my $dealer_parser = CarBus::Frame::subparser('3B06');
     $self->set_register('3b06', $dealer_parser->build({
         backlight => 8,
-        auto_mode => 1,
+        metric_units => 'english',
         unknown1 => 0,
         deadband => 3,
         cycles_per_hour => 4,
         schedule_periods => 4,
         programs_enabled => 1,
-        temp_units => ord('F'),
         unknown2 => 0xFF,
-        unknown_padding => [1, 0, 0],
+        unknown3 => 0xFF,
+        programs_enabled_2 => 1,
+        metric_units_2 => 'english',
+        unknown4 => 0,
         dealer_name => "infinitude\0\0\0\0\0\0\0\0\0\0",
         dealer_phone => "\0" x 20,
     }));
@@ -224,7 +246,9 @@ sub initialize_defaults {
 # Direct CarBus writes to SAM registers do NOT trigger this notification flow.
 # The SAM may store the value but does not notify the thermostat.
 
-# Register SAM parsers with Frame.pm on module load
+# Register SAM parsers — registered globally via add_parser.
+# SAM registers (3Bxx, 030D) don't collide with other devices today.
+# Future: migrate to add_device_parser('FakeSAM', ...) if needed.
 
 # 0104 - Device info register (read-only, 120 bytes)
 # Standard device identification: device name, software version, model, serial
@@ -248,7 +272,13 @@ CarBus::Frame->add_parser('030D', Struct('sam_status',
 # Note: On Touch controls, unoccupied maps to AWAY state in "hold permanent"
 CarBus::Frame->add_parser('3B02', Struct('sam_state',
     Byte('active_zones'),
-    Padding(2),
+    # data offset 1 = the thermostat's display-unit flag, common to every
+    # table-0x3B register. 0=English(°F), 1=Metric(°C). Verified live 2026-06-26:
+    # flips within ~1-4s of a CFGEM!M/E set or a thermostat UI unit toggle,
+    # consistent across 3 transitions on an Infinity Touch. NOTE: the
+    # temperature/humidity/setpoint arrays below are encoded in THIS unit.
+    Enum(Byte('metric_units'), english=>0, metric=>1),
+    Padding(1),
     Array(8, Byte('temperature')),       # Room temp per zone (F or C based on units)
     Array(8, Byte('humidity')),          # Room humidity per zone (max 99%)
     Padding(1),
@@ -273,7 +303,8 @@ CarBus::Frame->add_parser('3B02', Struct('sam_state',
 #
 # Bytes 0-2 header (same meaning in both directions):
 #   byte 0: active_zones bitmask (read: which zones are active; write: which zones to apply)
-#   byte 1: reserved (always 0x00 observed)
+#   byte 1: metric_units flag (0=English/°F, 1=Metric/°C) — common to all table-0x3B
+#           registers; verified live 2026-06-26. Setpoints below are in THIS unit.
 #   byte 2: change_flags bitmask (read: 0x00 = no pending changes;
 #           write: which fields changed — 0x01=fan, 0x02=hold, 0x04=heat,
 #           0x08=cool, 0x10=mode)
@@ -283,7 +314,7 @@ CarBus::Frame->add_parser('3B02', Struct('sam_state',
 # Total: 3 + 8 + 1 + 8 + 8 + 8 + 1 + 1 + 16 + 96 = 150 bytes
 CarBus::Frame->add_parser('3B03', Struct('sam_zones',
     Byte('active_zones'),
-    Byte('reserved'),
+    Enum(Byte('metric_units'), english=>0, metric=>1),
     BitStruct('change_flags',
         Flag('override_timer'),     # 0x80 hold_duration timer set/cancel
         Flag('unknown_bit6'),       # 0x40
@@ -313,10 +344,17 @@ CarBus::Frame->add_parser('3B03', Struct('sam_zones',
 # Vacation humidity valid values:
 #   Legacy: min=0,10,15,20; max=55,60,65,100(NONE)
 #   Touch:  min=0(NONE),5,10,15,20,25,30,35,40,45; max=50,55,60,65,100(NONE)
+# Layout verified 2026-06-26 from a live read: data[1] is the metric_units flag
+# (common to all table-0x3B registers), NOT the high byte of 'hours' as the old
+# parser assumed. min_temp/max_temp are at offsets 5/6 (°F or °C per the flag);
+# the prior parser read them at 3/4, off by two. The hours field and the zero
+# bytes around it need a non-active vacation to fully constrain — left as best
+# current decode; vacation was inactive during verification (hours region all 0x00).
 CarBus::Frame->add_parser('3B04', Struct('sam_vacation',
     Byte('active'),
-    UBInt16('hours'),                    # Duration in hours (max 8760 = 365 days)
-    Byte('min_temp'),                    # Min vacation temperature
+    Enum(Byte('metric_units'), english=>0, metric=>1),
+    Padding(3),                         # zeros observed; hours live somewhere here
+    Byte('min_temp'),                    # Min vacation temperature (F or C per metric_units)
     Byte('max_temp'),                    # Max vacation temperature
     Byte('min_humidity'),                # Min vacation humidity (0 = NONE)
     Byte('max_humidity'),                # Max vacation humidity (100 = NONE)
@@ -326,8 +364,12 @@ CarBus::Frame->add_parser('3B04', Struct('sam_vacation',
 # 3B05 - Accessory life and reminders register (read-only)
 # Contains consumption percentages and reminder flags for accessories
 # Values are 0-100% consumption (0 = new/reset, 100 = replace)
+# data[1] is the metric_units flag common to all table-0x3B registers (verified
+# 2026-06-26); the remaining two header bytes are zeros.
 CarBus::Frame->add_parser('3B05', Struct('sam_accessories',
-    Padding(3),
+    Byte('active'),
+    Enum(Byte('metric_units'), english=>0, metric=>1),
+    Padding(1),
     Byte('filter_consumption'),          # Filter life used % (reset with !0)
     Byte('uv_consumption'),              # UV lamp life used % (reset with !0)
     Byte('humidifier_consumption'),      # Humidifier pad life used % (reset with !0)
@@ -343,18 +385,26 @@ CarBus::Frame->add_parser('3B05', Struct('sam_accessories',
 # Touch-specific: CFGAUTO, CFGDEAD, CFGCPH set commands return NAK.
 # Touch backlight: ON=level>=3, OFF=level<=2; Set ON->Level8, OFF->Level2.
 # dealer_name/dealer_phone: max 18 chars each (Touch: set via online/USB only).
-# temp_units: Query returns F(0x46)/C(0x43), Set uses E(English)/M(Metric).
+#
+# Unit flag CORRECTION (verified live 2026-06-26): the display-unit flag is at
+# data[1] (Enum 0=English/°F, 1=Metric/°C), common to all table-0x3B registers,
+# with a mirror at data[10]. The prior decode named data[1] 'auto_mode' and
+# claimed data[7] was 'temp_units' (F=0x46/C=0x43) — WRONG: data[7] is 0xFF in
+# both states on Touch. The F=0x46/C=0x43 ASCII codes appear only on the SAM's
+# RS-232 ASCII port (S1CFGEM?), not in this register. ASCII set uses E/M.
 CarBus::Frame->add_parser('3B06', Struct('sam_dealer',
-    Byte('backlight'),          # Touch: ON=level>=3, OFF=level<=2
-    Byte('auto_mode'),          # Touch: set returns NAK
+    Byte('backlight'),          # 0xFF observed; Touch: ON=level>=3, OFF=level<=2
+    Enum(Byte('metric_units'), english=>0, metric=>1),   # display unit flag (data[1])
     Byte('unknown1'),           # Always 0x00
     Byte('deadband'),           # 0-6 (Touch: set returns NAK)
     Byte('cycles_per_hour'),    # 2-6 (Touch: set returns NAK)
     Byte('schedule_periods'),   # 2 or 4 (Touch: set returns NAK)
     Byte('programs_enabled'),   # Touch: set returns NAK
-    Byte('temp_units'),         # F=0x46, C=0x43
-    Byte('unknown2'),           # 0xFF observed
-    Array(3, Byte('unknown_padding')),  # 01 00 00 observed
+    Byte('unknown2'),           # 0xFF observed (was wrongly labeled 'temp_units')
+    Byte('unknown3'),           # 0xFF observed
+    Byte('programs_enabled_2'), # 0x01 observed
+    Enum(Byte('metric_units_2'), english=>0, metric=>1), # mirror of data[1] flag (data[10])
+    Byte('unknown4'),           # 0x00 observed
     Field('dealer_name', 20),   # NUL-padded, max 18 chars (Touch: NAK)
     Field('dealer_phone', 20),  # NUL-padded, max 18 chars (Touch: NAK)
 ));
@@ -382,108 +432,16 @@ CarBus::Frame->add_parser('0420', Struct('sam_sync',
     Array(20, Byte('data')),  # All zeros observed
 ));
 
-# Set up callback handlers for emulation
-sub on_read {
-    my ($self, $reg, $handler) = @_;
-    $self->handlers->{$reg}->{read} = $handler;
-}
-
-sub on_write {
-    my ($self, $reg, $handler) = @_;
-    $self->handlers->{$reg}->{write} = $handler;
-}
-
-# Handle incoming frame addressed to SAM
-sub handle_frame {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-
-    unless (defined $fs->{dst} && ($fs->{dst} eq 'SAM' || $fs->{dst} eq 'FakeSAM')) {
-        return;
-    }
-
-    if ($fs->{cmd} eq 'read') {
-        return $self->_handle_read($frame);
-    }
-    elsif ($fs->{cmd} eq 'write') {
-        return $self->_handle_write($frame);
-    }
-    return;
-}
-
-sub _handle_read {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
-
-    my $handler = $self->handlers->{$reg_key}->{read};
-    my $data = $handler ? $handler->() : $self->get_register($reg_key);
-
-    if (defined $data) {
-        return CarBus::Frame->new(
-            src     => $self->emulated_src,
-            src_bus => $fs->{dst_bus},
-            dst     => $fs->{src},
-            dst_bus => $fs->{src_bus},
-            cmd     => 'reply',
-            payload_raw => pack("C*", 0, $table, $row) . $data,
-        );
-    }
-
-    return $self->_exception_reply($frame, 0x04);
-}
-
-sub _handle_write {
-    my ($self, $frame) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    my $value = substr($fs->{payload_raw}, 3);
-    my $reg_key = lc(sprintf("%02X%02X", $table, $row));
-
-    my $handler = $self->handlers->{$reg_key}->{write};
-    if ($handler) {
-        $handler->($value);
-    } else {
-        $self->set_register($reg_key, $value);
-    }
-
-    # Send ack reply
-    return CarBus::Frame->new(
-        src     => $self->emulated_src,
-        src_bus => $fs->{dst_bus},
-        dst     => $fs->{src},
-        dst_bus => $fs->{src_bus},
-        cmd     => 'reply',
-        payload_raw => $fs->{payload_raw},
-    );
-}
-
-sub _exception_reply {
-    my ($self, $frame, $code) = @_;
-    my $fs = $frame->struct;
-    my ($reserved, $table, $row) = unpack("C*", substr($fs->{payload_raw}, 0, 3));
-    return CarBus::Frame->new(
-        src     => $self->emulated_src,
-        src_bus => $fs->{dst_bus},
-        dst     => $fs->{src},
-        dst_bus => $fs->{src_bus},
-        cmd     => 'exception',
-        payload_raw => pack("C*", 0, $table, $row, $code),
-    );
-}
-
-# Convenience: read from thermostat
+# Convenience: read from thermostat (legacy API)
 sub read_thermostat {
     my ($self, $table, $row) = @_;
-    return $self->bus->read_register('Thermostat', $table, $row, {src => $self->emulated_src});
+    return $self->read_device('Thermostat', $table, $row);
 }
 
-# Convenience: write to thermostat
+# Convenience: write to thermostat (legacy API)
 sub write_thermostat {
     my ($self, $table, $row, $value) = @_;
-    my $frame = $self->bus->write_register('Thermostat', $table, $row, $value, {src => $self->emulated_src});
-    return $frame;
+    return $self->write_device('Thermostat', $table, $row, $value);
 }
 
 # Domain method: set heat and cool setpoints for a zone
@@ -515,7 +473,7 @@ sub _int_to_change_flags {
 # Shared read-modify-write for register 3B03.
 # $flags = bitmask of what changed, $mutate = sub { my ($parsed, $idx) = @_; ... }
 sub _write_3b03 {
-    my ($self, $flags, $mutate) = @_;
+    my ($self, $zone, $flags, $mutate) = @_;
     return unless $flags;
 
     my $data = $self->get_register('3b03');
@@ -528,7 +486,9 @@ sub _write_3b03 {
     $mutate->($parsed);
 
     # Set write-mode values for the 3-byte header
-    $parsed->{active_zones} = 0;
+    # active_zones is a zero-based zone index (not a bitmask).
+    # Real SAM sends zone-1: 0x00, zone-2: 0x01, zone-4: 0x03.
+    $parsed->{active_zones} = $zone - 1;
     $parsed->{reserved} = 0;
     $parsed->{change_flags} = $self->_int_to_change_flags($flags);
 
@@ -561,7 +521,7 @@ sub set_zone_setpoint {
     $flags |= 0x08 if defined $cool_sp;
 
     my $idx = $zone - 1;
-    return $self->_write_3b03($flags, sub {
+    return $self->_write_3b03($zone, $flags, sub {
         my ($parsed) = @_;
         $parsed->{heat_setpoint}[$idx] = $heat_sp if defined $heat_sp;
         $parsed->{cool_setpoint}[$idx] = $cool_sp if defined $cool_sp;
@@ -577,7 +537,7 @@ sub set_zone_fan {
     $fan_mode = $fan_map{lc($fan_mode)} // lc($fan_mode);
 
     my $idx = $zone - 1;
-    return $self->_write_3b03(0x01, sub {
+    return $self->_write_3b03($zone, 0x01, sub {
         my ($parsed) = @_;
         $parsed->{fan_mode}[$idx] = $fan_mode;
     });
@@ -592,7 +552,7 @@ sub set_zone_hold {
     $duration //= 0;
 
     my $idx = $zone - 1;
-    return $self->_write_3b03(0x80, sub {
+    return $self->_write_3b03($zone, 0x80, sub {
         my ($parsed) = @_;
         $parsed->{hold_duration}[$idx] = $duration;
     });

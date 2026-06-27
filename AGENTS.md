@@ -1,5 +1,3 @@
-# CLAUDE.md
-
 ## Project Overview
 
 Infinitude is an alternative web service for Carrier Infinity Touch and compatible thermostats. It provides local control bypassing Carrier's cloud services, allowing direct web-based control of:
@@ -11,7 +9,7 @@ Infinitude is an alternative web service for Carrier Infinity Touch and compatib
 
 Infinitude also optionally monitors and writes to the Carrier/Bryant RS485 (ABCD) bus to obtain higher resolution access to thermostat, air handler, heat pump, and other device registers. Serial data can be monitored via an attached serial port or networked serial bridge.
 
-**Important:** Infinitude is not compatible with thermostat firmware versions newer than 4.05.
+**Important:** Infinitude is not compatible with all thermostat firmware versions. See the [Compatibility Matrix](https://github.com/nebulous/infinitude/wiki/Infinitude-Compatibility-Matrix) for known-working combinations.
 
 ## Architecture
 
@@ -201,6 +199,36 @@ State is published on mutations and on a periodic timer. Commands are received v
 - ASCII protocol documented in `docs/SAM-ASCII-Protocol.md`
 - Use `lib/samterm` for interactive SAM ASCII terminal
 - SAM emulation (`EMULATE_SAM=1`) enables RS485 bus writes — experimental, use at your own risk
+
+### Bus Temperature Encodings
+
+All temperatures on the bus use one of four encodings. The `cfgem` setting (F/C) determines which unit path applies — some registers change encoding with the unit setting, others don't.
+
+**1. Bus temperature registers** (3B02 rt, oat, SAM temperature bytes)
+
+- °F mode: raw byte = whole °F (e.g. 72 = 72°F)
+- °C mode: unknown — could be whole °C or half-degree °C (single-byte field, unverified in C mode)
+
+**2. Comfort profile setpoints** (register 400A / 3B0A heat/cool bytes)
+
+- °F mode: raw byte = whole °F
+- °C mode: raw byte = half-degrees °C (e.g. 44 = 22.0°C, 45 = 22.5°C)
+
+Key asymmetry: comfort profiles use half-degree °C while active setpoints (below) use whole °C. Comfort profiles have finer resolution.
+
+**3. Active setpoint registers** (3B03/3B04 heat/cool setpoints)
+
+- °F mode: raw byte = whole °F
+- °C mode: raw byte = whole °C
+
+**4. Zone sensor / absolute temperature registers** (ZC 0302, ODU 0302, IDU 0306)
+
+- Always uint16 BE expressed as 16ths of a degree F, regardless of `cfgem` setting
+- Does NOT change with F/C mode: `°F = value / 16`
+
+**5. IEEE 754 float32 BE** (ODU register 061F only)
+
+- Superheat/subcooling delta temperatures (°F). Rare, diagnostic registers only.
 
 ## Related Projects
 

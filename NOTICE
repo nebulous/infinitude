@@ -1,0 +1,12 @@
+NOTICE
+
+This software communicates with and may control HVAC equipment. Improper use
+could result in property damage, equipment damage, or hazardous conditions
+including but not limited to frozen pipes, overheating, or loss of heating or
+cooling. This software is experimental and not fit for use as a replacement for
+OEM hardware in critical applications. The authors make no representation that
+this software is safe for any particular purpose. Use is entirely at your own
+risk.
+
+This notice is provided in addition to, not as a modification of, the MIT
+license under which this software is distributed.
