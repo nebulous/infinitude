@@ -78,7 +78,12 @@ has device_identity => (is => 'rw', default => sub {
     });
 });
 
-# Static system values from captures (0x14=20, 0x1c=28) — never change
+# Default values for the LAT (0x14) and HPT (0x1C) thermistor entries that
+# follow the four zone entries in register 0302. These are live thermistor
+# feeds on a real Zone Controller (leaving-air and HPT sensor ports,
+# verified by hooking thermistors to the ports and reading them back on the
+# thermostat's Furnace Status page). The emulator holds them constant at
+# the captured values; they are not static configuration.
 has system_values => (is => 'ro', default => sub { [0x14, 0x1c] });
 
 # Damper positions per zone (1-4). 0x0F = open, 0x00 = closed.
