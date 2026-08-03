@@ -126,14 +126,14 @@
       .schedule-day { margin-bottom: 0.6rem; }
       .schedule-day-row { display: flex; align-items: center; gap: 0.5rem; }
       .schedule-day-label { width: 5.5rem; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--h-muted); flex-shrink: 0; padding: 0.35rem 0; text-align: right; white-space: nowrap; }
-      .schedule-bar { flex: 1; height: 2.2rem; background: var(--h-card); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid var(--h-border); }
+      .schedule-bar { flex: 1; height: 2.7rem; background: var(--h-card); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid var(--h-border); }
       .schedule-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--h-border); opacity: 0.5; }
       .schedule-block {
         position: absolute; top: 3px; bottom: 3px; border-radius: 5px;
         display: flex; align-items: center; justify-content: center;
         opacity: 0.85; transition: opacity 0.15s; cursor: pointer;
-        font-size: 0.68rem; font-weight: 600; text-transform: capitalize;
-        color: #fff; overflow: hidden; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+        font-size: 0.82rem; font-weight: 700; text-transform: capitalize;
+        color: #fff; overflow: hidden; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,0.55);
       }
       .schedule-block:hover { opacity: 1; }
       .schedule-block-wake { background: #d4952a; }
@@ -141,6 +141,16 @@
       .schedule-block-home { background: #4a9e5f; }
       .schedule-block-sleep { background: #5b6abf; }
       .schedule-block-active { opacity: 1; outline: 2px solid #fff; outline-offset: -2px; }
+      /* Dark chip behind the setpoint numbers so they stay legible regardless
+         of the block's own color (plain heat/cool text colors would blend
+         into the Wake/Sleep block backgrounds, which are close to the same
+         hue). */
+      .schedule-block-sp {
+        margin-left: 0.35em; font-weight: 700; text-shadow: none;
+        background: rgba(0,0,0,0.38); padding: 0.05em 0.4em; border-radius: 4px;
+      }
+      .schedule-block-sp .sp-heat { color: #ffcb8a; }
+      .schedule-block-sp .sp-cool { color: #a9e0ff; }
       .schedule-add-btn {
         flex-shrink: 0; width: 28px; height: 28px;
         border-radius: 50%; border: 1px solid var(--h-border);
@@ -953,8 +963,14 @@
                         <template x-for="(item, ii) in scheduleItems(day, rangeStart)" :key="item.index">
                           <div :class="['schedule-block', 'schedule-block-' + item.activity, {'schedule-block-active': activeSchedulePeriods[zi + '-' + di] === item.index}]"
                                :style="'left:' + item.left + '%;width:' + item.width + '%'"
-                               @click="activeSchedulePeriods[zi + '-' + di] = activeSchedulePeriods[zi + '-' + di] === item.index ? null : item.index"
-                               x-text="item.activity"></div>
+                               @click="activeSchedulePeriods[zi + '-' + di] = activeSchedulePeriods[zi + '-' + di] === item.index ? null : item.index">
+                            <span x-text="item.activity"></span>
+                            <template x-if="zoneActivitySp(zone, item.activity)">
+                              <span class="schedule-block-sp">
+                                <span class="sp-heat" x-text="zoneActivitySp(zone, item.activity).htsp"></span>/<span class="sp-cool" x-text="zoneActivitySp(zone, item.activity).clsp"></span>
+                              </span>
+                            </template>
+                          </div>
                         </template>
                       </div>
                       <button x-show="firstDisabledPeriod(day) !== null"
