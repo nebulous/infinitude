@@ -368,6 +368,7 @@
           if (!el) return;
           var preset = this.gaugeType(typeName);
           var opts = Object.assign({}, preset, overrides || {}, this.gaugeTheme());
+          var val = Number(value) || 0;
           if (!el._gauge) {
             var canvas = document.createElement('canvas');
             el.appendChild(canvas);
@@ -383,13 +384,17 @@
               valueDec: 0,
               animateOnInit: true,
               animationDuration: 500,
-              animationRule: 'linear'
+              animationRule: 'linear',
+              value: val
             }, opts)).draw();
           } else {
-            Object.assign(el._gauge.options, opts);
-            el._gauge.update();
+            // Pass value together with the other options in one update() call —
+            // a bare update() with no value resets the gauge to its default,
+            // and a separate el._gauge.value assignment afterward doesn't
+            // reliably repaint on an already-drawn gauge.
+            Object.assign(el._gauge.options, opts, { value: val });
+            el._gauge.update({ value: val });
           }
-          el._gauge.value = Number(value) || 0;
         },
 
         rebuildGauges: function() {
@@ -428,17 +433,6 @@
             this.renderGauge(this.$refs.gaugeFilter, s.filtrlvl[0], 'percentage', { title:'Fltr. Usage' });
           if (this.systems && this.systems.config[0].cfgvent[0] && s.ventlvl)
             this.renderGauge(this.$refs.gaugeVent, s.ventlvl[0], 'percentage', { title:'Vent. Usage' });
-        },
-
-        renderZoneGauges: function(zi) {
-          if (!this.status || !this.status.zones) return;
-          var zone = this.status.zones[0].zone[zi];
-          if (!zone || zone.enabled[0] !== 'on') return;
-          this.renderGauge(this.$refs['gaugeZoneInside_' + zi], Number(zone.rt[0]), 'temperature', { title:'Inside' });
-          this.renderGauge(this.$refs['gaugeZoneHeat_' + zi], Number(zone.htsp[0]), 'temperature', { title:'Heat Setpoint' });
-          this.renderGauge(this.$refs['gaugeZoneCool_' + zi], Number(zone.clsp[0]), 'temperature', { title:'Cool Setpoint' });
-          if (this.systems && this.systems.config[0].cfgzoning[0] === 'on' && zone.damperposition)
-            this.renderGauge(this.$refs['gaugeZoneDamper_' + zi], zone.damperposition[0], 'damper', { title:'Dmpr. Pos.' });
         },
 
         // --- Serial / WebSocket ---

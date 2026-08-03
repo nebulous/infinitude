@@ -476,18 +476,18 @@
             <template x-for="(zone, zi) in status.zones[0].zone" :key="zi">
               <div x-show="zone.enabled[0] === 'on'" @click="selectZone(zone.id - 1)">
                 <h4 x-text="zone.name[0]"></h4>
-                <div class="row align-items-end text-center" x-effect="renderZoneGauges(zi)">
+                <div class="row align-items-end text-center">
                   <div class="col-6 col-sm-4 col-md-2">
-                    <div :x-ref="'gaugeZoneInside_' + zi" class="dg-linear"></div>
+                    <div class="dg-linear" x-effect="renderGauge($el, Number(zone.rt[0]), 'temperature', { title:'Inside' })"></div>
                   </div>
                   <div class="col-6 col-sm-4 col-md-2">
-                    <div :x-ref="'gaugeZoneHeat_' + zi" class="dg-linear"></div>
+                    <div class="dg-linear" x-effect="renderGauge($el, Number(zone.htsp[0]), 'temperature', { title:'Heat Setpoint' })"></div>
                   </div>
                   <div class="col-6 col-sm-4 col-md-2">
-                    <div :x-ref="'gaugeZoneCool_' + zi" class="dg-linear"></div>
+                    <div class="dg-linear" x-effect="renderGauge($el, Number(zone.clsp[0]), 'temperature', { title:'Cool Setpoint' })"></div>
                   </div>
                   <div class="col-6 col-sm-4 col-md-2" x-show="systems && systems.config[0].cfgzoning[0] === 'on'">
-                    <div :x-ref="'gaugeZoneDamper_' + zi"></div>
+                    <div x-effect="zone.damperposition && renderGauge($el, zone.damperposition[0], 'damper', { title:'Dmpr. Pos.' })"></div>
                   </div>
                 </div>
               </div>
