@@ -655,6 +655,15 @@
           return items;
         },
 
+        // Heat/cool setpoints for a zone's named activity (e.g. 'home'), for
+        // display on the Schedules page.
+        zoneActivitySp: function(zone, activityId) {
+          if (!zone || !zone.activities || !zone.activities[0]) return null;
+          var act = zone.activities[0].activity.find(function(a) { return a.id === activityId; });
+          if (!act) return null;
+          return { htsp: this.fmtSp(act.htsp[0]), clsp: this.fmtSp(act.clsp[0]) };
+        },
+
         // Sort enabled periods by time ascending, disabled to end, reassign slot IDs.
         // Optional zi/di to update activeSchedulePeriods index after sort.
         sortDayPeriods: function(day, zi, di) {
