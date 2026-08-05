@@ -156,11 +156,16 @@ sub initialize_defaults {
         zone_name => [map { "Zone $_\0" . ("\0" x (12 - length("Zone $_") - 1)) } 1..8],
     }));
 
-    # Register 3B04 - Vacation settings (default: vacation off)
+    # Register 3B04 - Vacation settings. The thermostat never reads 3B04 from
+    # the SAM (confirmed by snoop), so this seed only shapes how a passive
+    # monitor decodes an emulator-served reply. Real vacation control propagates
+    # via change-frame pushes (see set_vacation_*).
     my $vacation_parser = CarBus::Frame::subparser('3B04');
     $self->set_register('3b04', $vacation_parser->build({
-        active => 0,
+        header => 0xFF,
         metric_units => 'english',
+        change_flags => 0,
+        hours => 0,
         min_temp => 60,
         max_temp => 85,
         min_humidity => 0,
@@ -339,26 +344,35 @@ CarBus::Frame->add_parser('3B03', Struct('sam_zones',
     Array(8, Field('zone_name', 12))     # 11 chars max + NUL terminator
 ));
 
-# 3B04 - Vacation settings register (read-write)
-# Max vacation: 365 days (8760 hours)
-# Vacation humidity valid values:
-#   Legacy: min=0,10,15,20; max=55,60,65,100(NONE)
-#   Touch:  min=0(NONE),5,10,15,20,25,30,35,40,45; max=50,55,60,65,100(NONE)
-# Layout verified 2026-06-26 from a live read: data[1] is the metric_units flag
-# (common to all table-0x3B registers), NOT the high byte of 'hours' as the old
-# parser assumed. min_temp/max_temp are at offsets 5/6 (°F or °C per the flag);
-# the prior parser read them at 3/4, off by two. The hours field and the zero
-# bytes around it need a non-active vacation to fully constrain — left as best
-# current decode; vacation was inactive during verification (hours region all 0x00).
+# 3B04 - Vacation settings register (11 data bytes).
+# Layout verified from two independent sources:
+#   1. InfinitESP live-verified write-frame decode (real SAM bridged to the bus).
+#   2. Infinitude's own bus captures (20260626): two read-replies carrying
+#      recognizable setpoint pairs (56/78 F and 14/26 C) at offsets 6/7, which
+#      only fit this layout, not the prior min_temp@5/max_temp@6 guess.
+# The thermostat NEVER reads 3B04 from the SAM (confirmed by snoop), so this
+# parser shapes how a passive monitor decodes an emulator-served reply; it does
+# not by itself propagate vacation config. Propagation is via change-frame
+# pushes (see set_vacation_* below): data[2] is a bitmask of which fields the
+# frame carries, and only flagged bytes apply (the rest are 0xFF).
+#   data[2] bit 0x02 -> hours remaining, uint16 BE at data[4..5]
+#   data[2] bit 0x04 -> min_temp at data[6]
+#   data[2] bit 0x08 -> max_temp at data[7]
+#   data[2] bit 0x10 -> min_humidity at data[8]   (pattern-implied)
+#   data[2] bit 0x20 -> max_humidity at data[9]   (pattern-implied)
+#   data[2] bit 0x40 -> fan mode at data[10]
+# Vacation is "active" when hours > 0; there is no separate active flag.
 CarBus::Frame->add_parser('3B04', Struct('sam_vacation',
-    Byte('active'),
-    Enum(Byte('metric_units'), english=>0, metric=>1),
-    Padding(3),                         # zeros observed; hours live somewhere here
-    Byte('min_temp'),                    # Min vacation temperature (F or C per metric_units)
-    Byte('max_temp'),                    # Max vacation temperature
-    Byte('min_humidity'),                # Min vacation humidity (0 = NONE)
-    Byte('max_humidity'),                # Max vacation humidity (100 = NONE)
-    Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0 )
+    Byte('header'),                                    # 0: 0xFF on read, 0 on write header
+    Enum(Byte('metric_units'), english=>0, metric=>1),  # 1: shared 0x3B display-unit flag
+    Byte('change_flags'),                              # 2: write bitmask (see above); 0 on read
+    Padding(1),                                        # 3: 0x00 observed
+    UBInt16('hours'),                                  # 4..5: hours remaining (big-endian)
+    Byte('min_temp'),                                  # 6: degF or degC per metric_units
+    Byte('max_temp'),                                  # 7
+    Byte('min_humidity'),                              # 8: 0 = NONE
+    Byte('max_humidity'),                              # 9: 100 = NONE
+    Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0)  # 10
 ));
 
 # 3B05 - Accessory life and reminders register (read-only)
@@ -556,6 +570,86 @@ sub set_zone_hold {
         my ($parsed) = @_;
         $parsed->{hold_duration}[$idx] = $duration;
     });
+}
+
+# --- Vacation (SAM 3B04) domain methods ---
+# Each setter updates the cached 3B04 register (read-format, for monitor
+# coherence) AND pushes a 3B04 change-frame to the thermostat so the change
+# propagates to the enforced vacation setpoints/fan. Deciphered from a real
+# SAM bridged to the live bus (InfinitESP) and corroborated by Infinitude's
+# own bus captures (20260626). The thermostat never reads 3B04 from the SAM.
+
+# Push a 3B04 change-frame: data[2]=flag, data[$off]=$val, other bytes 0xFF.
+# @fields is a list of [offset, value] pairs (hours uses two).
+sub _push_vacation_frame {
+    my ($self, $flag, @fields) = @_;
+    my @data = (0xFF) x 11;
+    @data[0, 1] = (0, 0);
+    $data[2] = $flag;
+    $data[ $_->[0] ] = $_->[1] for @fields;
+
+    my $frame = CarBus::Frame->new(
+        src     => $self->emulated_src,
+        src_bus => 1,
+        dst     => 'Thermostat',
+        dst_bus => 1,
+        cmd     => 'write',
+        payload_raw => pack("C*", 0, 0x3B, 0x04) . pack("C*", @data),
+    );
+    $self->bus->write($frame);
+}
+
+# Read-modify-write the cached 3B04 in read-format.
+sub _update_vacation_cache {
+    my ($self, $mutate) = @_;
+    my $data = $self->get_register('3b04');
+    return unless $data;
+    my $parser = CarBus::Frame::subparser('3B04');
+    my $parsed = $parser->parse($data);
+    $mutate->($parsed);
+    $self->set_register('3b04', $parser->build($parsed));
+}
+
+# $days 0..365; 0 ends vacation.
+sub set_vacation_days {
+    my ($self, $days) = @_;
+    $days = 0 if $days < 0;
+    $days = 365 if $days > 365;
+    my $hours = int($days * 24);
+    $self->_update_vacation_cache(sub { $_[0]->{hours} = $hours });
+    # flag 0x02 -> hours BE at data[4..5]
+    $self->_push_vacation_frame(0x02, [4, ($hours >> 8) & 0xFF], [5, $hours & 0xFF]);
+}
+
+# $which = 'min' or 'max'; $temp in the bus display unit.
+sub set_vacation_temp {
+    my ($self, $which, $temp) = @_;
+    my ($flag, $offset, $field) = $which eq 'min'
+        ? (0x04, 6, 'min_temp')
+        : (0x08, 7, 'max_temp');
+    $self->_update_vacation_cache(sub { $_[0]->{$field} = $temp });
+    $self->_push_vacation_frame($flag, [$offset, $temp]);
+}
+
+# $which = 'min' or 'max'; $value 0..100 (0 = NONE min, 100 = NONE max).
+sub set_vacation_humidity {
+    my ($self, $which, $value) = @_;
+    my ($flag, $offset, $field) = $which eq 'min'
+        ? (0x10, 8, 'min_humidity')
+        : (0x20, 9, 'max_humidity');
+    $self->_update_vacation_cache(sub { $_[0]->{$field} = $value });
+    $self->_push_vacation_frame($flag, [$offset, $value]);
+}
+
+# $fan_mode = auto/low/medium/high.
+sub set_vacation_fan {
+    my ($self, $fan_mode) = @_;
+    my %val = (auto => 0, low => 1, medium => 2, med => 2, high => 3);
+    my $v = $val{lc($fan_mode // '')};
+    return unless defined $v;
+    my $canonical = lc($fan_mode) eq 'med' ? 'medium' : lc($fan_mode);
+    $self->_update_vacation_cache(sub { $_[0]->{fan_mode} = $canonical });
+    $self->_push_vacation_frame(0x40, [10, $v]);
 }
 
 # Domain method: set backlight level

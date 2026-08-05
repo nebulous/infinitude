@@ -3,6 +3,8 @@ use Moo;
 use Data::ParseBinary;
 use Digest::CRC 'crc16';
 use Try::Tiny;
+use Time::Local;
+use POSIX qw(strftime);
 
 my %device_classes = (
 	SystemInit => 0x1F,    # Thermostat re-addressed from 0x20 during bus discovery — perhaps
@@ -313,6 +315,19 @@ our $parsers = {
                 my $s = $_->ctx->{status};
                 ($s->{occ6}<<6) | ($s->{occ5}<<5) | ($s->{occ4}<<4) |
                 ($s->{occ3}<<3) | ($s->{occ2}<<2) | ($s->{occ1}<<1) | $s->{occ0}
+            }),
+            # ISO8601 timestamp derived from days-since-2013-01-01 + hour/minute.
+            # Naive (no offset): the bus stores local wall-clock time with no TZ.
+            # Adds the offset as seconds to a base epoch rather than passing an
+            # out-of-range mday, which Time::Local refuses to normalize.
+            Value('datetime', sub {
+                my $f = $_->ctx;
+                # Unused slots are all-zero; without a fault code and a nonzero
+                # time they'd render as the 2013-01-01 epoch itself, so blank them.
+                return '' if !$f->{code} && !$f->{days} && !$f->{hour} && !$f->{minute};
+                my $base = Time::Local::timegm(0, 0, 0, 1, 0, 2013);
+                my $t = $base + ($f->{days} * 86400 + $f->{hour} * 3600 + $f->{minute} * 60);
+                strftime('%Y-%m-%dT%H:%M:%S', gmtime $t);
             }),
         )),
     ),
