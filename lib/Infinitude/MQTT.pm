@@ -121,7 +121,7 @@ sub publish_discovery {
                 preset_mode_command_topic    => "$zbase/preset/cmd",
                 action_topic                 => "$zbase/action",
                 optimistic                   => 1,
-                temp_step                    => $cfgem =~ /c/i ? 1 : 0.5,
+                temp_step                    => $cfgem =~ /c/i ? 0.5 : 1,
                 min_temp                     => $cfgem =~ /c/i ? 4 : 40,
                 max_temp                     => $cfgem =~ /c/i ? 37 : 99,
                 temperature_unit             => $cfgem =~ /c/i ? 'C' : 'F',
