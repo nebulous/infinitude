@@ -151,7 +151,10 @@ sub initialize_defaults {
         cool_setpoint => [(76) x 8],
         humidity_setpoint => [(50) x 8],
         speed_controlled_fan => 0,
-        unknown => 0,
+        zones_timed => {
+            z1 => 0, z2 => 0, z3 => 0, z4 => 0,
+            z5 => 0, z6 => 0, z7 => 0, z8 => 0,
+        },
         hold_duration => [(0) x 8],
         zone_name => [map { "Zone $_\0" . ("\0" x (12 - length("Zone $_") - 1)) } 1..8],
     }));
@@ -315,13 +318,42 @@ CarBus::Frame->add_parser('3B02', Struct('sam_state',
 #           0x08=cool, 0x10=mode)
 #
 # Zone name is 11 chars + NUL = 12 bytes per zone (96 bytes total).
-# Touch: AUTO fan means continuous fan OFF; HOLD is "hold permanent"
+# Touch: AUTO fan means continuous fan OFF.
+#
+# Hold state is split across three fields (verified 2026-08-27 by full-frame
+# live bus capture, InfinitESP issue #25 investigation):
+#   zones_holding (byte 11): permanent holds only. A wall-set timed hold
+#     never sets its bit.
+#   zones_timed (byte 37): bit set while a zone's timed-hold countdown runs.
+#     Cleared in the same reply where hold_duration zeroes and the setpoint
+#     reverts to schedule at expiry.
+#   hold_duration: remaining minutes for a timed hold, decremented ~1/min.
+#     The end time is 3B02's clock plus this count. The thermostat pins end
+#     times to quarter-hour boundaries.
+#
+# Timed holds ARE bus-writable (live write-test matrix 2026-08-27, Infinity
+# Touch CESR131564-09; InfinitESP issue #25 thread). Write shapes, each
+# tested individually:
+#   change_flags 0x82, zones_holding bit clear, hold_duration = minutes:
+#     arms the countdown. Served 3B03 then shows the zones_timed bit set
+#     and the duration counting down ~1/min (3/3).
+#   change_flags 0x02, zones_holding bit clear: cancel. Cancels permanent
+#     and timed holds alike; hold_duration is ignored (written 0).
+#   change_flags 0x02, zones_holding bit set: permanent hold. The
+#     thermostat adopts duration 0xFFFF itself.
+#   change_flags 0x80 without 0x02: insufficient, never adopted.
+# Duration floor of 15 minutes: writes of 10/12/13/14 are processed (the
+# thermostat raises its 3B0E activity flag) but silently not adopted; 15
+# worked immediately after four consecutive rejections, so rejection does
+# not poison state. Documented max 23:59 = 1439 min (SAM01 S1Z1OTMR), 1440
+# reportedly also accepted. The wall itself emits no frames for its own
+# timed-hold transitions; changes surface only in served reads.
 # Total: 3 + 8 + 1 + 8 + 8 + 8 + 1 + 1 + 16 + 96 = 150 bytes
 CarBus::Frame->add_parser('3B03', Struct('sam_zones',
     Byte('active_zones'),
     Enum(Byte('metric_units'), english=>0, metric=>1),
     BitStruct('change_flags',
-        Flag('override_timer'),     # 0x80 hold_duration timer set/cancel
+        Flag('override_timer'),     # 0x80 with 0x02 arms hold_duration timer
         Flag('unknown_bit6'),       # 0x40
         Flag('unknown_bit5'),       # 0x20
         Flag('system_mode'),        # 0x10 mode change (write target: 3B02)
@@ -331,7 +363,7 @@ CarBus::Frame->add_parser('3B03', Struct('sam_zones',
         Flag('fan_mode'),           # 0x01 fan_mode[8]
     ),
     Array(8, Enum(Byte('fan_mode'), high=>3, medium=>2, low=>1, auto=>0)),
-    BitStruct('zones_holding',           # Touch: "hold permanent" status
+    BitStruct('zones_holding',           # Touch: "hold permanent" status (permanent holds only)
         Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
         Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
     ),
@@ -339,8 +371,11 @@ CarBus::Frame->add_parser('3B03', Struct('sam_zones',
     Array(8, Byte('cool_setpoint')),     # Cool setpoint per zone (degrees F)
     Array(8, Byte('humidity_setpoint')), # Humidification target per zone (max 99%)
     Byte('speed_controlled_fan'),
-    Byte('unknown'),
-    Array(8, UBInt16('hold_duration')),  # "Hold until" duration in minutes
+    BitStruct('zones_timed',             # timed-hold countdowns running
+        Flag('z8'), Flag('z7'), Flag('z6'), Flag('z5'),
+        Flag('z4'), Flag('z3'), Flag('z2'), Flag('z1'),
+    ),
+    Array(8, UBInt16('hold_duration')),  # timed-hold minutes remaining (~1/min decrement)
     Array(8, Field('zone_name', 12))     # 11 chars max + NUL terminator
 ));
 
@@ -557,18 +592,52 @@ sub set_zone_fan {
     });
 }
 
-# Domain method: set zone hold timer
-# Uses flag 0x80 (override active) — the real SAM uses the same 3B03 struct
-# with identity data in masked fields and only hold_duration set meaningfully.
-# $duration in minutes, 0 to cancel hold
+# Domain method: set zone hold via register 3B03.
+# Write shapes verified on hardware (live write-test matrix 2026-08-27,
+# Infinity Touch CESR131564-09; InfinitESP issue #25 thread):
+#   timed:     change_flags 0x82, zones_holding bit clear, hold_duration =
+#              minutes. The thermostat owns zones_timed (byte 37) and sets
+#              it from its own timer; writes never touch it.
+#   permanent: change_flags 0x02, zones_holding bit set. The thermostat
+#              adopts duration 0xFFFF itself.
+#   cancel:    change_flags 0x02, zones_holding bit clear. Cancels permanent
+#              and timed holds alike.
+# Finite durations are quantized to the 15-minute grid the thermostat
+# enforces (sub-floor writes are processed but silently not adopted) and
+# clamped to 15..1425 (documented max 1439 min, SAM01 S1Z1OTMR).
+use constant HOLD_PERMANENT => 0xFFFF;
+use constant HOLD_STEP      => 15;
+use constant HOLD_MIN       => 15;
+use constant HOLD_MAX       => 1425;   # largest 15-multiple under 1439
+
 sub set_zone_hold {
     my ($self, $zone, $duration) = @_;
     $duration //= 0;
 
-    my $idx = $zone - 1;
-    return $self->_write_3b03($zone, 0x80, sub {
+    return unless $zone >= 1 && $zone <= 8;
+
+    my $timed = $duration > 0 && $duration < HOLD_PERMANENT;
+    if ($timed) {
+        $duration = HOLD_STEP * int(0.5 + $duration / HOLD_STEP);
+        $duration = HOLD_MIN if $duration < HOLD_MIN;
+        $duration = HOLD_MAX if $duration > HOLD_MAX;
+    }
+
+    my $idx  = $zone - 1;
+    my $zkey = "z$zone";
+    return $self->_write_3b03($zone, $timed ? 0x82 : 0x02, sub {
         my ($parsed) = @_;
-        $parsed->{hold_duration}[$idx] = $duration;
+        if ($timed) {
+            # Bit explicitly clear so the frame matches the verified 0x82
+            # shape regardless of previously written state.
+            $parsed->{hold_duration}[$idx] = $duration;
+            $parsed->{zones_holding}{$zkey} = 0;
+        } else {
+            # Duration is written as 0 in both cases: the zones_holding bit is
+            # the actual signal (matches InfinitESP encode_hold_).
+            $parsed->{hold_duration}[$idx] = 0;
+            $parsed->{zones_holding}{$zkey} = ($duration >= HOLD_PERMANENT) ? 1 : 0;
+        }
     });
 }
 

@@ -538,19 +538,53 @@ post '/api/mode' => sub {
 };
 
 
-# Set zone hold timer via RS485 (minutes, 0 to cancel)
+# Set zone hold (minutes; 0 to cancel, 65535 for permanent).
+# All three shapes propagate over RS485: permanent and cancel via change
+# flag 0x02 plus the zones_holding bit, timed via 0x82 with minutes in
+# hold_duration (verified 2026-08-27; the thermostat enforces a 15-minute
+# floor, quantized inside SAM::set_zone_hold). The XML path runs first in
+# every case, with holdActivity=manual and an otmr end time for timed holds.
 post '/api/hold' => sub {
     my $c = shift;
     my $zone = $c->req->param('zone') // 1;
     my $duration = $c->req->param('duration');
-    unless (defined $duration && $duration =~ /^\d+$/) {
-        return $c->render(json => { error => 'duration required (minutes, 0 to cancel)' }, status => 400);
+    unless (defined $zone && $zone =~ /^\d+$/ && $zone >= 1 && $zone <= 8) {
+        return $c->render(json => { error => 'zone must be 1-8' }, status => 400);
     }
+    unless (defined $duration && $duration =~ /^\d+$/) {
+        return $c->render(json => { error => 'duration required (minutes; 0 to cancel, 65535 for permanent)' }, status => 400);
+    }
+    $zone += 0;
+    $duration += 0;
+
+    if ($duration >= 65535) {
+        $inf->set_zone_hold($zone, 'on', 'manual', 'forever');
+        if ($sam) {
+            try { $sam->set_zone_hold($zone, 65535) }
+            catch { warn "RS485 hold write failed: $_" };
+        }
+        return $c->render(json => { zone => $zone, hold => 'permanent' });
+    }
+    if ($duration == 0) {
+        $inf->set_zone_hold($zone, 'off', '', '');
+        if ($sam) {
+            try { $sam->set_zone_hold($zone, 0) }
+            catch { warn "RS485 hold write failed: $_" };
+        }
+        return $c->render(json => { zone => $zone, hold => 'off' });
+    }
+
+    # Timed hold: XML otmr plus the bus write. otmr carries no date, so an
+    # end time past midnight relies on the thermostat reading it as tomorrow;
+    # the thermostat quantizes otmr to 15-minute steps either way.
+    my @t = localtime(time + $duration * 60);
+    my $until = sprintf("%02d:%02d", $t[2], $t[1]);
+    $inf->set_zone_hold($zone, 'on', 'manual', $until);
     if ($sam) {
-        try { $sam->set_zone_hold($zone + 0, $duration + 0) }
+        try { $sam->set_zone_hold($zone, $duration) }
         catch { warn "RS485 hold write failed: $_" };
     }
-    $c->render(json => { zone => $zone, duration => $duration + 0 });
+    $c->render(json => { zone => $zone, hold => 'until', until => $until });
 };
 
 # Set backlight level via RS485
