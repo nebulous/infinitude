@@ -297,7 +297,11 @@ CarBus::Frame->add_parser('3B02', Struct('sam_state',
     ),
     BitStruct('stagmode',                # High nibble: stage#, Low nibble: mode
         Nibble('stage'),                 # Number of active heating/cooling stages
-        Enum(Nibble('mode'), heat=>0, cool=>1, auto=>2, eheat=>3, off=>4)
+        # Mode values corroborated by infinitive (conversions.go) and
+        # InfinitESP (infinitesp.h SYSMODE_*): 0=heat 1=cool 2=auto
+        # 3=eheat (electric-only) 4=heatpump-only 5=off
+        Enum(Nibble('mode'),
+            heat=>0, cool=>1, auto=>2, eheat=>3, heatpump=>4, off=>5)
     ),
     Array(2, Byte('unknown')),
     Enum(Byte('weekday'), Sunday=>0, Monday=>1, Tuesday=>2, Wednesday=>3, Thursday=>4, Friday=>5, Saturday=>6),
@@ -745,8 +749,9 @@ sub set_backlight {
     return 1;
 }
 
-# Domain method: set system mode (heat/cool/auto/off)
-# Writes register 3B02 with flag 0x10 in change_flags header
+# Domain method: set system mode via 3B02 (write flag 0x10).
+# Accepts the parser's mode names: heat/cool/auto/eheat/heatpump/off.
+# The app layer sends heat/cool/auto/off.
 sub set_system_mode {
     my ($self, $mode) = @_;
     return unless defined $mode;

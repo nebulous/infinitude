@@ -272,4 +272,58 @@ subtest 'set_zone_hold encoding' => sub {
     is(scalar(@{$mock_bus->writes}), 6, 'no frame sent for out-of-range zone');
 };
 
+# Test 15: stagmode mode values (corroborated by infinitive conversions.go
+# and InfinitESP infinitesp.h: 4=heatpump, 5=off; the old map had 4=off)
+subtest 'stagmode mode values' => sub {
+    my $p = CarBus::Frame::subparser('3B02');
+
+    # Build side: each mode name writes its nibble
+    my %expect = (heat => 0, cool => 1, auto => 2, eheat => 3, heatpump => 4, off => 5);
+    for my $mode (sort keys %expect) {
+        my $bytes = $p->build({
+            active_zones => 0x01, metric_units => 'english',
+            temperature => [(70) x 8], humidity => [(50) x 8], oat => 70,
+            zones_unoccupied => { map { ("z$_" => 0) } 1..8 },
+            stagmode => { stage => 0, mode => $mode }, unknown => [0, 0],
+            weekday => 'Monday', minutes_since_midnight => 480, displayed_zone => 1,
+        });
+        is(ord(substr($bytes, 22, 1)) & 0x0F, $expect{$mode}, "build $mode -> nibble $expect{$mode}");
+    }
+
+    # Parse side: each nibble decodes to its mode name
+    my $bytes = $p->build({
+        active_zones => 0x01, metric_units => 'english',
+        temperature => [(70) x 8], humidity => [(50) x 8], oat => 70,
+        zones_unoccupied => { map { ("z$_" => 0) } 1..8 },
+        stagmode => { stage => 0, mode => 'heat' }, unknown => [0, 0],
+        weekday => 'Monday', minutes_since_midnight => 480, displayed_zone => 1,
+    });
+    for my $v (0..5) {
+        substr($bytes, 22, 1) = chr($v);
+        my $name = { reverse %expect }->{$v};
+        is($p->parse($bytes)->{stagmode}{mode}, $name, "nibble $v -> $name");
+    }
+};
+
+# Test 16: set_system_mode writes the corrected mode nibble with flag 0x10
+subtest 'set_system_mode encoding' => sub {
+    my $td = tempdir(CLEANUP => 1);
+    my $mock_bus = MockBusWithTracking->new;
+    my $sam = CarBus::SAM->new(
+        bus    => $mock_bus,
+        store  => CHI->new(driver => 'File', root_dir => $td),
+    );
+    $sam->initialize_defaults();
+
+    ok($sam->set_system_mode('off'), 'set_system_mode returns true');
+    my $frame = $mock_bus->writes->[0];
+    $frame->frame;
+    my $data = substr($frame->struct->{payload_raw}, 3);
+    is(ord(substr($data, 2, 1)), 0x10, 'write header carries flag 0x10');
+    is(ord(substr($data, 22, 1)) & 0x0F, 5, 'off writes mode nibble 5 (was 4)');
+
+    my $cached = CarBus::Frame::subparser('3B02')->parse($sam->get_register('3b02'));
+    is($cached->{stagmode}{mode}, 'off', 'cached 3B02 mode is off');
+};
+
 done_testing();
