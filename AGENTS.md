@@ -126,6 +126,11 @@ Configuration is stored in `infinitude.json` and can be overridden via environme
 
 ## Code Conventions
 
+- **Versioning:** CalVer `YYYY.M.N` in `$VERSION` (`lib/Infinitude.pm`), matching uart-link
+  and InfinitESP. The pre-commit hook (`.githooks/pre-commit`, requires one-time
+  `git config core.hooksPath .githooks`) auto-advances it on commits touching `lib/`,
+  `infinitude`, or `public/`. Never hand-bump unless the hook is unavailable.
+
 - **Perl Library Path:** All Perl commands must include `-I ~/perl5/lib/perl5 -I lib` to find local modules
 - **Boilerplate:** All Perl files use `use strict`, `use warnings`, `use feature ':5.10'`
 - **OOP:** Use Moo for object-oriented programming

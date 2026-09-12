@@ -17,11 +17,19 @@ on:
 jobs:
   buildx:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Extract version
+        id: ver
+        run: |
+          v=$(sed -n "/VERSION/ s/.*'\([0-9.]*\)'.*/\1/p" lib/Infinitude.pm)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -48,6 +56,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.event_name == 'push' }}
             type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.ver.outputs.version }}
 
       - name: Build and push
         id: docker_build
@@ -59,3 +68,12 @@ jobs:
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
+
+      - name: Tag release
+        if: github.event_name == 'push'
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$v" 2>/dev/null || true
+          git push origin "$v" 2>/dev/null || true

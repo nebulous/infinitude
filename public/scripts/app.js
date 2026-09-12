@@ -65,6 +65,7 @@
         currentRoute: window.location.hash.replace('#', '') || '/',
 
         // Data from API
+        version: '',
         systems: null,
         status: null,
         notifications: null,
@@ -109,6 +110,7 @@
           this.initSerial();
 
           var self = this;
+          fetch('/api/version').then(function(r) { return r.json(); }).then(function(d) { self.version = d.version; });
           window.addEventListener('hashchange', function() {
             self.currentRoute = window.location.hash.replace('#', '') || '/';
           });

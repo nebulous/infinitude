@@ -1152,6 +1152,7 @@
             <div class="p-5 bg-body-tertiary rounded-3">
               <h1><a href="https://www.github.com/nebulous/infinitude">Infinitude</a></h1>
               <p class="lead">Carrier/Bryant network thermostat control</p>
+              <p class="text-muted mb-0">Version <span x-text="version || 'unknown'"></span></p>
               <fieldset x-show="systemsEdit && systemsEdit.dealer">
                 <legend>Dealer Info</legend>
                 <div class="mb-3"><label class="form-label">Name</label><input class="form-control" x-model="systemsEdit.dealer[0].name[0]" @change="markDirty()" placeholder="Infinitude"></div>

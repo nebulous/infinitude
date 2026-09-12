@@ -193,6 +193,7 @@ serial_init();
 # MQTT Discovery integration
 my $mqtt = Infinitude::MQTT->new(store => $store, config => $config, zc => $zc);
 $inf = Infinitude->new(store => $store, mqtt => $mqtt, sam => $sam);
+app->log->info("Infinitude $Infinitude::VERSION");
 
 # --- MQTT command wiring ---
 
@@ -499,6 +500,11 @@ any '/api/:zone_id/activity/:activity_id' => sub {
 	$c->render(json=>$setting);
 };
 
+
+get '/api/version' => sub {
+    my $c = shift;
+    $c->render(json => { version => $Infinitude::VERSION });
+};
 
 get '/api/state_keys' => sub {
 	my $c = shift;

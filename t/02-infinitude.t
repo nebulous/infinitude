@@ -8,6 +8,9 @@ use XML::Simple::Minded;
 
 BEGIN { use_ok('Infinitude') }
 
+# Version: CalVer YYYY.M.N (see lib/Infinitude.pm)
+like($Infinitude::VERSION, qr/^\d{4}\.(1[0-2]|[1-9])\.\d+$/, 'version is CalVer YYYY.M.N');
+
 # --- Mock objects ---
 
 package MockMQTT {

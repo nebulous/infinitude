@@ -157,6 +157,24 @@ Infinitude exists because device owners like their Infinity systems and deserve 
 to their own equipment and data. We hope manufacturers will continue to expand official
 local API options for these systems.
 
+## Versioning
+
+Infinitude uses calendar versioning (`YYYY.M.N`, e.g. `2026.9.0`). The version of a running
+instance is in the boot log, at `/api/version`, and on the web UI's About page. Docker
+images are tagged with the version alongside `latest` (master releases) and `edge`
+(development builds), so you can pin a dated build:
+
+    docker run nebulous/infinitude:2026.9.0
+
+When reporting issues or adding Compatibility Matrix entries, include the version you are
+running. Development builds also carry a git tag per release for linking from the wiki.
+
+Maintainer note: the version source of truth is `$VERSION` in `lib/Infinitude.pm`. A
+pre-commit hook (`.githooks/pre-commit`) advances it on commits that change the shipped
+surface (`lib/`, `infinitude`, `public/`). Enable it once per clone:
+
+    git config core.hooksPath .githooks
+
 
 ### See Also
 

@@ -6,6 +6,12 @@ use feature ':5.10';
 use Try::Tiny;
 use XML::Simple::Minded;
 
+# CalVer (YYYY.M.N), matching uart-link and InfinitESP. Advanced by the
+# pre-commit hook (.githooks/pre-commit) on commits that change the shipped
+# surface (lib/ infinitude public/). Surfaces in the boot log, /api/version,
+# the About page, and the docker image tag.
+our $VERSION = '2026.9.0';
+
 sub new {
     my ($class, %args) = @_;
     die "Infinitude: store required" unless $args{store};

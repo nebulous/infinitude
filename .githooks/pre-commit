@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# pre-commit: advance Infinitude's CalVer version once per origin-advancement that
+# includes shipped-surface (lib/ infinitude public/) changes.
+#
+# Source of truth: our $VERSION in lib/Infinitude.pm. Surfaces in the boot log,
+# /api/version, the About page, and the docker image tag.
+#
+# Compares the upcoming commit against the branch's UPSTREAM (origin), not the
+# previous local commit. So several local commits, or a rebase/reorder, advance
+# the version exactly once per "code that ships". CalVer YYYY.M.N: N +1 within
+# a month, rolling to <year>.<month>.0 when the calendar month advances. Never
+# blocks a commit (exits 0).
+#
+# One-time setup: git config core.hooksPath .githooks
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+VF="lib/Infinitude.pm"
+[ -f "$VF" ] || exit 0
+
+upstream=""
+ref=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) && upstream="$ref"
+[ -n "$upstream" ] || { git rev-parse --verify origin/develop >/dev/null 2>&1 && upstream=origin/develop; }
+[ -n "$upstream" ] || { git rev-parse --verify origin/master >/dev/null 2>&1 && upstream=origin/master; }
+[ -n "$upstream" ] || { git rev-parse --verify origin/HEAD >/dev/null 2>&1 && upstream=origin/HEAD; }
+[ -n "$upstream" ] || exit 0
+
+# Is the upcoming commit (the index) ahead of upstream on shipped code?
+[ -n "$(git diff --cached --name-only "$upstream" -- lib/ infinitude public/ 2>/dev/null)" ] || exit 0
+
+# Extract X.Y.Z from our $VERSION line.
+ex_v() { grep -Eo "our \\\$VERSION = '[0-9]+\.[0-9]+\.[0-9]+'" | sed -E "s/.*'([0-9]+\.[0-9]+\.[0-9]+)'.*/\1/" | head -1; }
+# next CalVer after $1, rolling the month to the real date when it advanced.
+next() { awk -v v="$1" -v ty="$(date +%Y)" -v tm="$(date +%m)" 'BEGIN{n=split(v,p,".");y=p[1]+0;m=p[2]+0;pp=p[3]+0;ty+=0;tm+=0;if(ty>y||(ty==y&&tm>m))printf"%d.%d.0\n",ty,tm;else printf"%d.%d.%d\n",y,m,pp+1}'; }
+# Is CalVer $1 strictly less than $2? prints 1 or 0.
+lt()   { awk -v a="$1" -v b="$2" 'BEGIN{split(a,pa,".");split(b,pb,".");for(i=1;i<=3;i++){if(pa[i]+0<pb[i]+0){print 1;exit}if(pa[i]+0>pb[i]+0){print 0;exit}}print 0}'; }
+
+# Floor = version already on upstream.
+floor=$(git show "$upstream:$VF" 2>/dev/null | ex_v)
+[ -n "$floor" ] || exit 0
+target=$(next "$floor")
+
+cur=$(ex_v < "$VF")
+[ -n "$cur" ] || exit 0
+[ "$(lt "$cur" "$target")" = 1 ] || exit 0
+# Skip if this commit already edits the version line by hand.
+git diff --cached -- "$VF" 2>/dev/null | grep -Eq '^[+-].*\$VERSION' && exit 0
+
+sed -i '' -E "s|(our \\\$VERSION = ')[0-9]+\.[0-9]+\.[0-9]+(')|\1${target}\2|" "$VF"
+git add "$VF"
+printf 'pre-commit: %s -> %s\n' "$VF" "$target" >&2
+exit 0
