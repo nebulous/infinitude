@@ -60,6 +60,8 @@ $config->{mqtt_user}     = $ENV{MQTT_USER}     || $config->{mqtt_user};
 $config->{mqtt_pass}     = $ENV{MQTT_PASS}     || $config->{mqtt_pass};
 $config->{mqtt_prefix}   = $ENV{MQTT_PREFIX}   || $config->{mqtt_prefix};
 $config->{mqtt_topic}    = $ENV{MQTT_TOPIC}    || $config->{mqtt_topic};
+$config->{mqtt_instance_id} = $ENV{MQTT_INSTANCE_ID} if exists $ENV{MQTT_INSTANCE_ID};
+$config->{mqtt_device_name} = $ENV{MQTT_DEVICE_NAME} if exists $ENV{MQTT_DEVICE_NAME};
 
 my $handle;
 my $carbus;
@@ -798,4 +800,3 @@ any '/*catchall' => sub {
 
 app->log->level($ENV{LOGLEVEL}//app->log->level);
 app->start;
-

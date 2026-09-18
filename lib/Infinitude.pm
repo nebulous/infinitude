@@ -10,7 +10,7 @@ use XML::Simple::Minded;
 # pre-commit hook (.githooks/pre-commit) on commits that change the shipped
 # surface (lib/ infinitude public/). Surfaces in the boot log, /api/version,
 # the About page, and the docker image tag.
-our $VERSION = '2026.9.0';
+our $VERSION = '2026.9.1';
 
 sub new {
     my ($class, %args) = @_;

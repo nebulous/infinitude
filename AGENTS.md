@@ -123,6 +123,8 @@ Configuration is stored in `infinitude.json` and can be overridden via environme
 | `MQTT_PASS` | MQTT password |
 | `MQTT_PREFIX` | HA discovery prefix (default: `homeassistant`) |
 | `MQTT_TOPIC` | Base MQTT topic (default: `infinitude`) |
+| `MQTT_INSTANCE_ID` | Stable HA device/entity identifier (default: `infinitude`) |
+| `MQTT_DEVICE_NAME` | HA device name (default: `Infinitude`) |
 
 ## Code Conventions
 
