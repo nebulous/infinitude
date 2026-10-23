@@ -23,6 +23,8 @@ services:
 #      - MQTT_PASS=
 #      - MQTT_PREFIX=homeassistant
 #      - MQTT_TOPIC=infinitude
+#      - MQTT_INSTANCE_ID=infinitude
+#      - MQTT_DEVICE_NAME=Infinitude
 #    devices:
 #      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always

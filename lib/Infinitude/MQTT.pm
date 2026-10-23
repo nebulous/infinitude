@@ -18,8 +18,23 @@ sub new {
 
     require Net::MQTT::Simple;
 
-    my $prefix = $config->{mqtt_prefix} // 'homeassistant';
-    my $base   = $config->{mqtt_topic}  // 'infinitude';
+    my $prefix      = $config->{mqtt_prefix}      // 'homeassistant';
+    my $base        = $config->{mqtt_topic}       // 'infinitude';
+    my $instance_id = $config->{mqtt_instance_id} // 'infinitude';
+    my $device_name = $config->{mqtt_device_name} // 'Infinitude';
+
+    die "MQTT: mqtt_instance_id must contain only letters, numbers, underscores, and hyphens"
+        unless $instance_id =~ /\A[A-Za-z0-9_-]+\z/;
+    die "MQTT: mqtt_device_name must not be empty"
+        unless length $device_name;
+
+    # A namespaced instance_id with the default topic leaves availability,
+    # state, and command topics shared with any default-configured instance
+    # on the same broker - a single command would drive both systems.
+    die "MQTT: mqtt_instance_id requires a unique mqtt_topic - state, availability, "
+      . "and command topics would collide across instances. Set MQTT_TOPIC (e.g. "
+      . "infinitude/main) alongside MQTT_INSTANCE_ID."
+        if $instance_id ne 'infinitude' && $base eq 'infinitude';
 
     my $mqtt = Net::MQTT::Simple->new($broker);
 
@@ -36,8 +51,10 @@ sub new {
         store   => $store,
         prefix  => $prefix,
         base    => $base,
-        config  => $config,
-        zc      => $args{zc},  # CarBus::ZoneController (optional)
+        config      => $config,
+        instance_id => $instance_id,
+        device_name => $device_name,
+        zc           => $args{zc},  # CarBus::ZoneController (optional)
     }, $class;
 
     return $self;
@@ -69,9 +86,10 @@ sub publish_discovery {
     my $zones  = $sys->{zones}[0]{zone} // [];
     my $cfgem  = _v($sys->{cfgem}) || 'f';
 
+    my $instance_id = $self->{instance_id};
     my $device = {
-        identifiers  => ['infinitude'],
-        name         => 'Infinitude',
+        identifiers  => [$instance_id],
+        name         => $self->{device_name},
         manufacturer => 'Carrier',
         model        => 'Infinity',
     };
@@ -81,7 +99,8 @@ sub publish_discovery {
     for my $i (0 .. $#$zones) {
         my $zone = $zones->[$i];
         my $zid  = $i + 1;
-        my $disc = $self->_disc('climate', "infinitude_zone_${zid}", 'config');
+        my $entity_id = "${instance_id}_zone_${zid}";
+        my $disc = $self->_disc('climate', $entity_id, 'config');
 
         # Clear stale retained discovery for any zone that is not currently
         # enabled. A zero-byte retained message on the config topic tells Home
@@ -99,7 +118,7 @@ sub publish_discovery {
         push @topics,
             $disc =>
             _json({
-                unique_id              => "infinitude_zone_${zid}",
+                unique_id              => $entity_id,
                 name                   => $name,
                 device                 => $device,
                 modes                  => ['off', 'heat', 'cool', 'heat_cool'],
@@ -144,8 +163,9 @@ sub publish_discovery {
 
     for my $s (@sensors) {
         my ($key, $name, $unit) = @$s;
+        my $entity_id = "${instance_id}_$key";
         my $payload = {
-            unique_id             => "infinitude_$key",
+            unique_id             => $entity_id,
             name                  => $name,
             device                => $device,
             state_topic           => "$sbase/$key",
@@ -155,7 +175,7 @@ sub publish_discovery {
         };
         $payload->{unit_of_measurement} = $unit if defined $unit;
         push @topics,
-            $self->_disc('sensor', "infinitude_$key", 'config') =>
+            $self->_disc('sensor', $entity_id, 'config') =>
             _json($payload);
     }
 

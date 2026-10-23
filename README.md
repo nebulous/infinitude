@@ -94,6 +94,20 @@ Infinitude configuration parameters can be passed through environment variables 
 | MQTT_PASS | Optional MQTT broker password |
 | MQTT_PREFIX | HA discovery prefix (default: `homeassistant`) |
 | MQTT_TOPIC | MQTT base topic (default: `infinitude`) |
+| MQTT_INSTANCE_ID | Stable HA device and entity identifier (default: `infinitude`). Must contain only letters, numbers, underscores, and hyphens. Give each Infinitude instance sharing a broker a unique value. |
+| MQTT_DEVICE_NAME | HA device name (default: `Infinitude`) |
+
+For multiple Infinitude instances on one MQTT broker, set a unique `MQTT_INSTANCE_ID`
+and `MQTT_TOPIC` on every instance. For example, a main-level system could use
+`MQTT_INSTANCE_ID=infinitude_main` and `MQTT_TOPIC=infinitude/main`, while an
+upstairs system could use `MQTT_INSTANCE_ID=infinitude_upstairs` and
+`MQTT_TOPIC=infinitude/upstairs`.
+
+If you enable `MQTT_INSTANCE_ID` on an install that previously used the defaults,
+remove the old Home Assistant entities once (or clear the retained
+`homeassistant/climate/infinitude_zone_*` and `homeassistant/sensor/infinitude_*`
+config topics) - retained discovery messages never expire on their own, so the
+old entities otherwise remain alongside the new namespaced ones.
 
 
 the published container can be run as
