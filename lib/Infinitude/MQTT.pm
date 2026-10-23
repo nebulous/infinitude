@@ -28,6 +28,14 @@ sub new {
     die "MQTT: mqtt_device_name must not be empty"
         unless length $device_name;
 
+    # A namespaced instance_id with the default topic leaves availability,
+    # state, and command topics shared with any default-configured instance
+    # on the same broker - a single command would drive both systems.
+    die "MQTT: mqtt_instance_id requires a unique mqtt_topic - state, availability, "
+      . "and command topics would collide across instances. Set MQTT_TOPIC (e.g. "
+      . "infinitude/main) alongside MQTT_INSTANCE_ID."
+        if $instance_id ne 'infinitude' && $base eq 'infinitude';
+
     my $mqtt = Net::MQTT::Simple->new($broker);
 
     if ($config->{mqtt_user}) {

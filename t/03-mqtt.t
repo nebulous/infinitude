@@ -176,4 +176,10 @@ subtest 'invalid instance IDs are rejected' => sub {
     }
 };
 
+subtest 'instance_id without a custom topic is rejected' => sub {
+    my $mqtt = eval { make_mqtt(mqtt_instance_id => 'infinitude_main') };
+    ok(!$mqtt, 'half-configured instance is rejected');
+    like($@, qr/requires a unique mqtt_topic/, 'configuration error names the fix');
+};
+
 done_testing();
