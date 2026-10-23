@@ -103,6 +103,12 @@ and `MQTT_TOPIC` on every instance. For example, a main-level system could use
 upstairs system could use `MQTT_INSTANCE_ID=infinitude_upstairs` and
 `MQTT_TOPIC=infinitude/upstairs`.
 
+If you enable `MQTT_INSTANCE_ID` on an install that previously used the defaults,
+remove the old Home Assistant entities once (or clear the retained
+`homeassistant/climate/infinitude_zone_*` and `homeassistant/sensor/infinitude_*`
+config topics) - retained discovery messages never expire on their own, so the
+old entities otherwise remain alongside the new namespaced ones.
+
 
 the published container can be run as
 
