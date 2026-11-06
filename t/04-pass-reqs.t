@@ -15,6 +15,7 @@ my $orig_cwd = getcwd;
 chdir $dir;
 
 local $ENV{PASS_REQS} = '0';
+local $ENV{MOJO_APP_LOADER} = 1; # load the app without running a command (no usage text)
 require "$FindBin::Bin/../infinitude";
 
 { no warnings 'once';
